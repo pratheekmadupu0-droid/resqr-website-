@@ -315,6 +315,26 @@ export default function AdminPanel() {
         // This is now handled by handleSendOTP -> handleVerifyOTP
     };
 
+    const handleApproveUser = async (userId) => {
+        try {
+            await update(ref(db, `users/${userId}`), { status: 'approved' });
+            toast.success("Account approved successfully!");
+        } catch (error) {
+            toast.error("Failed to approve account: " + error.message);
+        }
+    };
+
+    const handleRejectUser = async (userId) => {
+        if (confirm("Are you sure you want to reject and delete this application?")) {
+            try {
+                await remove(ref(db, `users/${userId}`));
+                toast.success("Application rejected and deleted.");
+            } catch (error) {
+                toast.error("Failed to reject application: " + error.message);
+            }
+        }
+    };
+
     const deleteItem = (path) => {
         if (confirm('Are you sure you want to delete this?')) {
             remove(ref(db, path))
@@ -346,6 +366,7 @@ export default function AdminPanel() {
                         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
                         { id: 'users', label: 'Auth Users', icon: <Users size={20} /> },
                         { id: 'profiles', label: 'Medical Profiles', icon: <Activity size={20} /> },
+                        { id: 'verification', label: 'Onboarding Audits', icon: <AlertTriangle size={20} /> },
                         { id: 'analytics', label: 'Tactical Intel', icon: <ArrowUpRight size={20} /> },
                         { id: 'products', label: 'Inventory & Prices', icon: <Package size={20} /> },
                         { id: 'ads', label: 'Ad Campaigns', icon: <Megaphone size={20} /> },
@@ -378,7 +399,8 @@ export default function AdminPanel() {
                         <h1 className="text-3xl font-extrabold capitalize">
                             {activeTab === 'users' ? 'Registered Accounts' :
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
-                                    activeTab + ' Panel'}
+                                    activeTab === 'verification' ? 'Onboarding Audits' :
+                                        activeTab + ' Panel'}
                         </h1>
                         <p className="text-slate-400">Manage your system from a single interface.</p>
                     </div>
@@ -701,6 +723,162 @@ export default function AdminPanel() {
                             </table>
                         </div>
                     </Card>
+                )}
+
+                {activeTab === 'verification' && (
+                    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                        {/* Pending Agents */}
+                        <Card className="bg-medical-card border-white/5 overflow-hidden rounded-[40px] shadow-2xl relative">
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
+                            <div className="p-10 border-b border-white/5">
+                                <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">Pending Agent Partnerships</h2>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Awaiting document & credentials audit</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
+                                        <tr>
+                                            <th className="px-10 py-6 text-slate-400">Agent Details</th>
+                                            <th className="px-10 py-6 text-slate-400">Government Aadhaar ID</th>
+                                            <th className="px-10 py-6 text-slate-400">Bank Information</th>
+                                            <th className="px-10 py-6 text-slate-400">Document Upload</th>
+                                            <th className="px-10 py-6 text-right text-slate-400">Operations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {users.filter(u => u.role === 'agent' && u.status === 'pending').length === 0 ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-10 py-10 text-center text-xs text-slate-500 italic font-bold">
+                                                    No pending agent applications.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            users.filter(u => u.role === 'agent' && u.status === 'pending').map((user) => {
+                                                const agentProfile = user.agentProfile || {};
+                                                return (
+                                                    <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                        <td className="px-10 py-8">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-white italic tracking-tight text-lg">{agentProfile.name}</span>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user.email}</span>
+                                                                <span className="text-[9px] text-primary font-black uppercase tracking-widest mt-1">ID: {agentProfile.agentId}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-10 py-8 text-[11px] font-mono text-slate-300">
+                                                            {agentProfile.aadhaar ? agentProfile.aadhaar.replace(/\d(?=\d{4})/g, '*') : 'N/A'}
+                                                        </td>
+                                                        <td className="px-10 py-8 text-xs font-semibold text-slate-400">
+                                                            <div>Acc: {agentProfile.bankAccount || 'N/A'}</div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{agentProfile.bankName} • {agentProfile.ifsc}</div>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            {agentProfile.document ? (
+                                                                <a href={agentProfile.document} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-widest italic hover:underline">
+                                                                    View Document <ExternalLink size={12} />
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-slate-600 text-xs italic">No document</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right">
+                                                            <div className="flex items-center justify-end gap-3">
+                                                                <Button 
+                                                                    onClick={() => handleApproveUser(user.id)}
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
+                                                                >
+                                                                    Approve
+                                                                </Button>
+                                                                <Button 
+                                                                    onClick={() => handleRejectUser(user.id)}
+                                                                    className="bg-red-600 hover:bg-red-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
+                                                                >
+                                                                    Reject
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+
+                        {/* Pending Hospitals */}
+                        <Card className="bg-medical-card border-white/5 overflow-hidden rounded-[40px] shadow-2xl relative">
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
+                            <div className="p-10 border-b border-white/5">
+                                <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">Pending Hospital Network Integrations</h2>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Awaiting capability & certification checks</p>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
+                                        <tr>
+                                            <th className="px-10 py-6 text-slate-400">Hospital Details</th>
+                                            <th className="px-10 py-6 text-slate-400">License Number</th>
+                                            <th className="px-10 py-6 text-slate-400">Emergency Beds Capacity</th>
+                                            <th className="px-10 py-6 text-slate-400">Subscribed Tier</th>
+                                            <th className="px-10 py-6 text-right text-slate-400">Operations</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {users.filter(u => u.role === 'hospital' && u.status === 'pending').length === 0 ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-10 py-10 text-center text-xs text-slate-500 italic font-bold">
+                                                    No pending hospital applications.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            users.filter(u => u.role === 'hospital' && u.status === 'pending').map((user) => {
+                                                const hospitalProfile = user.hospitalProfile || {};
+                                                return (
+                                                    <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                        <td className="px-10 py-8">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-white italic tracking-tight text-lg">{hospitalProfile.hospitalName}</span>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user.email}</span>
+                                                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">{hospitalProfile.address}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-10 py-8 text-[11px] font-bold text-slate-300">
+                                                            {hospitalProfile.licenseNo}
+                                                        </td>
+                                                        <td className="px-10 py-8 text-xs font-semibold text-slate-400">
+                                                            <div>General: {hospitalProfile.beds || 0}</div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">ICU: {hospitalProfile.icuBeds || 0}</div>
+                                                        </td>
+                                                        <td className="px-10 py-8">
+                                                            <Badge className="bg-primary/20 text-primary border-none px-3 py-1 font-black italic text-[9px] uppercase tracking-widest">
+                                                                {hospitalProfile.plan?.name}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="px-10 py-8 text-right">
+                                                            <div className="flex items-center justify-end gap-3">
+                                                                <Button 
+                                                                    onClick={() => handleApproveUser(user.id)}
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
+                                                                >
+                                                                    Approve
+                                                                </Button>
+                                                                <Button 
+                                                                    onClick={() => handleRejectUser(user.id)}
+                                                                    className="bg-red-600 hover:bg-red-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
+                                                                >
+                                                                    Reject
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
                 )}
 
                 {activeTab === 'analytics' && (
