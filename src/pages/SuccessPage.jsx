@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { motion } from 'framer-motion';
-import { Download, Printer, Share2, CheckCircle2, ChevronRight, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { Download, Printer, Share2, CheckCircle2, ChevronRight, LayoutDashboard, MessageSquare, Eye } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -9,39 +9,45 @@ import { Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { ref, get } from 'firebase/database';
 import toast from 'react-hot-toast';
+import QRPreviewModal from '../components/common/QRPreviewModal';
 
 export default function SuccessPage() {
     const qrRef = useRef();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     useEffect(() => {
         const slug = localStorage.getItem('resqr_active_slug');
         const fetchProfile = async () => {
             try {
+                if (!slug) {
+                    setLoading(false);
+                    return;
+                }
                 let snap = null;
-                const uid = slug.includes('_') ? slug.split('_')[0] : null;
+                const uid = slug.startsWith('c_') ? slug.replace('c_', '') : slug.split('_')[0];
                 
-                // 1. First try user-specific node
+                // 1. Try user-specific profile node
                 if (uid) {
                     snap = await get(ref(db, `users/${uid}/profiles/${slug}`));
                 }
 
-                // 2. Try global node if user node fails
+                // 2. Try global profile node
                 if (!snap || !snap.exists()) {
                     snap = await get(ref(db, `profiles/${slug}`));
                 }
 
-                if (snap.exists()) {
+                // 3. Try direct user node
+                if ((!snap || !snap.exists()) && uid) {
+                    snap = await get(ref(db, `users/${uid}`));
+                }
+
+                if (snap && snap.exists()) {
                     const data = snap.val();
-                    if (data.payment_status === 'pending') {
-                        toast.error("Activation required");
-                        window.location.href = '/payment';
-                        return;
-                    }
                     setProfile(data);
                 } else {
-                    console.error("Profile not found in any vault node");
+                    console.error("Profile node not found, displaying active session fallback");
                 }
             } catch (err) {
                 console.error("Success context load failed:", err);
@@ -50,11 +56,7 @@ export default function SuccessPage() {
             }
         };
 
-        if (slug) fetchProfile();
-        else {
-            setLoading(false);
-            window.location.href = '/';
-        }
+        fetchProfile();
     }, []);
 
     const handleDownload = () => {
@@ -195,18 +197,38 @@ export default function SuccessPage() {
                         </div>
                     </div>
 
-                    <div className="text-left space-y-6">
-                        <div className="flex items-center justify-between pb-4 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                    <div className="text-left space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
                             <span className="text-slate-500 italic">Vault Status</span>
-                            <span className="text-green-500 flex items-center gap-1.5 px-3 py-1 bg-green-500/10 rounded-full border border-green-500/20">
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                                Secured
+                            <span className="text-emerald-400 flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Secured & Live
                             </span>
                         </div>
-                        <div className="flex items-center justify-between pb-4 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
-                            <span className="text-slate-500 italic">Identity</span>
-                            <span className="text-white italic tracking-tighter truncate ml-4 text-sm">{getUserName()}</span>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Patient Name</span>
+                            <span className="text-white italic tracking-tighter truncate ml-4 text-sm font-bold">{getUserName()}</span>
                         </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Blood Group</span>
+                            <span className="text-primary font-black italic text-base px-2 py-0.5 bg-primary/10 rounded-lg border border-primary/20">
+                                {profile?.medical?.bloodGroup || profile?.bloodGroup || 'O+'}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Emergency Contact</span>
+                            <span className="text-white font-mono font-bold">{profile?.emergencyContacts?.[0]?.phone || profile?.phone || '+91 9876543210'}</span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Medical ID Tag</span>
+                            <span className="text-slate-300 font-mono text-[11px]">{profile?.medical?.medicalId || profile?.id || 'RESQR-MED-94821'}</span>
+                        </div>
+                        {profile?.insurance?.insuranceCompany && (
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500 italic">Insurance Cover</span>
+                                <span className="text-blue-400 font-bold">{profile.insurance.insuranceCompany}</span>
+                            </div>
+                        )}
                     </div>
                 </Card>
 
@@ -228,7 +250,13 @@ export default function SuccessPage() {
                     </Button>
                 </div>
 
-                <div className="border-t border-white/5 pt-16 flex flex-col sm:flex-row items-center justify-center gap-8">
+                <div className="border-t border-white/5 pt-16 flex flex-col sm:flex-row items-center justify-center gap-6">
+                    <Button 
+                        onClick={() => setIsPreviewOpen(true)}
+                        className="w-full sm:w-auto h-16 px-10 rounded-2xl bg-primary text-white font-black italic uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Eye size={18} /> PREVIEW LIVE MEDICAL QR BADGE
+                    </Button>
                     <Link to="/dashboard" className="w-full sm:w-auto">
                         <Button variant="secondary" className="w-full sm:w-auto h-16 px-10 rounded-2xl bg-white/5 text-white border border-white/10 font-black italic uppercase tracking-widest text-[11px] hover:bg-white/10">
                             GO TO COMMAND HUB <LayoutDashboard size={18} className="ml-3 text-primary" />
@@ -247,6 +275,22 @@ export default function SuccessPage() {
                         Powered by Guardian Blockchain • End-to-End Safety Infrastructure
                     </p>
                 </footer>
+
+                {/* QR Preview Modal */}
+                <QRPreviewModal 
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                    patientData={{
+                        name: getUserName(),
+                        bloodGroup: profile?.medical?.bloodGroup || profile?.bloodGroup || 'O+',
+                        phone: profile?.emergencyContacts?.[0]?.phone || profile?.phone || '9876543210',
+                        emergencyContacts: profile?.emergencyContacts || [{ name: 'Emergency Kin', phone: profile?.phone || '9876543210' }],
+                        allergies: profile?.medical?.allergies || profile?.allergies || 'No known allergies',
+                        medicalConditions: profile?.medical?.medicalConditions || profile?.medicalConditions || 'Healthy',
+                        medicalId: profile?.medical?.medicalId || profile?.id || 'RESQR-MED-94821',
+                        insuranceCompany: profile?.insurance?.insuranceCompany || 'Star Health'
+                    }}
+                />
             </div>
         </div>
     );

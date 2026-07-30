@@ -32,10 +32,12 @@ export default function Navbar() {
 
     const navLinks = [
         { name: 'Home', path: '/', icon: <Home size={16} /> },
-        { name: 'Scanner', path: '/scanner', icon: <Shield size={16} /> },
-        { name: 'Store', path: '/store', icon: <CreditCard size={16} /> },
-        { name: 'Viral QR', path: '/free-qr', icon: <QrCode size={16} /> },
         { name: 'About', path: '/about', icon: <Info size={16} /> },
+        { name: 'Products', path: '/store', icon: <CreditCard size={16} /> },
+        { name: 'Hospitals', path: '/login', icon: <Shield size={16} /> },
+        { name: 'Pricing', path: '/#pricing', icon: <QrCode size={16} /> },
+        { name: 'Contact', path: '/about#contact', icon: <User size={16} /> },
+        { name: 'Login', path: '/login', icon: <User size={16} /> },
     ];
 
     if (user) {

@@ -4,6 +4,8 @@ import { ShoppingCart, Star, ShieldCheck, Zap, ArrowRight, Truck, CreditCard, Re
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
+import toast from 'react-hot-toast';
+import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 
 const products = [
     {
@@ -50,55 +52,12 @@ const products = [
 
 export default function StorePage() {
     const [cartCount, setCartCount] = useState(0);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
 
     const handleBuyNow = (product) => {
-        const isDemo = true; // SET TO FALSE FOR REAL PAYMENTS
-
-        if (isDemo) {
-            const t = toast.loading(`Initiating demo purchase for ${product.name}...`);
-            setTimeout(() => {
-                toast.success(`Success! Demo order for ${product.name} confirmed.`, { id: t });
-            }, 1500);
-            return;
-        }
-
-        const options = {
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_YourKeyHere",
-            amount: product.price * 100, // Amount in paise
-            currency: "INR",
-            name: "RESQR Safety Gear",
-            description: `Purchase: ${product.name}`,
-            image: "/resqr_logo.png",
-            handler: async (response) => {
-                try {
-                    const verifyRes = await fetch('/api/verify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(response)
-                    });
-                    const verifyData = await verifyRes.json();
-                    if (verifyData.status === 'ok') {
-                        alert(`Success! Your order for ${product.name} has been placed.`);
-                    } else {
-                        alert("Payment verification failed. Please contact support.");
-                    }
-                } catch (err) {
-                    console.error("Verification error:", err);
-                    alert("Payment completed but verification pending. Please check your email.");
-                }
-            },
-            prefill: {
-                name: "",
-                email: "",
-                contact: ""
-            },
-            theme: {
-                color: "#ff3b3b"
-            }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.open();
+        setSelectedProduct(product);
+        setIsRazorpayOpen(true);
     };
 
     const handleAddToCart = () => {
@@ -235,6 +194,20 @@ export default function StorePage() {
                 <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 mx-auto mb-6" />
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Official RESQR Merch Store • Secured by SSL</p>
             </footer>
+
+            {/* Demo Razorpay Modal */}
+            <DemoRazorpayModal 
+                isOpen={isRazorpayOpen}
+                onClose={() => setIsRazorpayOpen(false)}
+                amount={selectedProduct ? selectedProduct.price : 499}
+                title={selectedProduct ? selectedProduct.name : "RESQR Physical Gear"}
+                customerName="RESQR Customer"
+                customerEmail="customer@resqr.co.in"
+                customerPhone="9876543210"
+                onSuccess={(paymentInfo) => {
+                    toast.success(`Payment Successful for ${selectedProduct?.name}! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                }}
+            />
         </div>
     );
 }

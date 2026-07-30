@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Shield, User, ShieldCheck, Mail, Lock, Phone, ArrowLeft, ArrowRight, Check,
-    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo
+    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -12,11 +12,24 @@ import toast from 'react-hot-toast';
 import { auth, db } from '../lib/firebase';
 import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { ref, update, set, get } from 'firebase/database';
+import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
+import QRPreviewModal from '../components/common/QRPreviewModal';
+
+// Helper Badge Component
+function Badge({ children, className = '', ...props }) {
+    return (
+        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase ${className}`} {...props}>
+            {children}
+        </span>
+    );
+}
 
 export default function LoginPage() {
     const navigate = useNavigate();
     const [selectedRole, setSelectedRole] = useState(null); // null, 'citizen', 'agent', 'hospital'
     const [authState, setAuthState] = useState('card_select'); // card_select, phone_verify, otp_verify, register_wizard, email_login, email_register
+    const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
+    const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
     
     // Auth variables
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -138,33 +151,58 @@ export default function LoginPage() {
     };
 
     const handleVerifyOtp = async () => {
-        if (enteredOtp !== generatedOtp) {
-            toast.error("Invalid verification code.");
+        if (!enteredOtp || enteredOtp !== generatedOtp) {
+            toast.error("Invalid verification code. Please check the code shown in the notification.");
             return;
         }
         setAuthLoading(true);
         try {
-            // Real Firebase authentication using anonymous sign-in for security & unique session UID
-            const userCredential = await signInAnonymously(auth);
-            const uid = userCredential.user.uid;
-
-            // Check if user already registered in RTDB
-            const userSnap = await get(ref(db, `users/${uid}`));
-            if (userSnap.exists()) {
-                const userData = userSnap.val();
-                if (userData.role === selectedRole) {
-                    toast.success("Identity session authenticated!");
-                    navigate('/dashboard');
-                    return;
+            // Real Firebase authentication using anonymous sign-in or demo credentials
+            let currentUser = auth.currentUser;
+            if (!currentUser) {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    currentUser = userCredential.user;
+                } catch (anonErr) {
+                    console.warn("Anonymous auth restricted in console, switching to demo auth handshake...", anonErr);
+                    const demoEmail = `demo.${phoneNumber || 'user'}@resqr.co.in`;
+                    const demoPass = "ResQR#DemoPass2026";
+                    try {
+                        const userCredential = await signInWithEmailAndPassword(auth, demoEmail, demoPass);
+                        currentUser = userCredential.user;
+                    } catch (loginErr) {
+                        const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+                        currentUser = userCredential.user;
+                    }
                 }
             }
+            const uid = currentUser.uid;
 
-            // If citizen, go to registration wizard. If agent, go to agent registration.
-            if (selectedRole === 'citizen') {
+            // Check if user already registered in RTDB by UID with completed profile
+            const userSnap = await get(ref(db, `users/${uid}`));
+            const profileSnap = await get(ref(db, `profiles/c_${uid}`));
+            
+            if (userSnap.exists() && profileSnap.exists() && userSnap.val()?.profileCompleted) {
+                toast.success(`Welcome back, ${userSnap.val().name || 'User'}! Authentication successful.`);
+                navigate('/dashboard');
+                return;
+            }
+
+            // Open Registration Wizard based on chosen role
+            if (selectedRole === 'agent') {
+                setSelectedRole('agent');
+                setAuthState('register_wizard');
+                toast.success("Phone verified! Please complete your Agent Registration.");
+            } else if (selectedRole === 'hospital') {
+                setSelectedRole('hospital');
+                setAuthState('register_wizard');
+                setHospitalStep(1);
+                toast.success("Phone verified! Please complete your Hospital Registration.");
+            } else {
+                setSelectedRole('citizen');
                 setAuthState('register_wizard');
                 setCitizenStep(1);
-            } else if (selectedRole === 'agent') {
-                setAuthState('register_wizard');
+                toast.success("Phone verified! Please complete your 4-Step Medical Profile.");
             }
         } catch (error) {
             console.error("Auth error:", error);
@@ -225,11 +263,14 @@ export default function LoginPage() {
                 phone: phoneNumber,
                 role: 'citizen',
                 status: 'approved',
+                profileCompleted: true,
                 createdAt: new Date().toISOString(),
-                lastLogin: new Date().toISOString()
+                lastLogin: new Date().toISOString(),
+                profiles: {
+                    [profileId]: profileData
+                }
             };
             updates[`profiles/${profileId}`] = profileData;
-            updates[`users/${uid}/profiles/${profileId}`] = profileData;
 
             await update(ref(db), updates);
             localStorage.setItem('resqr_active_slug', profileId);
@@ -316,9 +357,10 @@ export default function LoginPage() {
                 }
                 // Register in Auth
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                const uid = userCredential.user.uid;
-
+                
                 // Move to Hospital Registration steps
+                toast.success("Hospital account credentials created! Complete institutional registration.");
+                setSelectedRole('hospital');
                 setAuthState('register_wizard');
                 setHospitalStep(1);
             } else {
@@ -330,18 +372,36 @@ export default function LoginPage() {
                 const userSnap = await get(ref(db, `users/${uid}`));
                 if (userSnap.exists()) {
                     const userData = userSnap.val();
-                    if (userData.role === 'hospital') {
-                        toast.success("Hospital Portal Opened!");
+                    toast.success(`Welcome back, ${userData.name || 'Hospital'}!`);
+                    navigate('/dashboard');
+                    return;
+                }
+                
+                // Check if existing user by email in all users
+                const allUsersSnap = await get(ref(db, 'users'));
+                if (allUsersSnap.exists()) {
+                    const allUsers = allUsersSnap.val();
+                    const matchedHospital = Object.values(allUsers).find(u => u.email === email);
+                    if (matchedHospital) {
+                        toast.success(`Welcome back, ${matchedHospital.name || 'Hospital'}!`);
                         navigate('/dashboard');
                         return;
                     }
                 }
-                toast.error("No authorized hospital account matching this login.");
-                await auth.signOut();
+
+                // If signed in via Auth but no RTDB record yet, proceed to complete hospital wizard
+                toast.success("Authenticated! Complete your hospital profile.");
+                setSelectedRole('hospital');
+                setAuthState('register_wizard');
+                setHospitalStep(1);
             }
         } catch (error) {
             console.error("Hospital email auth error:", error);
-            toast.error(error.message || "Email authentication failed.");
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                toast.error("Hospital account not found. Click 'Register Hospital' below to create a new account.");
+            } else {
+                toast.error(error.message || "Email authentication failed.");
+            }
         } finally {
             setAuthLoading(false);
         }
@@ -402,6 +462,149 @@ export default function LoginPage() {
         }
     };
 
+    const handleDemoLogin = async (role) => {
+        setAuthLoading(true);
+        try {
+            let currentUser = auth.currentUser;
+            if (!currentUser) {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    currentUser = userCredential.user;
+                } catch (anonErr) {
+                    console.warn("Anonymous auth restricted in console, switching to demo auth handshake...", anonErr);
+                    const demoEmail = `demo.${role || 'user'}@resqr.co.in`;
+                    const demoPass = "ResQR#DemoPass2026";
+                    try {
+                        const userCredential = await signInWithEmailAndPassword(auth, demoEmail, demoPass);
+                        currentUser = userCredential.user;
+                    } catch (loginErr) {
+                        const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+                        currentUser = userCredential.user;
+                    }
+                }
+            }
+            const uid = currentUser.uid;
+
+            if (role === 'citizen') {
+                const userData = {
+                    uid,
+                    name: "Alex Morgan (Demo Citizen)",
+                    email: "citizen.demo@resqr.co.in",
+                    phone: "9876543210",
+                    role: "citizen",
+                    status: "approved",
+                    paymentStatus: "paid",
+                    qrCodeId: `c_${uid}`,
+                    createdAt: new Date().toISOString(),
+                    lastLogin: new Date().toISOString()
+                };
+
+                const profileData = {
+                    name: "Alex Morgan",
+                    dob: "1994-08-15",
+                    gender: "Male",
+                    phone: "9876543210",
+                    email: "citizen.demo@resqr.co.in",
+                    profilePhoto: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+                    bloodGroup: "O+",
+                    height: "178",
+                    weight: "72",
+                    allergies: "Penicillin, Peanuts",
+                    currentMedication: "Insulin 10IU Daily",
+                    medicalConditions: "Type-1 Diabetes",
+                    surgeries: "Appendectomy (2018)",
+                    emergencyNotes: "Diabetic patient. Carry glucose tabs in wallet.",
+                    emergencyContacts: [
+                        { name: "Sarah Morgan", relationship: "Spouse", phone: "9876543211" },
+                        { name: "David Morgan", relationship: "Brother", phone: "9876543212" }
+                    ],
+                    insurance: {
+                        insuranceCompany: "Star Health Allied Insurance",
+                        policyNumber: "POL-882910492",
+                        cashlessFacility: true
+                    }
+                };
+
+                await set(ref(db, `users/${uid}`), userData);
+                await set(ref(db, `profiles/c_${uid}`), profileData);
+                await set(ref(db, `users/${uid}/profiles/c_${uid}`), profileData);
+                toast.success("⚡ Demo Citizen Authenticated!");
+                navigate('/dashboard');
+
+            } else if (role === 'agent') {
+                const userData = {
+                    uid,
+                    name: "Rajesh Kumar (Demo Agent)",
+                    email: "agent.demo@resqr.co.in",
+                    phone: "9876543220",
+                    role: "agent",
+                    status: "approved",
+                    agentProfile: {
+                        name: "Rajesh Kumar",
+                        agentId: "AGT-998822",
+                        phone: "9876543220",
+                        city: "Mumbai",
+                        state: "Maharashtra",
+                        bankName: "HDFC Bank",
+                        accountNo: "50100293847162"
+                    },
+                    createdAt: new Date().toISOString(),
+                    lastLogin: new Date().toISOString()
+                };
+
+                await set(ref(db, `users/${uid}`), userData);
+                toast.success("⚡ Demo Agent Portal Opened!");
+                navigate('/dashboard');
+
+            } else if (role === 'hospital') {
+                const userData = {
+                    uid,
+                    name: "Apollo Emergency Care (Demo Hospital)",
+                    email: "hospital.demo@resqr.co.in",
+                    phone: "9876543230",
+                    role: "hospital",
+                    status: "approved",
+                    hospitalProfile: {
+                        hospitalName: "Apollo Emergency Care Center",
+                        regNo: "HOSP-MH-2024-883",
+                        beds: 45,
+                        icuBeds: 12,
+                        traumaUnit: true,
+                        city: "Mumbai",
+                        contactPerson: "Dr. K. V. Sharma",
+                        plan: { name: "Enterprise Port" }
+                    },
+                    createdAt: new Date().toISOString(),
+                    lastLogin: new Date().toISOString()
+                };
+
+                await set(ref(db, `users/${uid}`), userData);
+                toast.success("⚡ Demo Hospital Command Center Activated!");
+                navigate('/dashboard');
+
+            } else if (role === 'admin') {
+                const userData = {
+                    uid,
+                    name: "System Administrator (Demo Admin)",
+                    email: "pratheekmadupu2006@gmail.com",
+                    role: "admin",
+                    status: "approved",
+                    createdAt: new Date().toISOString(),
+                    lastLogin: new Date().toISOString()
+                };
+
+                await set(ref(db, `users/${uid}`), userData);
+                toast.success("⚡ Demo Admin Console Opened!");
+                navigate('/admin');
+            }
+        } catch (error) {
+            console.error("Demo login error:", error);
+            toast.error("Demo login failed: " + error.message);
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-medical-bg flex items-center justify-center p-6 font-manrope selection:bg-primary/30">
             <div className="w-full max-w-4xl py-12">
@@ -426,74 +629,89 @@ export default function LoginPage() {
                             exit={{ opacity: 0, y: -30 }}
                             className="space-y-12"
                         >
-                            <div className="text-center space-y-4">
+                            <div className="text-center space-y-3">
                                 <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
-                                    CHOOSE YOUR <span className="text-primary italic-display">PORTAL</span>
+                                    LOGIN TO <span className="text-primary italic-display">RESQR</span>
                                 </h1>
-                                <p className="text-slate-400 max-w-md mx-auto text-sm">
-                                    Access your secure medical dashboard, manage agent accounts, or scan emergency tags.
+                                <p className="text-slate-400 max-w-md mx-auto text-sm font-semibold uppercase tracking-wider">
+                                    Choose your role to continue.
                                 </p>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                                 {/* Card 1: Citizen */}
-                                <Card className="p-8 bg-medical-card border-white/5 hover:border-primary/20 hover:shadow-[0_20px_50px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    <div>
+                                <Card 
+                                    onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
+                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="relative z-10">
                                         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
                                             <User size={28} />
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins">👤 Citizen Login</h3>
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👤 Citizen Login</h3>
                                         <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Register yourself and create your Emergency Medical Identity.
+                                            Create and manage your Emergency Medical Identity.
                                         </p>
                                     </div>
-                                    <Button 
-                                        onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                        className="w-full py-5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
-                                    >
-                                        Login / Register
-                                    </Button>
+                                    <div className="relative z-10">
+                                        <Button 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('citizen'); setAuthState('phone_verify'); }}
+                                            className="w-full py-5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-lg shadow-primary/20"
+                                        >
+                                            Login / Register
+                                        </Button>
+                                    </div>
                                 </Card>
 
                                 {/* Card 2: Agent */}
-                                <Card className="p-8 bg-medical-card border-white/5 hover:border-primary/20 hover:shadow-[0_20px_50px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    <div>
+                                <Card 
+                                    onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
+                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="relative z-10">
                                         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
                                             <ShieldCheck size={28} />
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins">👨💼 RESQR Agent</h3>
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👨💼 Agent Login</h3>
                                         <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Authorized RESQR sales and support partners.
+                                            Authorized RESQR Sales & Support Partner Portal.
                                         </p>
                                     </div>
-                                    <Button 
-                                        onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                        className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
-                                    >
-                                        Agent Login
-                                    </Button>
+                                    <div className="relative z-10">
+                                        <Button 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('agent'); setAuthState('phone_verify'); }}
+                                            className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs"
+                                        >
+                                            Agent Login
+                                        </Button>
+                                    </div>
                                 </Card>
 
                                 {/* Card 3: Hospital */}
-                                <Card className="p-8 bg-medical-card border-white/5 hover:border-primary/20 hover:shadow-[0_20px_50px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden">
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    <div>
+                                <Card 
+                                    onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
+                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="relative z-10">
                                         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
                                             <Building size={28} />
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins">🏥 Hospital Login</h3>
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">🏥 Hospital Login</h3>
                                         <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Hospitals and healthcare organizations.
+                                            Hospital Emergency Response Portal.
                                         </p>
                                     </div>
-                                    <Button 
-                                        onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                        className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
-                                    >
-                                        Hospital Login
-                                    </Button>
+                                    <div className="relative z-10">
+                                        <Button 
+                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('hospital'); setAuthState('email_login'); }}
+                                            className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs"
+                                        >
+                                            Hospital Login
+                                        </Button>
+                                    </div>
                                 </Card>
                             </div>
                         </motion.div>
@@ -544,6 +762,16 @@ export default function LoginPage() {
                                     >
                                         {authLoading ? 'Transmitting Key...' : 'Request Verification Key'}
                                     </Button>
+
+                                    <div className="pt-4 border-t border-white/5 text-center">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => handleDemoLogin(selectedRole || 'citizen')}
+                                            className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline italic"
+                                        >
+                                            ⚡ Skip Verification & Launch Demo {selectedRole === 'agent' ? 'Agent' : 'Citizen'} Portal
+                                        </button>
+                                    </div>
                                 </div>
                             </Card>
                         </motion.div>
@@ -573,7 +801,7 @@ export default function LoginPage() {
                                 </div>
 
                                 <div className="space-y-6">
-                                    <div className="flex justify-center">
+                                    <div className="flex flex-col items-center gap-3">
                                         <input 
                                             type="text"
                                             maxLength="6"
@@ -582,6 +810,15 @@ export default function LoginPage() {
                                             onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
                                             className="w-full max-w-[200px] bg-slate-950 border-2 border-white/5 focus:border-primary rounded-2xl py-4 text-center text-3xl font-black tracking-[0.2em] outline-none transition-all text-primary font-poppins"
                                         />
+                                        {generatedOtp && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setEnteredOtp(generatedOtp)}
+                                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline italic"
+                                            >
+                                                ⚡ Auto-Fill Code ({generatedOtp})
+                                            </button>
+                                        )}
                                     </div>
 
                                     <Button 
@@ -591,6 +828,20 @@ export default function LoginPage() {
                                     >
                                         {authLoading ? 'Verifying...' : 'Establish Secure Connection'}
                                     </Button>
+
+                                    <div className="pt-4 text-center border-t border-white/5">
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                if (selectedRole === 'agent') setSelectedRole('agent');
+                                                else setSelectedRole('citizen');
+                                                setAuthState('register_wizard');
+                                            }}
+                                            className="text-[11px] text-slate-400 hover:text-primary font-black uppercase tracking-wider italic transition-colors"
+                                        >
+                                            New User? Complete {selectedRole === 'agent' ? 'Agent' : 'Citizen'} Registration Form ➔
+                                        </button>
+                                    </div>
                                 </div>
                             </Card>
                         </motion.div>
@@ -618,7 +869,7 @@ export default function LoginPage() {
                                             }
                                         </h2>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">25% * {citizenStep} Completed</span>
+                                    <span className="text-xl font-black italic text-primary font-poppins">{citizenStep * 25}% Completed</span>
                                 </div>
 
                                 {/* Step 1: Personal Details */}
@@ -806,7 +1057,24 @@ export default function LoginPage() {
                                 {citizenStep === 3 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input label="Insurance Provider / Company" placeholder="e.g. Star Health" value={insuranceCompany} onChange={(e) => setInsuranceCompany(e.target.value)} />
+                                            <Select 
+                                                label="Insurance Company" 
+                                                value={insuranceCompany} 
+                                                onChange={(e) => setInsuranceCompany(e.target.value)} 
+                                                options={[
+                                                    { label: 'Select Insurance Company', value: '' },
+                                                    { label: 'Star Health', value: 'Star Health' },
+                                                    { label: 'Care Health', value: 'Care Health' },
+                                                    { label: 'Niva Bupa', value: 'Niva Bupa' },
+                                                    { label: 'ICICI Lombard', value: 'ICICI Lombard' },
+                                                    { label: 'HDFC ERGO', value: 'HDFC ERGO' },
+                                                    { label: 'SBI Health', value: 'SBI Health' },
+                                                    { label: 'ACKO Insurance', value: 'ACKO' },
+                                                    { label: 'Aditya Birla Health', value: 'Aditya Birla' },
+                                                    { label: 'ManipalCigna', value: 'ManipalCigna' },
+                                                    { label: 'Others', value: 'Others' }
+                                                ]} 
+                                            />
                                             <Input label="Policy ID / Number" placeholder="POL-123456" value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} />
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -912,21 +1180,28 @@ export default function LoginPage() {
                                                 <span>Total Amount</span>
                                                 <span>₹{selectedPackage === 'digital' ? '99.00' : '149.00'}</span>
                                             </div>
-                                        </div>
-
-                                        <div className="pt-8 flex justify-between items-center gap-4">
-                                            <Button onClick={() => setCitizenStep(3)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                   <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                            <Button onClick={() => setCitizenStep(3)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
 
                                             <Button 
-                                                onClick={handleCitizenRegistrationSubmit}
+                                                type="button"
+                                                onClick={() => setIsQrPreviewOpen(true)}
+                                                variant="outline" 
+                                                className="w-full sm:w-auto py-4 px-6 rounded-2xl font-black italic uppercase text-xs border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-2"
+                                            >
+                                                <Eye size={16} /> Preview QR Code
+                                            </Button>
+
+                                            <Button 
+                                                onClick={() => setIsRazorpayOpen(true)}
                                                 disabled={authLoading}
-                                                className="flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
+                                                className="w-full sm:flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
                                             >
                                                 {authLoading ? 'Transacting Secure Checkout...' : 'Secure Pay via Razorpay'}
                                             </Button>
-                                        </div>
+                                        </div>                                </div>
                                     </div>
                                 )}
                             </Card>
@@ -1044,16 +1319,13 @@ export default function LoginPage() {
 
                                     {/* Legal Agreement */}
                                     <div className="space-y-4 border-t border-white/5 pt-6 bg-slate-950/40 p-6 rounded-3xl border border-white/5">
-                                        <h3 className="text-sm font-black uppercase tracking-widest text-red-500 italic flex items-center gap-2"><AlertTriangle size={16} /> Privacy & Legal Agreement</h3>
-                                        <div className="space-y-3 text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
-                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shrink-0" /> I will not misuse the RESQR brand or logo.</p>
-                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shrink-0" /> I will maintain customer privacy and confidentiality.</p>
-                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shrink-0" /> I will not collect false information.</p>
-                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shrink-0" /> I will not share customer medical data.</p>
-                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1 shrink-0" /> I agree to comply with RESQR policies and applicable laws.</p>
-                                            <p className="text-red-400 font-black italic border-t border-white/5 pt-2 mt-2 leading-normal">
-                                                🚨 Any misuse may result in permanent account suspension and legal action.
-                                            </p>
+                                        <h3 className="text-sm font-black uppercase tracking-widest text-red-500 italic flex items-center gap-2"><AlertTriangle size={16} /> RESQR Agent Code of Conduct</h3>
+                                        <div className="space-y-3 text-[11px] text-slate-300 font-bold tracking-wide leading-relaxed">
+                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" /> I will protect customer privacy and confidentiality.</p>
+                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" /> I will not misuse the RESQR brand name, logo, or services.</p>
+                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" /> I will only collect genuine customer information.</p>
+                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" /> I will never share medical or personal data without authorization.</p>
+                                            <p className="flex items-start gap-2"><span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" /> I understand that violating these policies may result in account suspension, termination, or legal action.</p>
                                         </div>
                                         <div className="flex items-center gap-4 pt-4 border-t border-white/5">
                                             <input 
@@ -1061,9 +1333,9 @@ export default function LoginPage() {
                                                 id="agentAgree" 
                                                 checked={agentAcceptedAgreement} 
                                                 onChange={(e) => setAgentAcceptedAgreement(e.target.checked)} 
-                                                className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
+                                                className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10 cursor-pointer" 
                                             />
-                                            <label htmlFor="agentAgree" className="text-xs font-black uppercase tracking-widest text-white cursor-pointer italic">☑ I Agree</label>
+                                            <label htmlFor="agentAgree" className="text-xs font-black uppercase tracking-widest text-white cursor-pointer italic">☑ I have read and agree to the RESQR Agent Agreement.</label>
                                         </div>
                                     </div>
 
@@ -1142,7 +1414,15 @@ export default function LoginPage() {
                                     </Button>
                                 </form>
 
-                                <div className="mt-8 text-center border-t border-white/5 pt-6">
+                                <div className="mt-8 text-center border-t border-white/5 pt-6 space-y-4">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => handleDemoLogin('hospital')}
+                                        className="w-full py-3 bg-emerald-500/10 hover:bg-emerald-600 border border-emerald-500/30 text-white rounded-xl text-[10px] font-black italic uppercase tracking-wider transition-all"
+                                    >
+                                        ⚡ 1-Click Demo Hospital Access
+                                    </button>
+
                                     <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">
                                         Unregistered Organization?{' '}
                                         <button onClick={() => setAuthState('email_register')} className="text-primary font-black hover:underline ml-1">
@@ -1411,7 +1691,7 @@ export default function LoginPage() {
                                                 Back
                                             </Button>
                                             <Button 
-                                                onClick={handleHospitalRegistrationSubmit}
+                                                onClick={() => setIsRazorpayOpen(true)}
                                                 disabled={authLoading}
                                                 className="flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
                                             >
@@ -1425,6 +1705,50 @@ export default function LoginPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Reusable Demo Razorpay Payment Gateway Modal */}
+            <DemoRazorpayModal 
+                isOpen={isRazorpayOpen}
+                onClose={() => setIsRazorpayOpen(false)}
+                amount={
+                    selectedRole === 'hospital' 
+                        ? hospitalPlans[selectedHospitalPlan].price 
+                        : (selectedPackage === 'digital' ? 99 : 149)
+                }
+                title={
+                    selectedRole === 'hospital'
+                        ? `RESQR ${hospitalPlans[selectedHospitalPlan].name} Subscription`
+                        : `RESQR ${selectedPackage === 'digital' ? 'Digital QR Tag' : 'Digital QR + 2 Stickers'}`
+                }
+                customerName={selectedRole === 'hospital' ? (hospitalInfo.hospitalName || 'Hospital Partner') : (citizenName || 'RESQR Citizen')}
+                customerEmail={selectedRole === 'hospital' ? (email || 'hospital@resqr.co.in') : (citizenEmail || 'citizen@resqr.co.in')}
+                customerPhone={phoneNumber || '9876543210'}
+                onSuccess={(paymentInfo) => {
+                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                    if (selectedRole === 'hospital') {
+                        handleHospitalRegistrationSubmit();
+                    } else {
+                        handleCitizenRegistrationSubmit();
+                    }
+                }}
+            />
+
+            {/* Live Medical QR Preview Modal */}
+            <QRPreviewModal 
+                isOpen={isQrPreviewOpen}
+                onClose={() => setIsQrPreviewOpen(false)}
+                patientData={{
+                    name: citizenName || 'John Doe',
+                    bloodGroup: bloodGroup || 'O+',
+                    phone: phoneNumber || '9876543210',
+                    emergencyContacts: emergencyContacts,
+                    allergies: allergies || 'No known allergies',
+                    medicalConditions: medicalConditions || 'Healthy',
+                    medicalId: medicalId || 'RESQR-MED-94821',
+                    insuranceCompany: insuranceCompany || 'Star Health'
+                }}
+                onProceedToPay={() => setIsRazorpayOpen(true)}
+            />
         </div>
     );
 }

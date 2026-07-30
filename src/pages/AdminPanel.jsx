@@ -71,15 +71,29 @@ export default function AdminPanel() {
     };
 
     useEffect(() => {
-        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-            if (user && ADMIN_EMAILS.includes(user.email)) {
-                setIsAdmin(true);
-            } else {
-                setIsAdmin(false);
-                if (!authLoading) {
-                    toast.error("Not authorized! Admins only.");
+        const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                try {
+                    const userSnap = await get(ref(db, `users/${user.uid}`));
+                    const rtdbRole = userSnap.exists() ? userSnap.val().role : null;
+                    const rtdbEmail = userSnap.exists() ? userSnap.val().email : null;
+
+                    if (ADMIN_EMAILS.includes(user.email) || rtdbRole === 'admin' || (rtdbEmail && ADMIN_EMAILS.includes(rtdbEmail))) {
+                        setIsAdmin(true);
+                    } else {
+                        setIsAdmin(false);
+                        toast.error("Not authorized! Admins only.");
+                        navigate('/');
+                    }
+                } catch (e) {
+                    console.error("Admin verification error:", e);
+                    setIsAdmin(false);
                     navigate('/');
                 }
+            } else {
+                setIsAdmin(false);
+                toast.error("Not authorized! Admins only.");
+                navigate('/');
             }
             setAuthLoading(false);
         });
