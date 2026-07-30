@@ -23,6 +23,8 @@ yarn-error.log*
 *.sln
 *.sw?
 
-# OS files
+# OS and Media files
 .DS_Store
 Thumbs.db
+*.mp4
+*.webm
