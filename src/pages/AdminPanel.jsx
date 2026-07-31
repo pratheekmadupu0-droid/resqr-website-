@@ -776,34 +776,34 @@ export default function AdminPanel() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {users.filter(u => u.role === 'agent' && u.status === 'pending').length === 0 ? (
+                                        {users.filter(u => u?.role === 'agent' && u?.status === 'pending').length === 0 ? (
                                             <tr>
                                                 <td colSpan="5" className="px-10 py-10 text-center text-xs text-slate-500 italic font-bold">
                                                     No pending agent applications.
                                                 </td>
                                             </tr>
                                         ) : (
-                                            users.filter(u => u.role === 'agent' && u.status === 'pending').map((user) => {
-                                                const agentProfile = user.agentProfile || {};
+                                            users.filter(u => u?.role === 'agent' && u?.status === 'pending').map((user) => {
+                                                const agentProfile = user?.agentProfile || {};
                                                 return (
-                                                    <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                    <tr key={user?.id || Math.random()} className="hover:bg-white/5 transition-all group">
                                                         <td className="px-10 py-8">
                                                             <div className="flex flex-col">
-                                                                <span className="font-black text-white italic tracking-tight text-lg">{agentProfile.name}</span>
-                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user.email}</span>
-                                                                <span className="text-[9px] text-primary font-black uppercase tracking-widest mt-1">ID: {agentProfile.agentId}</span>
+                                                                <span className="font-black text-white italic tracking-tight text-lg">{agentProfile?.name || 'Unknown'}</span>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user?.email || 'No Email'}</span>
+                                                                <span className="text-[9px] text-primary font-black uppercase tracking-widest mt-1">ID: {agentProfile?.agentId || 'N/A'}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-10 py-8 text-[11px] font-mono text-slate-300">
-                                                            {agentProfile.aadhaar ? String(agentProfile.aadhaar).replace(/\d(?=\d{4})/g, '*') : 'N/A'}
+                                                            {agentProfile?.aadhaar ? String(agentProfile.aadhaar).replace(/\d(?=\d{4})/g, '*') : 'N/A'}
                                                         </td>
                                                         <td className="px-10 py-8 text-xs font-semibold text-slate-400">
-                                                            <div>Acc: {agentProfile.bankAccount || 'N/A'}</div>
-                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{agentProfile.bankName} • {agentProfile.ifsc}</div>
+                                                            <div>Acc: {agentProfile?.bankAccount || 'N/A'}</div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">{agentProfile?.bankName || 'Unknown'} • {agentProfile?.ifsc || 'Unknown'}</div>
                                                         </td>
                                                         <td className="px-10 py-8">
-                                                            {agentProfile.document ? (
-                                                                <a href={agentProfile.document} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-widest italic hover:underline">
+                                                            {agentProfile?.document ? (
+                                                                <a href={String(agentProfile.document)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] font-black text-primary uppercase tracking-widest italic hover:underline">
                                                                     View Document <ExternalLink size={12} />
                                                                 </a>
                                                             ) : (
@@ -813,13 +813,13 @@ export default function AdminPanel() {
                                                         <td className="px-10 py-8 text-right">
                                                             <div className="flex items-center justify-end gap-3">
                                                                 <Button 
-                                                                    onClick={() => handleApproveUser(user.id)}
+                                                                    onClick={() => handleApproveUser(user?.id)}
                                                                     className="bg-emerald-600 hover:bg-emerald-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
                                                                 >
                                                                     Approve
                                                                 </Button>
                                                                 <Button 
-                                                                    onClick={() => handleRejectUser(user.id)}
+                                                                    onClick={() => handleRejectUser(user?.id)}
                                                                     className="bg-red-600 hover:bg-red-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
                                                                 >
                                                                     Reject
@@ -854,46 +854,46 @@ export default function AdminPanel() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {users.filter(u => u.role === 'hospital' && u.status === 'pending').length === 0 ? (
+                                        {users.filter(u => u?.role === 'hospital' && u?.status === 'pending').length === 0 ? (
                                             <tr>
                                                 <td colSpan="5" className="px-10 py-10 text-center text-xs text-slate-500 italic font-bold">
                                                     No pending hospital applications.
                                                 </td>
                                             </tr>
                                         ) : (
-                                            users.filter(u => u.role === 'hospital' && u.status === 'pending').map((user) => {
-                                                const hospitalProfile = user.hospitalProfile || {};
+                                            users.filter(u => u?.role === 'hospital' && u?.status === 'pending').map((user) => {
+                                                const hospitalProfile = user?.hospitalProfile || {};
                                                 return (
-                                                    <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                    <tr key={user?.id || Math.random()} className="hover:bg-white/5 transition-all group">
                                                         <td className="px-10 py-8">
                                                             <div className="flex flex-col">
-                                                                <span className="font-black text-white italic tracking-tight text-lg">{hospitalProfile.hospitalName}</span>
-                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user.email}</span>
-                                                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">{hospitalProfile.address}</span>
+                                                                <span className="font-black text-white italic tracking-tight text-lg">{hospitalProfile?.hospitalName || 'Unknown'}</span>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user?.email || 'No Email'}</span>
+                                                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1 italic">{hospitalProfile?.address || 'N/A'}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-10 py-8 text-[11px] font-bold text-slate-300">
-                                                            {hospitalProfile.licenseNo}
+                                                            {hospitalProfile?.licenseNo || 'N/A'}
                                                         </td>
                                                         <td className="px-10 py-8 text-xs font-semibold text-slate-400">
-                                                            <div>General: {hospitalProfile.beds || 0}</div>
-                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">ICU: {hospitalProfile.icuBeds || 0}</div>
+                                                            <div>General: {hospitalProfile?.beds || 0}</div>
+                                                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">ICU: {hospitalProfile?.icuBeds || 0}</div>
                                                         </td>
                                                         <td className="px-10 py-8">
                                                             <Badge className="bg-primary/20 text-primary border-none px-3 py-1 font-black italic text-[9px] uppercase tracking-widest">
-                                                                {hospitalProfile.plan?.name}
+                                                                {hospitalProfile?.plan?.name || 'N/A'}
                                                             </Badge>
                                                         </td>
                                                         <td className="px-10 py-8 text-right">
                                                             <div className="flex items-center justify-end gap-3">
                                                                 <Button 
-                                                                    onClick={() => handleApproveUser(user.id)}
+                                                                    onClick={() => handleApproveUser(user?.id)}
                                                                     className="bg-emerald-600 hover:bg-emerald-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
                                                                 >
                                                                     Approve
                                                                 </Button>
                                                                 <Button 
-                                                                    onClick={() => handleRejectUser(user.id)}
+                                                                    onClick={() => handleRejectUser(user?.id)}
                                                                     className="bg-red-600 hover:bg-red-700 text-white border-none py-2.5 px-5 rounded-xl font-black italic uppercase tracking-widest text-[9px]"
                                                                 >
                                                                     Reject
