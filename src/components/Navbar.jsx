@@ -48,8 +48,12 @@ export default function Navbar() {
         <nav className="sticky top-0 z-40 bg-medical-bg/80 backdrop-blur-md border-b border-white/5 font-manrope">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between py-4 items-center">
-                    <Link to="/" className="flex items-center gap-2">
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" style={{ height: '64px', width: 'auto' }} />
+                    <Link to="/" className="flex items-center gap-2 shrink-0 group">
+                        <img 
+                            src={`${import.meta.env.BASE_URL}resqr_logo.png`} 
+                            alt="RESQR Logo" 
+                            className="h-10 sm:h-12 w-auto object-contain transition-transform group-hover:scale-105" 
+                        />
                     </Link>
 
                     {/* Desktop Links */}
