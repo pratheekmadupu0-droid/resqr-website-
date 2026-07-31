@@ -246,15 +246,6 @@ export default function AdminPanel() {
             .catch(() => toast.error('Creation failed'));
     };
 
-    const handleApproveUser = async (userId) => {
-        try {
-            await update(ref(db, `users/${userId}`), { status: 'approved' });
-            toast.success("User Approved successfully! Dashboard access granted.");
-        } catch (error) {
-            toast.error("Failed to approve user.");
-        }
-    };
-
     const handleSendOTP = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
