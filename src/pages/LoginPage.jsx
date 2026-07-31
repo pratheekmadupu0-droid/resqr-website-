@@ -650,7 +650,7 @@ export default function LoginPage() {
                                         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
                                             <User size={28} />
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👤 Citizen Login</h3>
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👤 Users Login</h3>
                                         <p className="text-slate-400 text-sm leading-relaxed mb-8">
                                             Create and manage your Emergency Medical Identity.
                                         </p>
@@ -733,7 +733,7 @@ export default function LoginPage() {
                                 </button>
                                 <div className="space-y-4 mb-8">
                                     <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">
-                                        {selectedRole === 'citizen' ? 'Citizen' : 'Agent'} Login
+                                        {selectedRole === 'citizen' ? 'User' : 'Agent'} Login
                                     </h2>
                                     <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">
                                         Secure OTP Verification Sequence
