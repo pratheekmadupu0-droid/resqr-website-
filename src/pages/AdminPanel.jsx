@@ -804,7 +804,7 @@ export default function AdminPanel() {
                                                             </div>
                                                         </td>
                                                         <td className="px-10 py-8 text-[11px] font-mono text-slate-300">
-                                                            {agentProfile.aadhaar ? agentProfile.aadhaar.replace(/\d(?=\d{4})/g, '*') : 'N/A'}
+                                                            {agentProfile.aadhaar ? String(agentProfile.aadhaar).replace(/\d(?=\d{4})/g, '*') : 'N/A'}
                                                         </td>
                                                         <td className="px-10 py-8 text-xs font-semibold text-slate-400">
                                                             <div>Acc: {agentProfile.bankAccount || 'N/A'}</div>
