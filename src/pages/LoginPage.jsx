@@ -594,6 +594,7 @@ export default function LoginPage() {
                 };
 
                 await set(ref(db, `users/${uid}`), userData);
+                localStorage.setItem('resqr_active_role', 'admin');
                 toast.success("⚡ Demo Admin Console Opened!");
                 navigate('/admin');
             }
