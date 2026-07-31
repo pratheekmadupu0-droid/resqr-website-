@@ -246,6 +246,15 @@ export default function AdminPanel() {
             .catch(() => toast.error('Creation failed'));
     };
 
+    const handleApproveUser = async (userId) => {
+        try {
+            await update(ref(db, `users/${userId}`), { status: 'approved' });
+            toast.success("User Approved successfully! Dashboard access granted.");
+        } catch (error) {
+            toast.error("Failed to approve user.");
+        }
+    };
+
     const handleSendOTP = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
@@ -558,7 +567,7 @@ export default function AdminPanel() {
                                 <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
                                     <tr>
                                         <th className="px-10 py-6 text-slate-400">Tactical User</th>
-                                        <th className="px-10 py-6 text-slate-400">Encryption Method</th>
+                                        <th className="px-10 py-6 text-slate-400">Role & Status</th>
                                         <th className="px-10 py-6 text-slate-400">Last Sync</th>
                                         <th className="px-10 py-6 text-slate-400">Vault Condition</th>
                                         <th className="px-10 py-6 text-right text-slate-400">Operations</th>
@@ -576,9 +585,14 @@ export default function AdminPanel() {
                                                     </div>
                                                 </td>
                                                 <td className="px-10 py-8">
-                                                    <Badge className={`${user.email?.includes('gmail') ? 'bg-primary/10 text-primary border-primary/20' : 'bg-slate-800 text-slate-400 border-white/5'} px-4 py-1 font-black italic text-[9px]`}>
-                                                        {user.email?.includes('gmail') ? 'GOOGLE AUTH' : 'SECURE EMAIL'}
-                                                    </Badge>
+                                                    <div className="flex flex-col gap-2 items-start">
+                                                        <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'} px-4 py-1 font-black italic text-[9px]`}>
+                                                            {user.role?.toUpperCase() || 'CITIZEN'}
+                                                        </Badge>
+                                                        {user.status === 'pending' && (
+                                                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-3 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-10 py-8 text-[10px] font-black text-slate-400 italic uppercase">
                                                     {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'PENDING'}
@@ -598,6 +612,15 @@ export default function AdminPanel() {
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="flex items-center justify-end gap-3">
+                                                        {user.status === 'pending' && (
+                                                            <button
+                                                                className="p-3 text-green-500 hover:text-white transition-all bg-green-500/10 hover:bg-green-500 rounded-xl border border-green-500/20 shadow-xl"
+                                                                onClick={() => handleApproveUser(user.id)}
+                                                                title="Approve User"
+                                                            >
+                                                                <CheckCircle2 size={18} />
+                                                            </button>
+                                                        )}
                                                         {profile && (
                                                             <Link
                                                                 to={`/e/${profile.id}`}

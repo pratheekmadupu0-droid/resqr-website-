@@ -178,14 +178,24 @@ export default function LoginPage() {
             }
             const uid = currentUser.uid;
 
-            // Check if user already registered in RTDB by UID with completed profile
+            // Check if user already registered in RTDB by UID
             const userSnap = await get(ref(db, `users/${uid}`));
-            const profileSnap = await get(ref(db, `profiles/c_${uid}`));
             
-            if (userSnap.exists() && profileSnap.exists() && userSnap.val()?.profileCompleted) {
-                toast.success(`Welcome back, ${userSnap.val().name || 'User'}! Authentication successful.`);
-                navigate('/dashboard');
-                return;
+            if (userSnap.exists()) {
+                const userData = userSnap.val();
+                if (userData.status === 'pending') {
+                    toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
+                    await auth.signOut();
+                    setAuthLoading(false);
+                    return;
+                }
+                
+                const profileSnap = await get(ref(db, `profiles/c_${uid}`));
+                if (userData.role === 'agent' || userData.role === 'hospital' || (profileSnap.exists() && userData.profileCompleted)) {
+                    toast.success(`Welcome back, ${userData.name || 'User'}! Authentication successful.`);
+                    navigate('/dashboard');
+                    return;
+                }
             }
 
             // Open Registration Wizard based on chosen role
@@ -334,7 +344,8 @@ export default function LoginPage() {
 
             await set(ref(db, `users/${uid}`), userData);
             toast.success("Agent Application Transmitted! Pending Admin Review.");
-            navigate('/dashboard');
+            await auth.signOut();
+            window.location.href = '/';
         } catch (error) {
             console.error("Agent reg error:", error);
             toast.error("Registration failed: " + error.message);
@@ -372,6 +383,12 @@ export default function LoginPage() {
                 const userSnap = await get(ref(db, `users/${uid}`));
                 if (userSnap.exists()) {
                     const userData = userSnap.val();
+                    if (userData.status === 'pending') {
+                        toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
+                        await auth.signOut();
+                        setAuthLoading(false);
+                        return;
+                    }
                     toast.success(`Welcome back, ${userData.name || 'Hospital'}!`);
                     navigate('/dashboard');
                     return;
@@ -453,7 +470,8 @@ export default function LoginPage() {
 
             await set(ref(db, `users/${uid}`), userData);
             toast.success("Hospital profile created! Waiting for Admin verification.");
-            navigate('/dashboard');
+            await auth.signOut();
+            window.location.href = '/';
         } catch (error) {
             console.error("Hospital reg error:", error);
             toast.error("Profile synchronization failed: " + error.message);
