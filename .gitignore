@@ -28,3 +28,6 @@ yarn-error.log*
 Thumbs.db
 *.mp4
 *.webm
+
+# Sensitive Data
+*.csv
