@@ -733,7 +733,7 @@ export default function LoginPage() {
                                 </button>
                                 <div className="space-y-4 mb-8">
                                     <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">
-                                        {selectedRole === 'citizen' ? 'User' : 'Agent'} Login
+                                        {selectedRole === 'citizen' ? 'Citizen' : 'Agent'} Login
                                     </h2>
                                     <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">
                                         Secure OTP Verification Sequence

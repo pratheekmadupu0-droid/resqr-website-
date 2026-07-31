@@ -9,7 +9,7 @@ import { ref, get } from 'firebase/database';
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
     const [user, setUser] = useState(null);
-    const [displayName, setDisplayName] = useState('');
+    const [userName, setUserName] = useState('');
     const location = useLocation();
     const navigate = useNavigate();
     const isEmergency = location.pathname.startsWith('/e/');
@@ -19,34 +19,22 @@ export default function Navbar() {
             setUser(currentUser);
             if (currentUser) {
                 try {
-                    // Try fetching profile from RTDB
                     const userSnap = await get(ref(db, `users/${currentUser.uid}`));
-                    if (userSnap.exists()) {
-                        const val = userSnap.val();
-                        const rtdbName = val.name || val.profileData?.name || val.citizenName;
-                        if (rtdbName) {
-                            setDisplayName(rtdbName);
-                            return;
-                        }
+                    if (userSnap.exists() && userSnap.val().name) {
+                        setUserName(userSnap.val().name);
+                    } else if (currentUser.displayName) {
+                        setUserName(currentUser.displayName);
+                    } else if (currentUser.email) {
+                        setUserName(currentUser.email.split('@')[0]);
+                    } else {
+                        setUserName('User');
                     }
-                } catch (err) {
-                    console.error("Navbar profile fetch error:", err);
-                }
-
-                // Fallback to localStorage or displayName or default user label (never phone number)
-                const savedName = localStorage.getItem('resqr_citizen_name') || 
-                                  localStorage.getItem('resqr_active_name') || 
-                                  currentUser.displayName;
-
-                if (savedName && !savedName.startsWith('+')) {
-                    setDisplayName(savedName);
-                } else if (currentUser.email && !currentUser.email.includes('anonymous')) {
-                    setDisplayName(currentUser.email.split('@')[0]);
-                } else {
-                    setDisplayName('USER ACCOUNT');
+                } catch (error) {
+                    console.error("Error fetching user data:", error);
+                    setUserName('User');
                 }
             } else {
-                setDisplayName('');
+                setUserName('');
             }
         });
         return () => unsubscribe();
@@ -54,12 +42,7 @@ export default function Navbar() {
 
     const handleLogout = async () => {
         try {
-            localStorage.removeItem('resqr_citizen_name');
-            localStorage.removeItem('resqr_active_name');
-            localStorage.removeItem('resqr_active_role');
             await signOut(auth);
-            setUser(null);
-            setDisplayName('');
             navigate('/');
         } catch (error) {
             console.error("Logout error:", error);
@@ -68,8 +51,7 @@ export default function Navbar() {
 
     if (isEmergency) return null;
 
-    // Base nav items
-    let navLinks = [
+    const navLinks = [
         { name: 'Home', path: '/', icon: <Home size={16} /> },
         { name: 'About', path: '/about', icon: <Info size={16} /> },
         { name: 'Products', path: '/store', icon: <CreditCard size={16} /> },
@@ -78,12 +60,10 @@ export default function Navbar() {
         { name: 'Contact', path: '/about#contact', icon: <User size={16} /> },
     ];
 
-    if (user) {
-        // Once logged in: hide "Login" and show "Dashboard"
-        navLinks.push({ name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={16} /> });
-    } else {
-        // Not logged in: show "Login"
+    if (!user) {
         navLinks.push({ name: 'Login', path: '/login', icon: <User size={16} /> });
+    } else {
+        navLinks.push({ name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={16} /> });
     }
 
     return (
@@ -114,15 +94,12 @@ export default function Navbar() {
                             );
                         })}
                         {user ? (
-                            <div className="flex items-center gap-4 border-l border-white/10 pl-6">
-                                <Link to="/dashboard" className="flex items-center gap-2 bg-white/5 border border-white/10 hover:border-primary/40 px-4 py-2 rounded-xl transition-all">
-                                    <User size={14} className="text-primary" />
-                                    <span className="text-[11px] font-black text-white uppercase tracking-wider max-w-[140px] truncate">
-                                        {displayName || 'USER ACCOUNT'}
-                                    </span>
-                                </Link>
-                                <Button size="md" variant="ghost" className="text-white opacity-60 hover:text-primary hover:opacity-100 transition-all p-2" onClick={handleLogout} title="Sign Out">
-                                    <LogOut size={18} />
+                            <div className="flex items-center gap-6 border-l border-white/5 pl-8">
+                                <span className="text-[12px] font-black text-slate-100 hidden lg:block uppercase tracking-wider">
+                                    {userName}
+                                </span>
+                                <Button size="md" variant="ghost" className="text-white opacity-40 hover:text-primary hover:opacity-100 transition-all" onClick={handleLogout}>
+                                    <LogOut size={20} />
                                 </Button>
                             </div>
                         ) : (
@@ -144,14 +121,6 @@ export default function Navbar() {
             {/* Mobile Menu */}
             {isOpen && (
                 <div className="md:hidden bg-medical-bg border-b border-white/5 py-8 px-6 space-y-6 shadow-2xl">
-                    {user && (
-                        <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/10 mb-4">
-                            <User size={20} className="text-primary" />
-                            <span className="text-sm font-black text-white uppercase tracking-wider truncate">
-                                {displayName || 'USER ACCOUNT'}
-                            </span>
-                        </div>
-                    )}
                     {navLinks.map((link) => {
                         const isActive = location.pathname === link.path || (link.path === '/#pricing' && location.pathname === '/');
                         return (
@@ -167,8 +136,8 @@ export default function Navbar() {
                         );
                     })}
                     {user ? (
-                        <Button size="lg" className="w-full bg-white/5 text-white border-white/5 rounded-xl font-black italic flex items-center justify-center gap-2" onClick={handleLogout}>
-                            <LogOut size={18} /> LOGOUT
+                        <Button size="lg" className="w-full bg-white/5 text-white border-white/5 rounded-xl font-black italic" onClick={handleLogout}>
+                            LOGOUT
                         </Button>
                     ) : (
                         <Link to="/login">
