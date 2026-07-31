@@ -612,15 +612,6 @@ export default function AdminPanel() {
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <div className="flex items-center justify-end gap-3">
-                                                        {user.status === 'pending' && (
-                                                            <button
-                                                                className="p-3 text-green-500 hover:text-white transition-all bg-green-500/10 hover:bg-green-500 rounded-xl border border-green-500/20 shadow-xl"
-                                                                onClick={() => handleApproveUser(user.id)}
-                                                                title="Approve User"
-                                                            >
-                                                                <CheckCircle2 size={18} />
-                                                            </button>
-                                                        )}
                                                         {profile && (
                                                             <Link
                                                                 to={`/e/${profile.id}`}
