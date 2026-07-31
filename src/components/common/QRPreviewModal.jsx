@@ -80,12 +80,15 @@ export default function QRPreviewModal({
                                 <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 p-8 rounded-[36px] border-2 border-primary/30 shadow-2xl relative overflow-hidden text-center group">
                                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
                                     
-                                    <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-                                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white italic">RESQR MEDICAL TAG</span>
+                                    <div className="flex flex-col items-center mb-6 pb-4 border-b border-white/10">
+                                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-10 w-auto object-contain mb-3" />
+                                        <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
+                                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white italic">RESQR MEDICAL TAG</span>
+                                            </div>
+                                            <span className="text-[9px] font-mono text-slate-400">{medicalId}</span>
                                         </div>
-                                        <span className="text-[9px] font-mono text-slate-400">{medicalId}</span>
                                     </div>
 
                                     {/* QR Canvas */}
