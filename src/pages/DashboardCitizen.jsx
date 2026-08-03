@@ -119,14 +119,16 @@ export default function DashboardCitizen() {
 
             const logo = new Image();
             logo.crossOrigin = 'anonymous';
-            logo.src = `${import.meta.env.BASE_URL}resqr_logo_dark.png`;
+            logo.src = `${import.meta.env.BASE_URL}resqr_logo.png`;
             await new Promise((resolve, reject) => { 
                 logo.onload = resolve; 
                 logo.onerror = () => reject(new Error("Failed to load logo for download"));
             });
             const logoW = 500;
             const logoH = (logo.height / logo.width) * logoW;
+            ctx.filter = 'brightness(0)';
             ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 80, logoW, logoH);
+            ctx.filter = 'none';
 
             ctx.drawImage(canvas, (CANVAS_W - 800) / 2, logoH + 200, 800, 800);
 
@@ -249,7 +251,7 @@ export default function DashboardCitizen() {
                     <div className="space-y-6">
                         <div className="bg-[#11192A] rounded-[50px] border border-white/5 overflow-hidden flex flex-col shadow-2xl">
                             <div className="bg-white p-12 flex flex-col items-center relative group">
-                                <img src={`${import.meta.env.BASE_URL}resqr_logo_dark.png`} alt="RESQR" className="h-14 w-auto mb-10 object-contain" />
+                                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-14 w-auto mb-10 object-contain brightness-0" />
                                 <div className="bg-white p-4 rounded-[25px] shadow-2xl relative mb-10 cursor-pointer hover:scale-105 transition-transform" onClick={handleDownload}>
                                     <QRCodeCanvas id={`qr-${activeProfile?.id}`} value={qrValue} size={180} level="H" includeMargin={false} imageSettings={{ src: `${import.meta.env.BASE_URL}resqr_icon.png`, height: 40, width: 40, excavate: true }} />
                                 </div>
