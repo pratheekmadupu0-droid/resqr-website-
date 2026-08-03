@@ -118,7 +118,8 @@ export default function DashboardCitizen() {
             ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
             const logo = new Image();
-            logo.src = '/resqr_logo_dark.png';
+            logo.crossOrigin = 'anonymous';
+            logo.src = `${import.meta.env.BASE_URL}resqr_logo_dark.png`;
             await new Promise((resolve, reject) => { 
                 logo.onload = resolve; 
                 logo.onerror = () => reject(new Error("Failed to load logo for download"));
@@ -248,9 +249,9 @@ export default function DashboardCitizen() {
                     <div className="space-y-6">
                         <div className="bg-[#11192A] rounded-[50px] border border-white/5 overflow-hidden flex flex-col shadow-2xl">
                             <div className="bg-white p-12 flex flex-col items-center relative group">
-                                <img src="/resqr_logo_dark.png" alt="RESQR" className="h-14 w-auto mb-10 object-contain" />
+                                <img src={`${import.meta.env.BASE_URL}resqr_logo_dark.png`} alt="RESQR" className="h-14 w-auto mb-10 object-contain" />
                                 <div className="bg-white p-4 rounded-[25px] shadow-2xl relative mb-10 cursor-pointer hover:scale-105 transition-transform" onClick={handleDownload}>
-                                    <QRCodeCanvas id={`qr-${activeProfile?.id}`} value={qrValue} size={180} level="H" includeMargin={false} imageSettings={{ src: "/resqr_icon.png", height: 40, width: 40, excavate: true }} />
+                                    <QRCodeCanvas id={`qr-${activeProfile?.id}`} value={qrValue} size={180} level="H" includeMargin={false} imageSettings={{ src: `${import.meta.env.BASE_URL}resqr_icon.png`, height: 40, width: 40, excavate: true }} />
                                 </div>
                                 <p className="text-xl font-black text-black uppercase tracking-tighter mb-4 italic">SCAN IN EMERGENCY</p>
                                 <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">POWERED BY RESQR.CO.IN</p>
