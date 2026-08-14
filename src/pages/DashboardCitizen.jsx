@@ -354,7 +354,7 @@ export default function DashboardCitizen() {
                         <h2 className="text-4xl font-black uppercase italic tracking-tighter font-poppins mb-2">Powering Multiple Identities?</h2>
                         <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em]">Add another Pet, Vehicle, or Family Member to your ResQR Vault.</p>
                     </div>
-                    <button onClick={() => navigate('/create-profile')} className="w-full h-32 border-2 border-dashed border-white/10 rounded-[40px] flex items-center justify-center gap-6 group hover:border-primary/50 transition-all active:scale-95">
+                    <button onClick={() => navigate('/login')} className="w-full h-32 border-2 border-dashed border-white/10 rounded-[40px] flex items-center justify-center gap-6 group hover:border-primary/50 transition-all active:scale-95">
                         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all">
                             <Plus size={32} />
                         </div>
