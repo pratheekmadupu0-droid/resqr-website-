@@ -16,6 +16,7 @@ import AboutUs from './pages/AboutUs';
 import ViralQR from './pages/ViralQR';
 import ScannerPage from './pages/ScannerPage';
 import StorePage from './pages/StorePage';
+import SiconBadge from './components/SiconBadge';
 import { useEffect } from 'react';
 
 function ScrollToTop() {
@@ -58,6 +59,7 @@ function App() {
                 </Routes>
             </main>
             {!isScanPage && <Footer />}
+            <SiconBadge />
         </div>
     );
 }
