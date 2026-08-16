@@ -1,5 +1,8 @@
 import React from 'react';
-import { Shield, Eye, Lock, ArrowRight, User, Heart, Smartphone, Users, MapPin, Zap } from 'lucide-react';
+import { 
+    Shield, Eye, Lock, ArrowRight, User, Heart, Smartphone, Users, MapPin, Zap,
+    GraduationCap, Navigation, Globe, ShieldAlert, Activity, Smile
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -17,14 +20,46 @@ export default function SolutionsIndividuals() {
     };
 
     const segments = [
-        { title: 'Students', desc: 'Secure campus protection and emergency contacts link for school/university hours.' },
-        { title: 'Drivers & Riders', desc: 'Instant identification and crash detection alerts on high-speed transits.' },
-        { title: 'Senior Citizens', desc: 'Pre-existing condition details and medication protocols accessible in vital moments.' },
-        { title: 'Travellers', desc: 'Multilingual profile options and secure insurance parameters globally mapped.' },
-        { title: 'Industrial Workers', desc: 'Compliance tracking and immediate occupational hazard emergency reporting.' },
-        { title: 'Parents & Families', desc: 'Coordinated child profiles with next-of-kin links and active GPS tracking.' },
-        { title: 'Medical Condition Holders', desc: 'Immediate notification of allergies, epilepsy, diabetes, or rare conditions.' },
-        { title: 'Children', desc: 'Simplified wearables/stickers for immediate location and guardian link.' }
+        { 
+            title: 'Students', 
+            desc: 'Secure campus protection and emergency contacts link for school/university hours.',
+            icon: <GraduationCap size={22} className="text-primary" />
+        },
+        { 
+            title: 'Drivers & Riders', 
+            desc: 'Instant identification and crash detection alerts on high-speed transits.',
+            icon: <Navigation size={22} className="text-primary" />
+        },
+        { 
+            title: 'Senior Citizens', 
+            desc: 'Pre-existing condition details and medication protocols accessible in vital moments.',
+            icon: <Heart size={22} className="text-primary" />
+        },
+        { 
+            title: 'Travellers', 
+            desc: 'Multilingual profile options and secure insurance parameters globally mapped.',
+            icon: <Globe size={22} className="text-primary" />
+        },
+        { 
+            title: 'Industrial Workers', 
+            desc: 'Compliance tracking and immediate occupational hazard emergency reporting.',
+            icon: <ShieldAlert size={22} className="text-primary" />
+        },
+        { 
+            title: 'Parents & Families', 
+            desc: 'Coordinated child profiles with next-of-kin links and active GPS tracking.',
+            icon: <Users size={22} className="text-primary" />
+        },
+        { 
+            title: 'Medical Condition Holders', 
+            desc: 'Immediate notification of allergies, epilepsy, diabetes, or rare conditions.',
+            icon: <Activity size={22} className="text-primary" />
+        },
+        { 
+            title: 'Children', 
+            desc: 'Simplified wearables/stickers for immediate location and guardian link.',
+            icon: <Smile size={22} className="text-primary" />
+        }
     ];
 
     const emergencyWorkflow = [
@@ -61,13 +96,20 @@ export default function SolutionsIndividuals() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                     {segments.map((s, idx) => (
-                        <Card key={idx} className="p-8 hover:border-white/10 transition-all flex flex-col justify-between">
+                        <Card key={idx} className="p-8 bg-slate-900/40 border border-white/5 hover:border-primary/20 hover:-translate-y-1 transition-all rounded-3xl flex flex-col justify-between group shadow-xl">
                             <div>
+                                <div className="w-12 h-12 bg-primary/5 rounded-2xl flex items-center justify-center border border-primary/10 mb-6 group-hover:bg-primary/10 transition-colors">
+                                    {s.icon}
+                                </div>
                                 <h3 className="text-xl font-black uppercase italic tracking-tight font-poppins text-white mb-4">{s.title}</h3>
                                 <p className="text-slate-400 text-xs leading-relaxed font-medium">{s.desc}</p>
                             </div>
-                            <div className="mt-8 text-primary font-black text-[10px] uppercase tracking-widest italic flex items-center gap-1.5">
-                                ACTIVE PROTECTION <Zap size={12} />
+                            <div className="mt-8 flex items-center justify-between">
+                                <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black">Segment Shield</span>
+                                <span className="flex items-center gap-1.5 text-primary text-[9px] font-black uppercase tracking-widest italic bg-primary/10 px-2.5 py-1 rounded-full border border-primary/25">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                    Active
+                                </span>
                             </div>
                         </Card>
                     ))}
@@ -102,9 +144,9 @@ export default function SolutionsIndividuals() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {/* Stranger View Card */}
-                    <Card className="p-8 md:p-12 border-blue-500/10">
+                    <Card className="p-8 md:p-12 border-blue-500/10 bg-slate-900/40 backdrop-blur-md rounded-[32px] hover:border-blue-500/20 transition-all">
                         <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+                            <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
                                 <Eye size={24} />
                             </div>
                             <div>
@@ -113,26 +155,26 @@ export default function SolutionsIndividuals() {
                             </div>
                         </div>
 
-                        <div className="space-y-4 p-6 bg-slate-950 rounded-2xl border border-white/5">
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Patient Name</span>
-                                <span className="text-white">PRATHEEK M.</span>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-blue-500/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Patient Name</span>
+                                <span className="text-xs font-black text-white bg-white/5 px-3 py-1 rounded-lg">PRATHEEK M.</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Emergency SOS Contact</span>
-                                <span className="text-primary font-black italic">CALL FAMILY</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-blue-500/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Emergency SOS Contact</span>
+                                <span className="text-xs font-black text-primary italic bg-primary/10 border border-primary/20 px-3 py-1 rounded-lg uppercase tracking-wide">CALL FAMILY</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Live GPS Telemetry</span>
-                                <span className="text-emerald-500 font-black italic">SHARE LOCATION</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-blue-500/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Live GPS Telemetry</span>
+                                <span className="text-xs font-black text-emerald-400 italic bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg uppercase tracking-wide">SHARE LOCATION</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Ambulance Dispatch</span>
-                                <span className="text-white font-black italic">CALL 108</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-blue-500/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Ambulance Dispatch</span>
+                                <span className="text-xs font-black text-white italic bg-white/5 px-3 py-1 rounded-lg uppercase tracking-wide">CALL 108</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Nearest Medical Center</span>
-                                <span className="text-white font-black italic">MAP ROUTE</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-blue-500/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Nearest Medical Center</span>
+                                <span className="text-xs font-black text-white italic bg-white/5 px-3 py-1 rounded-lg uppercase tracking-wide">MAP ROUTE</span>
                             </div>
                         </div>
                         <p className="text-[10px] text-slate-500 font-semibold mt-6 italic">
@@ -141,9 +183,9 @@ export default function SolutionsIndividuals() {
                     </Card>
 
                     {/* Hospital View Card */}
-                    <Card className="p-8 md:p-12 border-primary/20">
+                    <Card className="p-8 md:p-12 border-primary/20 bg-slate-900/40 backdrop-blur-md rounded-[32px] hover:border-primary/30 transition-all">
                         <div className="flex items-center gap-4 mb-8">
-                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
                                 <Lock size={24} />
                             </div>
                             <div>
@@ -152,26 +194,26 @@ export default function SolutionsIndividuals() {
                             </div>
                         </div>
 
-                        <div className="space-y-4 p-6 bg-slate-950 rounded-2xl border border-white/5">
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Blood Group Specimen</span>
-                                <span className="text-primary font-black italic">O+ POSITIVE</span>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Blood Group Specimen</span>
+                                <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-lg uppercase tracking-wide">O+ POSITIVE</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Medical Conditions</span>
-                                <span className="text-white">Type 1 Diabetes, Penicillin Allergy</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Medical Conditions</span>
+                                <span className="text-xs font-bold text-white max-w-[200px] text-right truncate">Type 1 Diabetes, Penicillin Allergy</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Active Medications</span>
-                                <span className="text-white">Metformin 500mg, Lantus Insulin</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Active Medications</span>
+                                <span className="text-xs font-bold text-white max-w-[200px] text-right truncate">Metformin 500mg, Lantus Insulin</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 border-b border-white/5 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Insurance Provider</span>
-                                <span className="text-white">HDFC ERGO / Policy #98175-H</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Insurance Provider</span>
+                                <span className="text-xs font-bold text-white max-w-[200px] text-right truncate">HDFC ERGO / Policy #98175-H</span>
                             </div>
-                            <div className="flex justify-between items-center text-xs py-3 font-bold uppercase tracking-wider text-slate-400">
-                                <span>Authorized access log</span>
-                                <span className="text-emerald-500 font-bold uppercase tracking-widest text-[9px]">ENCRYPTED LOGGED</span>
+                            <div className="flex justify-between items-center p-4 bg-slate-950/60 rounded-2xl border border-white/5 hover:border-primary/20 hover:bg-slate-950/80 transition-all">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-wider">Authorized access log</span>
+                                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">ENCRYPTED LOGGED</span>
                             </div>
                         </div>
                         <p className="text-[10px] text-slate-500 font-semibold mt-6 italic">
