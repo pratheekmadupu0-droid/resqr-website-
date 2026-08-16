@@ -10,7 +10,7 @@ import { getAnalytics } from "firebase/analytics";
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
     apiKey: "AIzaSyBFXvSwZSrMbYHQkrge6UyZOv2uxU0VkPA",
-    authDomain: "emergency-qr-b0adf.firebaseapp.com",
+    authDomain: "resqr.co.in",
     databaseURL: "https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "emergency-qr-b0adf",
     storageBucket: "emergency-qr-b0adf.firebasestorage.app",
