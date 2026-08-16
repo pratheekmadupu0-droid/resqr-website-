@@ -626,7 +626,7 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-medical-bg flex items-center justify-center p-6 font-manrope selection:bg-primary/30">
-            <div className="w-full max-w-4xl py-12">
+            <div className="w-full max-w-5xl py-12">
                 {/* Header branding */}
                 <div className="text-center mb-12">
                     <Link to="/" className="inline-block relative group">
@@ -657,33 +657,52 @@ export default function LoginPage() {
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="space-y-6">
                                 {/* Card 1: Citizen */}
                                 <Card 
                                     onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_20px_50px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_15px_40px_rgba(230,57,70,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    <div className="relative z-10">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
-                                                <User size={26} />
-                                            </div>
-                                            <span className="text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full italic">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    
+                                    {/* Left part: Icon & Role */}
+                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                        <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
+                                            <User size={30} />
+                                        </div>
+                                        <div>
+                                            <span className="inline-block text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full italic mb-2">
                                                 CITIZEN CORE
                                             </span>
+                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                Users Portal
+                                            </h3>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
-                                            Users Login
-                                        </h3>
-                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
-                                            Create and manage your Emergency Medical Identity. Keep your life-saving data current.
-                                        </p>
                                     </div>
-                                    <div className="relative z-10">
+
+                                    {/* Center part: Detailed Info */}
+                                    <div className="flex-1 space-y-4">
+                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                            Create, secure, and manage your Emergency Medical Identity. Link next-of-kin, medical history, and insurance records to physical smart stickers.
+                                        </p>
+                                        <div className="flex flex-wrap gap-3">
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Wallet QR Pass
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Sticker Mapping
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Encrypted Cloud
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Right part: Action */}
+                                    <div className="shrink-0 md:w-48">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                            className="w-full py-5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
+                                            className="w-full py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
                                         >
                                             Login / Register
                                         </Button>
@@ -693,29 +712,48 @@ export default function LoginPage() {
                                 {/* Card 2: Agent */}
                                 <Card 
                                     onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_20px_50px_rgba(59,130,246,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_15px_40px_rgba(59,130,246,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    <div className="relative z-10">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <div className="w-14 h-14 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
-                                                <ShieldCheck size={26} />
-                                            </div>
-                                            <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full italic">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    
+                                    {/* Left part: Icon & Role */}
+                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                        <div className="w-16 h-16 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
+                                            <ShieldCheck size={30} />
+                                        </div>
+                                        <div>
+                                            <span className="inline-block text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
                                                 PARTNER FIELD
                                             </span>
+                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                Agent Portal
+                                            </h3>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
-                                            Agent Login
-                                        </h3>
-                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
-                                            Authorized RESQR Sales, Distribution, & Support Channel Partner Portal.
-                                        </p>
                                     </div>
-                                    <div className="relative z-10">
+
+                                    {/* Center part: Detailed Info */}
+                                    <div className="flex-1 space-y-4">
+                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                            Authorized RESQR Sales, Distribution, & Support Channel Partner console. Review registration pipelines and track community onboardings.
+                                        </p>
+                                        <div className="flex flex-wrap gap-3">
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> Sales Telemetry
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Onboarding Audits
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> CSV Deployment
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Right part: Action */}
+                                    <div className="shrink-0 md:w-48">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                            className="w-full py-5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                            className="w-full py-4.5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
                                         >
                                             Agent Login
                                         </Button>
@@ -725,29 +763,48 @@ export default function LoginPage() {
                                 {/* Card 3: Hospital */}
                                 <Card 
                                     onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(16,185,129,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_15px_40px_rgba(16,185,129,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    <div className="relative z-10">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <div className="w-14 h-14 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
-                                                <Building size={26} />
-                                            </div>
-                                            <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full italic">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    
+                                    {/* Left part: Icon & Role */}
+                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                        <div className="w-16 h-16 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
+                                            <Building size={30} />
+                                        </div>
+                                        <div>
+                                            <span className="inline-block text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
                                                 CLINICAL NODE
                                             </span>
+                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                Hospital Hub
+                                            </h3>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
-                                            Hospital Login
-                                        </h3>
-                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
-                                            Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal.
-                                        </p>
                                     </div>
-                                    <div className="relative z-10">
+
+                                    {/* Center part: Detailed Info */}
+                                    <div className="flex-1 space-y-4">
+                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                            Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal. Instant verified access to incoming patient telemetry.
+                                        </p>
+                                        <div className="flex flex-wrap gap-3">
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Paramedic Sync
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Trauma Unit Active
+                                            </span>
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Logs
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Right part: Action */}
+                                    <div className="shrink-0 md:w-48">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                            className="w-full py-5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                            className="w-full py-4.5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
                                         >
                                             Hospital Login
                                         </Button>
