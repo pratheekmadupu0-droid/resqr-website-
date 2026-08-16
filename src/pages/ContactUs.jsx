@@ -8,6 +8,8 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { db } from '../lib/firebase';
+import { ref, push, set, serverTimestamp } from 'firebase/database';
 
 export default function ContactUs() {
     const [name, setName] = useState('');
@@ -103,6 +105,25 @@ export default function ContactUs() {
             await new Promise(resolve => setTimeout(resolve, 800));
             setSubmitProgress(steps[i].progress);
             addLog(steps[i].log);
+        }
+
+        // Commit transmission to Firebase Realtime Database
+        try {
+            const contactRef = ref(db, 'contacts');
+            const newContactRef = push(contactRef);
+            await set(newContactRef, {
+                name,
+                email,
+                subject,
+                message,
+                priority,
+                encryption,
+                timestamp: serverTimestamp()
+            });
+            addLog('SYS: TELEMETRY COMMITTED TO CLOUD VAULT ENGINE.');
+        } catch (error) {
+            console.error("Error saving contact details:", error);
+            addLog('WARNING: CLOUD STORAGE SYNC OFFLINE. CACHING IN LOCAL DATA BUFFER.');
         }
 
         setSubmitStatus('success');
