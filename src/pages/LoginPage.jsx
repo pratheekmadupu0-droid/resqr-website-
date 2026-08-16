@@ -652,8 +652,8 @@ export default function LoginPage() {
                                 <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
                                     LOGIN TO <span className="text-primary italic-display">RESQR</span>
                                 </h1>
-                                <p className="text-slate-400 max-w-md mx-auto text-sm font-semibold uppercase tracking-wider">
-                                    Choose your role to continue.
+                                <p className="text-slate-400 max-w-md mx-auto text-xs font-black uppercase tracking-[0.2em]">
+                                    Select your system portal to continue
                                 </p>
                             </div>
 
@@ -661,22 +661,29 @@ export default function LoginPage() {
                                 {/* Card 1: Citizen */}
                                 <Card 
                                     onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_20px_50px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     <div className="relative z-10">
-                                        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
-                                            <User size={28} />
+                                        <div className="flex justify-between items-start mb-8">
+                                            <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
+                                                <User size={26} />
+                                            </div>
+                                            <span className="text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full italic">
+                                                CITIZEN CORE
+                                            </span>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👤 Users Login</h3>
-                                        <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Create and manage your Emergency Medical Identity.
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
+                                            Users Login
+                                        </h3>
+                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
+                                            Create and manage your Emergency Medical Identity. Keep your life-saving data current.
                                         </p>
                                     </div>
                                     <div className="relative z-10">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                            className="w-full py-5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-lg shadow-primary/20"
+                                            className="w-full py-5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
                                         >
                                             Login / Register
                                         </Button>
@@ -686,22 +693,29 @@ export default function LoginPage() {
                                 {/* Card 2: Agent */}
                                 <Card 
                                     onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_20px_50px_rgba(59,130,246,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     <div className="relative z-10">
-                                        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
-                                            <ShieldCheck size={28} />
+                                        <div className="flex justify-between items-start mb-8">
+                                            <div className="w-14 h-14 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
+                                                <ShieldCheck size={26} />
+                                            </div>
+                                            <span className="text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full italic">
+                                                PARTNER FIELD
+                                            </span>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">👨💼 Agent Login</h3>
-                                        <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Authorized RESQR Sales & Support Partner Portal.
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
+                                            Agent Login
+                                        </h3>
+                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
+                                            Authorized RESQR Sales, Distribution, & Support Channel Partner Portal.
                                         </p>
                                     </div>
                                     <div className="relative z-10">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                            className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs"
+                                            className="w-full py-5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
                                         >
                                             Agent Login
                                         </Button>
@@ -711,22 +725,29 @@ export default function LoginPage() {
                                 {/* Card 3: Hospital */}
                                 <Card 
                                     onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                    className="p-8 bg-medical-card border-white/5 hover:border-primary/40 hover:shadow-[0_20px_50px_rgba(230,57,70,0.2)] transition-all duration-300 rounded-[35px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer"
+                                    className="p-8 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_20px_50px_rgba(16,185,129,0.15)] transition-all duration-300 rounded-[40px] flex flex-col justify-between group h-full relative overflow-hidden cursor-pointer backdrop-blur-md"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     <div className="relative z-10">
-                                        <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
-                                            <Building size={28} />
+                                        <div className="flex justify-between items-start mb-8">
+                                            <div className="w-14 h-14 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
+                                                <Building size={26} />
+                                            </div>
+                                            <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full italic">
+                                                CLINICAL NODE
+                                            </span>
                                         </div>
-                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">🏥 Hospital Login</h3>
-                                        <p className="text-slate-400 text-sm leading-relaxed mb-8">
-                                            Hospital Emergency Response Portal.
+                                        <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-3 font-poppins text-white">
+                                            Hospital Login
+                                        </h3>
+                                        <p className="text-slate-400 text-xs leading-relaxed mb-8 font-medium">
+                                            Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal.
                                         </p>
                                     </div>
                                     <div className="relative z-10">
                                         <Button 
                                             onClick={(e) => { e.stopPropagation(); setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                            className="w-full py-5 bg-slate-900 border border-white/10 hover:border-primary/50 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs"
+                                            className="w-full py-5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
                                         >
                                             Hospital Login
                                         </Button>
