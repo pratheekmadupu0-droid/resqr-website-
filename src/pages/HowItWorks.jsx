@@ -1,5 +1,8 @@
-import React from 'react';
-import { Shield, Smartphone, QrCode, AlertTriangle, Search, Lock, UserCheck, HeartHandshake, PhoneCall } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+    Shield, Smartphone, QrCode, AlertTriangle, Search, Lock, 
+    UserCheck, HeartHandshake, PhoneCall, Maximize2, X 
+} from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -8,6 +11,8 @@ import { auth } from '../lib/firebase';
 
 export default function HowItWorks() {
     const navigate = useNavigate();
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
     const handleCtaClick = () => {
         if (auth?.currentUser) {
             navigate('/dashboard');
@@ -15,6 +20,7 @@ export default function HowItWorks() {
             navigate('/login');
         }
     };
+
     const stages = [
         {
             num: '01',
@@ -121,7 +127,7 @@ export default function HowItWorks() {
     return (
         <div className="min-h-screen bg-medical-bg text-white font-manrope">
             {/* Hero Section */}
-            <section className="relative pt-32 pb-24 px-4 overflow-hidden border-b border-white/5 bg-slate-950/40">
+            <section className="relative pt-32 pb-20 px-4 overflow-hidden border-b border-white/5 bg-slate-950/40">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(230,57,70,0.05),transparent)] pointer-events-none" />
                 <div className="max-w-5xl mx-auto text-center relative z-10">
                     <Badge className="bg-primary/10 text-primary border-primary/20 mb-6 px-4 py-1.5 font-black tracking-widest text-xs uppercase italic">THE EMERGENCY SYSTEM</Badge>
@@ -135,8 +141,70 @@ export default function HowItWorks() {
                 </div>
             </section>
 
+            {/* Visual Workflow Infographic */}
+            <section className="py-12 px-4 max-w-7xl mx-auto">
+                <div className="bg-[#11192A] border border-white/5 p-6 md:p-10 rounded-[45px] shadow-2xl relative overflow-hidden group hover:border-primary/20 transition-all">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(230,57,70,0.02),transparent)] pointer-events-none" />
+                    
+                    <div className="text-center mb-8">
+                        <Badge className="bg-primary/10 text-primary border-primary/20 mb-3 px-3 py-1 font-black tracking-widest text-[10px] uppercase italic">System Map</Badge>
+                        <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter font-poppins text-white leading-none">
+                            RESPONSE INFOGRAPHIC
+                        </h2>
+                        <p className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mt-3">Comprehensive system architecture & emergency journey</p>
+                    </div>
+
+                    <div 
+                        onClick={() => setIsLightboxOpen(true)}
+                        className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl bg-white p-3 hover:scale-[1.01] transition-all duration-500 cursor-zoom-in group/img"
+                    >
+                        <img 
+                            src="/resqr_pamphlet.png" 
+                            alt="RESQR - How It Works Visual Infographic" 
+                            className="w-full h-auto object-contain rounded-2xl mx-auto max-h-[850px]"
+                        />
+                        
+                        {/* Hover Overlay indicator */}
+                        <div className="absolute inset-0 bg-slate-950/0 group-hover/img:bg-slate-950/20 transition-all flex items-center justify-center">
+                            <div className="bg-primary text-white p-4 rounded-full shadow-2xl opacity-0 group-hover/img:opacity-100 transition-all translate-y-4 group-hover/img:translate-y-0 duration-300">
+                                <Maximize2 size={24} />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* Lightbox Modal */}
+            {isLightboxOpen && (
+                <div 
+                    onClick={() => setIsLightboxOpen(false)}
+                    className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4 cursor-zoom-out"
+                >
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsLightboxOpen(false);
+                        }}
+                        className="absolute top-6 right-6 p-3 bg-slate-900 border border-white/10 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-all z-50 shadow-2xl"
+                    >
+                        <X size={24} />
+                    </button>
+                    
+                    <div 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="relative max-w-7xl max-h-[92vh] overflow-auto bg-white p-4 rounded-3xl border border-white/10"
+                    >
+                        <img 
+                            src="/resqr_pamphlet.png" 
+                            alt="RESQR - How It Works Visual Infographic Fullscreen" 
+                            className="max-w-full h-auto object-contain mx-auto max-h-[85vh] rounded-xl"
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Stages Section */}
-            <section className="py-24 px-4 max-w-7xl mx-auto">
+            <section className="py-16 px-4 max-w-7xl mx-auto">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                     {stages.map((stage) => (
                         <Card key={stage.num} className="p-8 md:p-12 hover:border-white/10 transition-all flex flex-col justify-between">
