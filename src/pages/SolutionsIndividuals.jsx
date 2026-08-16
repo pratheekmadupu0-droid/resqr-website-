@@ -3,9 +3,19 @@ import { Shield, Eye, Lock, ArrowRight, User, Heart, Smartphone, Users, MapPin, 
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 export default function SolutionsIndividuals() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
+
     const segments = [
         { title: 'Students', desc: 'Secure campus protection and emergency contacts link for school/university hours.' },
         { title: 'Drivers & Riders', desc: 'Instant identification and crash detection alerts on high-speed transits.' },
@@ -177,9 +187,7 @@ export default function SolutionsIndividuals() {
                     <h2 className="text-4xl font-black uppercase italic tracking-tight font-poppins mb-6">CHOOSE EMERGENCY PROTECTION</h2>
                     <p className="text-slate-400 text-sm mb-8 font-medium">Protect yourself and your loved ones today with RESQR digital emergency passes and gear.</p>
                     <div className="flex gap-4 justify-center">
-                        <Link to="/store">
-                            <Button size="lg" className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">GET YOUR RESQR</Button>
-                        </Link>
+                        <Button size="lg" onClick={handleCtaClick} className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">GET YOUR RESQR</Button>
                     </div>
                 </div>
             </section>

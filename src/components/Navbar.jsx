@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Shield, User, LayoutDashboard, Settings, LogOut, Home, Info, QrCode, CreditCard, ChevronDown, BookOpen, Layers, Sparkles } from 'lucide-react';
+import { Menu, X, Shield, User, LayoutDashboard, Settings, LogOut, Home, Info, QrCode, CreditCard, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from './ui/Button';
 import { auth, db } from '../lib/firebase';
@@ -10,8 +10,8 @@ export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [userName, setUserName] = useState('');
-    const [hoveredMenu, setHoveredMenu] = useState(null); // 'solutions', 'resources', 'products'
-    const [openAccordion, setOpenAccordion] = useState(null); // mobile accordion state
+    const [hoveredMenu, setHoveredMenu] = useState(null);
+    const [openAccordion, setOpenAccordion] = useState(null);
     const location = useLocation();
     const navigate = useNavigate();
     const isEmergency = location.pathname.startsWith('/e/');
@@ -54,37 +54,38 @@ export default function Navbar() {
     if (isEmergency) return null;
 
     const solutionsLinks = [
-        { name: 'Individuals', path: '/solutions/individuals' },
-        { name: 'Families', path: '/solutions/families' },
-        { name: 'Doctors', path: '/solutions/doctors' },
-        { name: 'Hospitals', path: '/solutions/hospitals' },
-        { name: 'Ambulances', path: '/solutions/ambulances' },
-        { name: 'First Responders', path: '/solutions/first-responders' },
-        { name: 'Enterprises', path: '/solutions/enterprises' },
-        { name: 'Schools', path: '/solutions/schools' },
-        { name: 'Government', path: '/solutions/government' }
+        { name: 'Individuals', path: '/solutions/individuals', desc: 'Personal safety tags for daily commutes' },
+        { name: 'Families', path: '/solutions/families', desc: 'Secure medical protection for households' },
+        { name: 'Doctors', path: '/solutions/doctors', desc: 'Verification-based patient access portal' },
+        { name: 'Hospitals', path: '/solutions/hospitals', desc: 'Triage ER databases & ERP integration' },
+        { name: 'Ambulances', path: '/solutions/ambulances', desc: 'Paramedic telemetry & dispatch mapping' },
+        { name: 'First Responders', path: '/solutions/first-responders', desc: 'Bystander emergency response tools' },
+        { name: 'Enterprises', path: '/solutions/enterprises', desc: 'Workforce safety and compliance' },
+        { name: 'Schools', path: '/solutions/schools', desc: 'Smart campus student protection cards' },
+        { name: 'Government', path: '/solutions/government', desc: 'Civic safety and relief coordination' }
     ];
 
     const resourcesLinks = [
-        { name: 'Safety & Privacy', path: '/safety-privacy' },
-        { name: 'Technology', path: '/technology' },
-        { name: 'Stories', path: '/stories' },
-        { name: 'Emergency Awareness', path: '/emergency-awareness' },
-        { name: 'FAQ', path: '/faq' },
-        { name: 'Help Center', path: '/help-center' }
+        { name: 'Safety & Privacy', path: '/safety-privacy', desc: 'Data encryption & storage compliance' },
+        { name: 'Technology', path: '/technology', desc: 'Decentralized cloud network parameters' },
+        { name: 'Stories', path: '/stories', desc: 'Emergency response editorial journals' },
+        { name: 'Emergency Awareness', path: '/emergency-awareness', desc: 'Road safety & first-aid guidelines' },
+        { name: 'FAQ', path: '/faq', desc: 'General help desk and setup answers' },
+        { name: 'Help Center', path: '/help-center', desc: 'Account restoration & offline backup' }
     ];
 
     const productsLinks = [
-        { name: 'Products Page', path: '/products' },
-        { name: 'Pricing', path: '/pricing' },
-        { name: 'Partners', path: '/partners' }
+        { name: 'Products Page', path: '/products', desc: 'NFC tags, helmet stickers, smart bands' },
+        { name: 'Pricing', path: '/pricing', desc: 'Transparent safety package matrices' },
+        { name: 'Partners', path: '/partners', desc: 'Submit safety network partnership audits' }
     ];
 
     return (
         <nav className="sticky top-0 z-40 bg-medical-bg/85 backdrop-blur-md border-b border-white/5 font-manrope">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between py-4 items-center">
-                    <Link to="/" className="flex items-center gap-2 shrink-0 group">
+                    {/* Far Left Logo with safety margins to prevent mixing */}
+                    <Link to="/" className="flex items-center gap-2 shrink-0 group mr-8 lg:mr-16">
                         <img 
                             src={`${import.meta.env.BASE_URL}resqr_logo.png`} 
                             alt="RESQR Logo" 
@@ -92,12 +93,8 @@ export default function Navbar() {
                         />
                     </Link>
 
-                    {/* Desktop Links with hover dropdown logic */}
+                    {/* Desktop Links (Home removed from Desktop nav since logo points to Home) */}
                     <div className="hidden md:flex items-center gap-8">
-                        <Link to="/" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/' ? 'text-primary' : 'text-slate-100/60 hover:text-primary'}`}>
-                            Home
-                        </Link>
-
                         <Link to="/how-it-works" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/how-it-works' ? 'text-primary' : 'text-slate-100/60 hover:text-primary'}`}>
                             How It Works
                         </Link>
@@ -112,15 +109,23 @@ export default function Navbar() {
                                 Solutions <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'solutions' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 bg-[#091124] border border-white/5 shadow-2xl p-6 rounded-2xl w-64 grid grid-cols-1 gap-2.5 backdrop-blur-xl">
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[32rem] grid grid-cols-2 gap-4 backdrop-blur-xl z-50">
                                     {solutionsLinks.map((item) => (
                                         <Link 
                                             key={item.name} 
                                             to={item.path} 
                                             onClick={() => setHoveredMenu(null)}
-                                            className="text-[11px] font-bold text-slate-400 hover:text-primary uppercase tracking-wider block transition-colors"
+                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
                                         >
-                                            {item.name}
+                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                            <div>
+                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                    {item.name}
+                                                </div>
+                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                    {item.desc}
+                                                </div>
+                                            </div>
                                         </Link>
                                     ))}
                                 </div>
@@ -137,15 +142,23 @@ export default function Navbar() {
                                 Products <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'products' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 bg-[#091124] border border-white/5 shadow-2xl p-6 rounded-2xl w-56 grid grid-cols-1 gap-2.5 backdrop-blur-xl">
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-72 grid grid-cols-1 gap-4 backdrop-blur-xl z-50">
                                     {productsLinks.map((item) => (
                                         <Link 
                                             key={item.name} 
                                             to={item.path} 
                                             onClick={() => setHoveredMenu(null)}
-                                            className="text-[11px] font-bold text-slate-400 hover:text-primary uppercase tracking-wider block transition-colors"
+                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
                                         >
-                                            {item.name}
+                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                            <div>
+                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                    {item.name}
+                                                </div>
+                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                    {item.desc}
+                                                </div>
+                                            </div>
                                         </Link>
                                     ))}
                                 </div>
@@ -162,15 +175,23 @@ export default function Navbar() {
                                 Resources <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'resources' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 bg-[#091124] border border-white/5 shadow-2xl p-6 rounded-2xl w-60 grid grid-cols-1 gap-2.5 backdrop-blur-xl">
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[30rem] grid grid-cols-2 gap-4 backdrop-blur-xl z-50">
                                     {resourcesLinks.map((item) => (
                                         <Link 
                                             key={item.name} 
                                             to={item.path} 
                                             onClick={() => setHoveredMenu(null)}
-                                            className="text-[11px] font-bold text-slate-400 hover:text-primary uppercase tracking-wider block transition-colors"
+                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
                                         >
-                                            {item.name}
+                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                            <div>
+                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                    {item.name}
+                                                </div>
+                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                    {item.desc}
+                                                </div>
+                                            </div>
                                         </Link>
                                     ))}
                                 </div>

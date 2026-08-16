@@ -3,9 +3,18 @@ import { Shield, Smartphone, QrCode, AlertTriangle, Search, Lock, UserCheck, Hea
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 export default function HowItWorks() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
     const stages = [
         {
             num: '01',
@@ -185,11 +194,9 @@ export default function HowItWorks() {
                         Join thousands of families, professionals, and hospitals currently using the RESQR critical response infrastructure.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-                        <Link to="/store">
-                            <Button size="lg" className="px-10 py-5 rounded-full font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">
-                                GET YOUR RESQR
-                            </Button>
-                        </Link>
+                        <Button size="lg" onClick={handleCtaClick} className="px-10 py-5 rounded-full font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">
+                            GET YOUR RESQR
+                        </Button>
                         <Link to="/partners">
                             <Button size="lg" variant="outline" className="px-10 py-5 rounded-full font-black text-sm uppercase tracking-widest border-white/10 text-white hover:bg-white/5">
                                 PARTNER WITH RESQR

@@ -1,11 +1,20 @@
 import React from 'react';
 import { Shield, Smartphone, Heart, Activity, CheckCircle2, QrCode, ArrowRight, Award, Compass, Eye, Info } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { auth } from '../lib/firebase';
 
 export default function AboutUs() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
     const timelines = [
         { year: '2026', title: 'RESQR Foundation', desc: 'Company incorporated to build decentralized emergency response networks.' },
         { year: '2026', title: 'Hospital Sync Beta', desc: 'Successfully integrated live emergency patient databases across 10 major trauma centers.' },
@@ -91,11 +100,9 @@ export default function AboutUs() {
                             Join over 50,000 users who trust RESQR to speak for them when they can't.
                         </p>
                         <div className="pt-6">
-                            <Link to="/store">
-                                <Button size="lg" className="px-12 py-5 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/30 active:scale-95 transition-transform">
-                                    GET PROTECTED <ArrowRight size={18} className="ml-3" />
-                                </Button>
-                            </Link>
+                            <Button size="lg" onClick={handleCtaClick} className="px-12 py-5 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/30 active:scale-95 transition-transform">
+                                GET PROTECTED <ArrowRight size={18} className="ml-3" />
+                            </Button>
                         </div>
                     </div>
                 </div>

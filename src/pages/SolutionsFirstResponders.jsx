@@ -3,9 +3,19 @@ import { Shield, PhoneCall, MapPin, Eye, Info, CheckCircle2, QrCode } from 'luci
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 export default function SolutionsFirstResponders() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
+
     const actions = [
         {
             title: 'Contact Family',
@@ -121,9 +131,7 @@ export default function SolutionsFirstResponders() {
                         "Emergency access is designed to provide only the information required for immediate assistance." Sensitive medical archives remain secure behind role-based OTP credentials.
                     </p>
                     <div className="flex justify-center">
-                        <Link to="/store">
-                            <Button size="lg" className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">GET YOUR RESQR</Button>
-                        </Link>
+                        <Button size="lg" onClick={handleCtaClick} className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">GET YOUR RESQR</Button>
                     </div>
                 </div>
             </section>

@@ -3,9 +3,18 @@ import { Check, Shield, Mail } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 export default function PricingPage() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
     const plans = [
         {
             category: 'PERSONAL',
@@ -118,11 +127,9 @@ export default function PricingPage() {
 
                             <div>
                                 {pl.available ? (
-                                    <Link to="/store">
-                                        <Button className="w-full py-4 text-xs font-black uppercase tracking-widest italic">
-                                            {pl.cta}
-                                        </Button>
-                                    </Link>
+                                    <Button onClick={handleCtaClick} className="w-full py-4 text-xs font-black uppercase tracking-widest italic">
+                                        {pl.cta}
+                                    </Button>
                                 ) : (
                                     <Link to="/contact">
                                         <Button variant="outline" className="w-full py-4 text-xs font-black uppercase tracking-widest italic text-white border-white/10 hover:bg-white/5">

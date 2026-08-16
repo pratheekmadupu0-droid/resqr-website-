@@ -3,9 +3,19 @@ import { Shield, Heart, Users, Bell, MapPin, Zap } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 export default function SolutionsFamilies() {
+    const navigate = useNavigate();
+    const handleCtaClick = () => {
+        if (auth?.currentUser) {
+            navigate('/dashboard');
+        } else {
+            navigate('/login');
+        }
+    };
+
     const plans = [
         {
             title: 'Unified Dashboard',
@@ -69,9 +79,7 @@ export default function SolutionsFamilies() {
                     <h2 className="text-4xl font-black uppercase italic tracking-tight font-poppins mb-6">SECURE YOUR HOUSEHOLD</h2>
                     <p className="text-slate-400 text-sm mb-8 font-medium">Protect up to 5 family members on a single dashboard plan. Get custom smart cards and gear delivered directly.</p>
                     <div className="flex gap-6 justify-center">
-                        <Link to="/store">
-                            <Button size="lg" className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">ORDER FAMILY PACK</Button>
-                        </Link>
+                        <Button size="lg" onClick={handleCtaClick} className="rounded-full px-10 py-5 font-black text-sm uppercase tracking-widest shadow-xl shadow-primary/25">ORDER FAMILY PACK</Button>
                     </div>
                 </div>
             </section>
