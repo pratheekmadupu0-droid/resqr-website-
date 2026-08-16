@@ -55,8 +55,7 @@ export default function Navbar() {
         { name: 'Home', path: '/', icon: <Home size={16} /> },
         { name: 'About', path: '/about', icon: <Info size={16} /> },
         { name: 'Products', path: '/store', icon: <CreditCard size={16} /> },
-        { name: 'Pricing', path: '/#pricing', icon: <QrCode size={16} /> },
-        { name: 'Contact', path: '/about#contact', icon: <User size={16} /> },
+        { name: 'Contact', path: '/contact', icon: <User size={16} /> },
     ];
 
     if (!user) {
@@ -80,7 +79,7 @@ export default function Navbar() {
                     {/* Desktop Links */}
                     <div className="hidden md:flex items-center gap-8">
                         {navLinks.map((link) => {
-                            const isActive = location.pathname === link.path || (link.path === '/#pricing' && location.pathname === '/');
+                            const isActive = location.pathname === link.path;
                             return (
                                 <Link
                                     key={link.name}
@@ -121,7 +120,7 @@ export default function Navbar() {
             {isOpen && (
                 <div className="md:hidden bg-medical-bg border-b border-white/5 py-8 px-6 space-y-6 shadow-2xl">
                     {navLinks.map((link) => {
-                        const isActive = location.pathname === link.path || (link.path === '/#pricing' && location.pathname === '/');
+                        const isActive = location.pathname === link.path;
                         return (
                             <Link
                                 key={link.name}
