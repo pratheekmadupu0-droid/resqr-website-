@@ -10,7 +10,7 @@ import { Input, Select } from '../components/ui/Input';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { auth, db } from '../lib/firebase';
-import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { ref, update, set, get } from 'firebase/database';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
@@ -24,10 +24,22 @@ function Badge({ children, className = '', ...props }) {
     );
 }
 
+// Google Icon Component
+function GoogleIcon() {
+    return (
+        <svg className="w-5 h-5 mr-3 inline-block shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+    );
+}
+
 export default function LoginPage() {
     const navigate = useNavigate();
     const [selectedRole, setSelectedRole] = useState(null); // null, 'citizen', 'agent', 'hospital'
-    const [authState, setAuthState] = useState('card_select'); // card_select, phone_verify, otp_verify, register_wizard, email_login, email_register
+    const [authState, setAuthState] = useState('card_select'); // card_select, google_verify, register_wizard, email_login, email_register
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
     const [expandedPortal, setExpandedPortal] = useState('citizen'); // 'citizen' default expanded
@@ -136,48 +148,13 @@ export default function LoginPage() {
         }
     };
 
-    const handleSendOtp = () => {
-        if (!phoneNumber || phoneNumber.length < 10) {
-            toast.error("Please enter a valid 10-digit mobile number.");
-            return;
-        }
-        setAuthLoading(true);
-        setTimeout(() => {
-            const otp = Math.floor(100000 + Math.random() * 900000).toString();
-            setGeneratedOtp(otp);
-            setAuthLoading(false);
-            setAuthState('otp_verify');
-            toast.success(`Demo Access Key Dispatched! Enter code: ${otp}`, { duration: 10000 });
-        }, 1200);
-    };
-
-    const handleVerifyOtp = async () => {
-        if (!enteredOtp || enteredOtp !== generatedOtp) {
-            toast.error("Invalid verification code. Please check the code shown in the notification.");
-            return;
-        }
+    const handleGoogleSignIn = async () => {
         setAuthLoading(true);
         try {
-            // Real Firebase authentication using anonymous sign-in or demo credentials
-            let currentUser = auth.currentUser;
-            if (!currentUser) {
-                try {
-                    const userCredential = await signInAnonymously(auth);
-                    currentUser = userCredential.user;
-                } catch (anonErr) {
-                    console.warn("Anonymous auth restricted in console, switching to demo auth handshake...", anonErr);
-                    const demoEmail = `demo.${phoneNumber || 'user'}@resqr.co.in`;
-                    const demoPass = "ResQR#DemoPass2026";
-                    try {
-                        const userCredential = await signInWithEmailAndPassword(auth, demoEmail, demoPass);
-                        currentUser = userCredential.user;
-                    } catch (loginErr) {
-                        const userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
-                        currentUser = userCredential.user;
-                    }
-                }
-            }
-            const uid = currentUser.uid;
+            const provider = new GoogleAuthProvider();
+            const userCredential = await signInWithPopup(auth, provider);
+            const user = userCredential.user;
+            const uid = user.uid;
 
             // Check if user already registered in RTDB by UID
             const userSnap = await get(ref(db, `users/${uid}`));
@@ -193,7 +170,7 @@ export default function LoginPage() {
                 
                 const profileSnap = await get(ref(db, `profiles/c_${uid}`));
                 if (userData.role === 'agent' || userData.role === 'hospital' || (profileSnap.exists() && userData.profileCompleted)) {
-                    toast.success(`Welcome back, ${userData.name || 'User'}! Authentication successful.`);
+                    toast.success(`Welcome back, ${userData.name || user.displayName || 'User'}! Authentication successful.`);
                     navigate('/dashboard');
                     return;
                 }
@@ -201,23 +178,21 @@ export default function LoginPage() {
 
             // Open Registration Wizard based on chosen role
             if (selectedRole === 'agent') {
-                setSelectedRole('agent');
+                setAgentName(user.displayName || '');
+                setAgentEmail(user.email || '');
                 setAuthState('register_wizard');
-                toast.success("Phone verified! Please complete your Agent Registration.");
-            } else if (selectedRole === 'hospital') {
-                setSelectedRole('hospital');
-                setAuthState('register_wizard');
-                setHospitalStep(1);
-                toast.success("Phone verified! Please complete your Hospital Registration.");
+                toast.success("Google authenticated! Please complete your Agent Registration.");
             } else {
                 setSelectedRole('citizen');
+                setCitizenName(user.displayName || '');
+                setCitizenEmail(user.email || '');
                 setAuthState('register_wizard');
                 setCitizenStep(1);
-                toast.success("Phone verified! Please complete your 4-Step Medical Profile.");
+                toast.success("Google authenticated! Please complete your 4-Step Medical Profile.");
             }
         } catch (error) {
-            console.error("Auth error:", error);
-            toast.error("Security handshake failed: " + error.message);
+            console.error("Google Auth error:", error);
+            toast.error("Google authentication failed: " + error.message);
         } finally {
             setAuthLoading(false);
         }
@@ -743,10 +718,10 @@ export default function LoginPage() {
                                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
                                                     <div className="text-left">
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">SECURE REGISTRATION</span>
-                                                        <p className="text-[11px] text-slate-400">Verifying via secure OTP handshake protocol</p>
+                                                        <p className="text-[11px] text-slate-400">Verifying via secure Google Authentication protocol</p>
                                                     </div>
                                                     <Button 
-                                                        onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
+                                                        onClick={() => { setSelectedRole('citizen'); setAuthState('google_verify'); }}
                                                         className="w-full sm:w-auto px-8 py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
                                                     >
                                                         Login / Register
@@ -844,7 +819,7 @@ export default function LoginPage() {
                                                         <p className="text-[11px] text-slate-400">Restricted to authorized channel partners</p>
                                                     </div>
                                                     <Button 
-                                                        onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
+                                                        onClick={() => { setSelectedRole('agent'); setAuthState('google_verify'); }}
                                                         className="w-full sm:w-auto px-8 py-4.5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
                                                     >
                                                         Agent Login
@@ -956,10 +931,10 @@ export default function LoginPage() {
                         </motion.div>
                     )}
 
-                    {/* Phone verification flow (Citizen / Agent) */}
-                    {authState === 'phone_verify' && (
+                    {/* Google verification flow (Citizen / Agent) */}
+                    {authState === 'google_verify' && (
                         <motion.div 
-                            key="phone_verify"
+                            key="google_verify"
                             initial={{ opacity: 0, x: -30 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 30 }}
@@ -974,32 +949,34 @@ export default function LoginPage() {
                                         {selectedRole === 'citizen' ? 'Citizen' : 'Agent'} Login
                                     </h2>
                                     <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">
-                                        Secure OTP Verification Sequence
+                                        Secure Google Authentication Sequence
                                     </p>
                                 </div>
 
                                 <div className="space-y-6">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic ml-1">Mobile number</label>
-                                        <div className="relative">
-                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">+91</span>
-                                            <input 
-                                                type="tel"
-                                                maxLength="10"
-                                                placeholder="9876543210"
-                                                value={phoneNumber}
-                                                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                                                className="w-full pl-14 pr-4 py-4 bg-slate-950 border border-white/5 focus:border-primary rounded-2xl text-white font-bold outline-none transition-all placeholder:text-slate-700"
-                                            />
-                                        </div>
-                                    </div>
+                                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                                        Authenticate using your official Google Account to access the RESQR platform.
+                                    </p>
 
                                     <Button 
-                                        onClick={handleSendOtp}
+                                        onClick={handleGoogleSignIn}
                                         disabled={authLoading}
-                                        className="w-full py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
+                                        className="w-full py-7 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl flex items-center justify-center border border-slate-200"
                                     >
-                                        {authLoading ? 'Transmitting Key...' : 'Request Verification Key'}
+                                        {authLoading ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Connecting Securely...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <GoogleIcon />
+                                                Continue with Google
+                                            </>
+                                        )}
                                     </Button>
 
                                     <div className="pt-4 border-t border-white/5 text-center">
@@ -1009,76 +986,6 @@ export default function LoginPage() {
                                             className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline italic"
                                         >
                                             ⚡ Skip Verification & Launch Demo {selectedRole === 'agent' ? 'Agent' : 'Citizen'} Portal
-                                        </button>
-                                    </div>
-                                </div>
-                            </Card>
-                        </motion.div>
-                    )}
-
-                    {/* OTP verification flow (Citizen / Agent) */}
-                    {authState === 'otp_verify' && (
-                        <motion.div 
-                            key="otp_verify"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="max-w-md mx-auto"
-                        >
-                            <Card className="p-10 bg-medical-card border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden">
-                                <button onClick={() => setAuthState('phone_verify')} className="mb-6 flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-widest italic">
-                                    <ArrowLeft size={14} /> Back
-                                </button>
-                                <div className="space-y-4 mb-8 text-center">
-                                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary border border-primary/20">
-                                        <Key size={28} className="animate-pulse" />
-                                    </div>
-                                    <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">Enter Access Key</h2>
-                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">
-                                        A secure passcode was transmitted to +91 {phoneNumber}
-                                    </p>
-                                </div>
-
-                                <div className="space-y-6">
-                                    <div className="flex flex-col items-center gap-3">
-                                        <input 
-                                            type="text"
-                                            maxLength="6"
-                                            placeholder="000000"
-                                            value={enteredOtp}
-                                            onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
-                                            className="w-full max-w-[200px] bg-slate-950 border-2 border-white/5 focus:border-primary rounded-2xl py-4 text-center text-3xl font-black tracking-[0.2em] outline-none transition-all text-primary font-poppins"
-                                        />
-                                        {generatedOtp && (
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setEnteredOtp(generatedOtp)}
-                                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline italic"
-                                            >
-                                                ⚡ Auto-Fill Code ({generatedOtp})
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <Button 
-                                        onClick={handleVerifyOtp}
-                                        disabled={authLoading}
-                                        className="w-full py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
-                                    >
-                                        {authLoading ? 'Verifying...' : 'Establish Secure Connection'}
-                                    </Button>
-
-                                    <div className="pt-4 text-center border-t border-white/5">
-                                        <button 
-                                            type="button" 
-                                            onClick={() => {
-                                                if (selectedRole === 'agent') setSelectedRole('agent');
-                                                else setSelectedRole('citizen');
-                                                setAuthState('register_wizard');
-                                            }}
-                                            className="text-[11px] text-slate-400 hover:text-primary font-black uppercase tracking-wider italic transition-colors"
-                                        >
-                                            New User? Complete {selectedRole === 'agent' ? 'Agent' : 'Citizen'} Registration Form ➔
                                         </button>
                                     </div>
                                 </div>
@@ -1132,7 +1039,13 @@ export default function LoginPage() {
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="e.g. John Doe" value={citizenName} onChange={(e) => setCitizenName(e.target.value)} required />
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <Input label="Mobile Number" value={`+91 ${phoneNumber}`} readOnly className="bg-slate-950/50 border-none font-bold text-slate-500" />
+                                                    <Input 
+                                                        label="Mobile Number" 
+                                                        placeholder="e.g. 9876543210" 
+                                                        value={phoneNumber} 
+                                                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
+                                                        required 
+                                                    />
                                                     <Input label="Email (Optional)" type="email" placeholder="name@email.com" value={citizenEmail} onChange={(e) => setCitizenEmail(e.target.value)} />
                                                 </div>
                                             </div>
@@ -1486,7 +1399,13 @@ export default function LoginPage() {
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="Agent Name" value={agentName} onChange={(e) => setAgentName(e.target.value)} required />
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <Input label="Mobile Number" value={`+91 ${phoneNumber}`} readOnly className="bg-slate-950/50 border-none font-bold text-slate-500" />
+                                                    <Input 
+                                                        label="Mobile Number" 
+                                                        placeholder="e.g. 9876543210" 
+                                                        value={phoneNumber} 
+                                                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))} 
+                                                        required 
+                                                    />
                                                     <Input label="Email Address" type="email" placeholder="name@resqr.com" value={agentEmail} onChange={(e) => setAgentEmail(e.target.value)} required />
                                                 </div>
                                             </div>
@@ -1580,7 +1499,7 @@ export default function LoginPage() {
 
                                     {/* Action Buttons */}
                                     <div className="pt-8 flex justify-between gap-4">
-                                        <Button onClick={() => setAuthState('otp_verify')} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                        <Button onClick={() => setAuthState('google_verify')} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                             Back
                                         </Button>
                                         <Button 
