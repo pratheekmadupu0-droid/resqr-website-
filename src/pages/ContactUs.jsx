@@ -24,12 +24,12 @@ export default function ContactUs() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitProgress, setSubmitProgress] = useState(0);
     const [submitStatus, setSubmitStatus] = useState('idle'); // idle, sending, success
-    const terminalEndRef = useRef(null);
+    const terminalContainerRef = useRef(null);
 
     // Scroll to bottom of terminal when logs update
     useEffect(() => {
-        if (terminalEndRef.current) {
-            terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        if (terminalContainerRef.current) {
+            terminalContainerRef.current.scrollTop = terminalContainerRef.current.scrollHeight;
         }
     }, [logs]);
 
@@ -251,7 +251,7 @@ export default function ContactUs() {
                                     <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
                                 </div>
                             </div>
-                            <div className="flex-grow overflow-y-auto space-y-2.5 pr-2 custom-scrollbar">
+                            <div ref={terminalContainerRef} className="flex-grow overflow-y-auto space-y-2.5 pr-2 custom-scrollbar">
                                 {logs.map((log, index) => (
                                     <div key={index} className="flex items-start gap-2 leading-relaxed">
                                         <span className="text-slate-600 text-[10px] shrink-0">[{log.time}]</span>
@@ -260,7 +260,6 @@ export default function ContactUs() {
                                         </span>
                                     </div>
                                 ))}
-                                <div ref={terminalEndRef} />
                             </div>
                             <div className="mt-3 pt-3 border-t border-white/5 flex items-center gap-1.5 text-slate-500 shrink-0">
                                 <span className="animate-pulse font-bold text-primary">&gt;</span>
@@ -453,7 +452,7 @@ export default function ContactUs() {
                         </div>
                         <div>
                             <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-500 mb-2">VOICE FREQUENCY</h4>
-                            <p className="font-bold text-sm text-white">+91 (800) RESQR-ID</p>
+                            <p className="font-bold text-sm text-white">+91 9985309102</p>
                             <span className="inline-block text-[8px] text-primary font-black uppercase tracking-widest mt-1 bg-primary/10 px-2 py-0.5 rounded-full italic">24/7 HELPLINE</span>
                         </div>
                     </Card>
@@ -465,7 +464,7 @@ export default function ContactUs() {
                             <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-500 mb-2">SECURE WHATSAPP</h4>
                             <p className="font-bold text-sm text-slate-400 leading-tight mb-2">Instant profile setup and support queries.</p>
                             <a
-                                href="https://wa.me/918007377743"
+                                href="https://wa.me/919985309102"
                                 target="_blank"
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1.5 text-[9px] font-black tracking-widest text-emerald-400 hover:text-emerald-300 uppercase italic transition-colors"
