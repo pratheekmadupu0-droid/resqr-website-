@@ -187,6 +187,27 @@ export default function AdminPanel() {
         };
     }, [navigate, authLoading]);
 
+    // Cleanup camera stream when tab changes or component unmounts
+    useEffect(() => {
+        if (activeTab !== 'facial_scan') {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                setCameraStream(null);
+            }
+            setIsScannerRunning(false);
+            setScannerStatus('idle');
+            setMatchedProfile(null);
+        }
+    }, [activeTab]);
+
+    useEffect(() => {
+        return () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [cameraStream]);
+
     if (authLoading) {
         return (
             <div className="min-h-screen bg-transparent flex items-center justify-center">
@@ -399,27 +420,6 @@ export default function AdminPanel() {
     // BIOMETRIC FACIAL SCANNER FUNCTIONS
     // ==========================================
     
-    // Cleanup camera stream when tab changes or component unmounts
-    useEffect(() => {
-        if (activeTab !== 'facial_scan') {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-                setCameraStream(null);
-            }
-            setIsScannerRunning(false);
-            setScannerStatus('idle');
-            setMatchedProfile(null);
-        }
-    }, [activeTab]);
-
-    useEffect(() => {
-        return () => {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [cameraStream]);
-
     const startCamera = async () => {
         setScannerLogs([`[${new Date().toLocaleTimeString()}] SYSTEM: Initializing biometric scan node...`]);
         setMatchedProfile(null);
