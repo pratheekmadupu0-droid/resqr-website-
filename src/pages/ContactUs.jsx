@@ -504,7 +504,7 @@ export default function ContactUs() {
 
                     <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
                         {/* Gromighty Logo container */}
-                        <div className="w-20 h-20 rounded-2xl bg-white flex items-center justify-center p-2.5 shadow-xl shadow-black/40 hover:scale-105 transition-transform duration-300 shrink-0">
+                        <div className="w-20 h-20 rounded-2xl bg-slate-950 border border-white/10 flex items-center justify-center p-2.5 shadow-xl shadow-black/40 hover:scale-105 transition-transform duration-300 shrink-0">
                             <img
                                 src={`${import.meta.env.BASE_URL}gromighty_logo.png`}
                                 alt="Gromighty Logo"
