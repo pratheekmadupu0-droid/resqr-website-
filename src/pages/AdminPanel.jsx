@@ -23,6 +23,7 @@ export default function AdminPanel() {
     const [profilesList, setProfilesList] = useState([]);
     const [products, setProducts] = useState([]);
     const [ads, setAds] = useState([]);
+    const [contacts, setContacts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     const [authLoading, setAuthLoading] = useState(true);
@@ -114,6 +115,7 @@ export default function AdminPanel() {
         const profilesRef = ref(db, 'profiles');
         const productsRef = ref(db, 'config/products');
         const adsRef = ref(db, 'config/ads');
+        const contactsRef = ref(db, 'contacts');
 
         const unsubUsers = onValue(authUsersRef, (snapshot) => {
             const data = snapshot.val();
@@ -152,12 +154,23 @@ export default function AdminPanel() {
             }
         });
 
+        const unsubContacts = onValue(contactsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
+                setContacts(list);
+            } else {
+                setContacts([]);
+            }
+        });
+
         return () => {
             unsubscribeAuth();
             unsubUsers();
             unsubProfiles();
             unsubProducts();
             unsubAds();
+            unsubContacts();
         };
     }, [navigate, authLoading]);
 
@@ -393,6 +406,7 @@ export default function AdminPanel() {
                         { id: 'users', label: 'Auth Users', icon: <Users size={20} /> },
                         { id: 'profiles', label: 'Medical Profiles', icon: <Activity size={20} /> },
                         { id: 'verification', label: 'Onboarding Audits', icon: <AlertTriangle size={20} /> },
+                        { id: 'contacts', label: 'Support Inbox', icon: <Mail size={20} /> },
                         { id: 'analytics', label: 'Tactical Intel', icon: <ArrowUpRight size={20} /> },
                         { id: 'products', label: 'Inventory & Prices', icon: <Package size={20} /> },
                         { id: 'ads', label: 'Ad Campaigns', icon: <Megaphone size={20} /> },
@@ -426,7 +440,8 @@ export default function AdminPanel() {
                             {activeTab === 'users' ? 'Registered Accounts' :
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
                                     activeTab === 'verification' ? 'Onboarding Audits' :
-                                        activeTab + ' Panel'}
+                                        activeTab === 'contacts' ? 'Secure Transmissions Support Inbox' :
+                                            activeTab + ' Panel'}
                         </h1>
                         <p className="text-slate-400">Manage your system from a single interface.</p>
                     </div>
@@ -992,6 +1007,104 @@ export default function AdminPanel() {
                             </Card>
                         </div>
                     </div>
+                )}
+
+                {activeTab === 'contacts' && (
+                    <Card className="bg-medical-card border-white/5 overflow-hidden p-0 rounded-[40px] shadow-2xl relative">
+                        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+                        <div className="p-10 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-8">
+                            <div>
+                                <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">Secure Transmissions</h2>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Support & Consultation Logs</p>
+                            </div>
+                            <div className="relative group w-full md:w-auto">
+                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-primary group-hover:scale-110 transition-transform" size={20} />
+                                <input
+                                    type="text"
+                                    placeholder="SEARCH BY SENDER OR SUBJECT..."
+                                    className="pl-14 pr-8 py-5 bg-slate-950 border border-white/5 rounded-2xl text-[11px] font-black tracking-widest uppercase italic focus:outline-none focus:ring-2 focus:ring-primary/20 w-full md:w-96 transition-all"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
+                                    <tr>
+                                        <th className="px-10 py-6 text-slate-400">Sender / Comm Channel</th>
+                                        <th className="px-10 py-6 text-slate-400">Priority Level</th>
+                                        <th className="px-10 py-6 text-slate-400">Subject Designation</th>
+                                        <th className="px-10 py-6 text-slate-400">Secure Message Payload</th>
+                                        <th className="px-10 py-6 text-slate-400">Time Logged</th>
+                                        <th className="px-10 py-6 text-right text-slate-400">Operations</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                    {contacts.filter(c =>
+                                        (c.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                                        (c.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                                        (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+                                    ).length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" className="px-10 py-10 text-center text-xs text-slate-500 italic font-bold">
+                                                No secure transmission logs found.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        contacts.filter(c =>
+                                            (c.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                                            (c.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                                            (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+                                        ).reverse().map(contact => (
+                                            <tr key={contact.id} className="hover:bg-white/5 transition-all group">
+                                                <td className="px-10 py-8">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-black text-white italic tracking-tight text-lg">{contact.name}</span>
+                                                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{contact.email}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <Badge className={`${
+                                                        contact.priority === 'critical' 
+                                                            ? 'bg-red-500/10 text-red-500 border-red-500/20' 
+                                                            : contact.priority === 'alert' 
+                                                            ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' 
+                                                            : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                                                    } px-4 py-1 font-black italic text-[9px] uppercase tracking-widest`}>
+                                                        {contact.priority || 'INFO'}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-10 py-8">
+                                                    <span className="text-xs font-black text-white uppercase italic tracking-wider">{contact.subject}</span>
+                                                    <div className="mt-1">
+                                                        <Badge className="bg-green-500/10 text-green-500 border-none font-black italic text-[7px] px-2 py-0.5 uppercase tracking-widest">
+                                                            {contact.encryption ? 'AES-256 SECURED' : 'UNENCRYPTED'}
+                                                        </Badge>
+                                                    </div>
+                                                </td>
+                                                <td className="px-10 py-8 max-w-xs">
+                                                    <p className="text-xs text-slate-300 font-medium leading-relaxed break-words">{contact.message}</p>
+                                                </td>
+                                                <td className="px-10 py-8 text-[10px] font-black text-slate-400 italic uppercase">
+                                                    {contact.timestamp ? new Date(contact.timestamp).toLocaleString() : 'JUST NOW'}
+                                                </td>
+                                                <td className="px-10 py-8 text-right">
+                                                    <button
+                                                        className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                        onClick={() => deleteItem(`contacts/${contact.id}`)}
+                                                        title="Delete Log"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 )}
 
                 {activeTab === 'products' && (
