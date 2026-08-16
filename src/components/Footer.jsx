@@ -13,7 +13,7 @@ export default function Footer() {
                             <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-10 sm:h-12 w-auto object-contain" />
                         </Link>
                         <p className="text-slate-500 text-sm leading-relaxed font-medium">
-                            The world's most advanced emergency identification system. We bridge the gap between physical safety and digital health data when every second counts.
+                            The world\'s most advanced emergency identification system. We bridge the gap between physical safety and digital health data when every second counts.
                         </p>
                         <div className="flex gap-4">
                             {[Twitter, Facebook, Instagram, Github].map((Icon, i) => (
@@ -27,9 +27,20 @@ export default function Footer() {
                     <div>
                         <h4 className="text-[11px] font-black text-white uppercase tracking-[0.4em] mb-8 italic">Ecosystem</h4>
                         <ul className="space-y-4">
-                            <li><Link to="/#features" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Core Technology</Link></li>
-                            <li><Link to="/about" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Our Mission</Link></li>
-                            <li><Link to="/contact" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Enterprise Solutions</Link></li>
+                            <li><Link to="/technology" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Core Technology</Link></li>
+                            <li><Link to="/how-it-works" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">How It Works</Link></li>
+                            <li><Link to="/products" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Products</Link></li>
+                            <li><Link to="/pricing" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Pricing Options</Link></li>
+                        </ul>
+                    </div>
+
+                    <div>
+                        <h4 className="text-[11px] font-black text-white uppercase tracking-[0.4em] mb-8 italic">Solutions</h4>
+                        <ul className="space-y-4">
+                            <li><Link to="/solutions/individuals" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Individuals</Link></li>
+                            <li><Link to="/solutions/families" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Families</Link></li>
+                            <li><Link to="/solutions/enterprises" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Enterprises</Link></li>
+                            <li><Link to="/solutions/hospitals" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Hospital Networks</Link></li>
                         </ul>
                     </div>
 
@@ -37,23 +48,10 @@ export default function Footer() {
                         <h4 className="text-[11px] font-black text-white uppercase tracking-[0.4em] mb-8 italic">Guardian Support</h4>
                         <ul className="space-y-4">
                             <li><Link to="/contact" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Contact Helpdesk</Link></li>
-                            <li><Link to="/legal" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Privacy Shield</Link></li>
-                            <li><Link to="/legal" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Guardian Terms</Link></li>
-                            <li><Link to="/dashboard" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Identity Recovery</Link></li>
+                            <li><Link to="/safety-privacy" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Privacy Shield</Link></li>
+                            <li><Link to="/help-center" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Help Center</Link></li>
+                            <li><Link to="/faq" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">FAQ Database</Link></li>
                         </ul>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[11px] font-black text-white uppercase tracking-[0.4em] mb-8 italic">Secure Updates</h4>
-                        <p className="text-sm text-slate-500 mb-6 font-medium">Join 50,000+ protected users worldwide.</p>
-                        <div className="flex flex-col gap-3">
-                            <input
-                                type="email"
-                                placeholder="Secure Email"
-                                className="bg-white/5 border border-white/5 px-6 py-4 rounded-2xl text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 text-white font-bold"
-                            />
-                            <button className="bg-primary text-white px-6 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.2em] active:scale-95 transition-all shadow-xl shadow-primary/20 italic" onClick={() => alert('Welcome to the RESQR Guardian list!')}>Protect Me</button>
-                        </div>
                     </div>
                 </div>
 

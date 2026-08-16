@@ -1,11 +1,24 @@
-import { motion } from 'framer-motion';
-import { Shield, Smartphone, Heart, Activity, CheckCircle2, QrCode, ArrowRight } from 'lucide-react';
+import React from 'react';
+import { Shield, Smartphone, Heart, Activity, CheckCircle2, QrCode, ArrowRight, Award, Compass, Eye, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 
 export default function AboutUs() {
+    const timelines = [
+        { year: '2026', title: 'RESQR Foundation', desc: 'Company incorporated to build decentralized emergency response networks.' },
+        { year: '2026', title: 'Hospital Sync Beta', desc: 'Successfully integrated live emergency patient databases across 10 major trauma centers.' },
+        { year: '2026', title: 'Sticker & Card Deployment', desc: 'Shipped physical QR-enabled emergency passes to over 50,000 active citizens.' }
+    ];
+
+    const pillars = [
+        { title: 'The Problem', desc: 'First responders arrive at incidents with zero knowledge of a victim\'s pre-existing conditions, allergies, or emergency family contacts.', icon: <Info className="text-primary" size={24} /> },
+        { title: 'Our Solution', desc: 'A smart physical QR tag mapping directly to a secure, role-based cloud profile loaded in seconds on any smartphone camera.', icon: <CheckCircle2 className="text-emerald-400" size={24} /> },
+        { title: 'Our Mission', desc: 'To make critical emergency information accessible when people cannot speak for themselves, bridging health tech with response metrics.', icon: <Award className="text-blue-400" size={24} /> },
+        { title: 'Our Vision', desc: 'To coordinate a connected emergency safety network globally where every civilian, ambulance, and hospital operates in unison.', icon: <Compass className="text-amber-500" size={24} /> }
+    ];
+
     return (
         <div className="min-h-screen bg-medical-bg text-slate-300 font-manrope">
             {/* Hero Section */}
@@ -15,147 +28,52 @@ export default function AboutUs() {
                 </div>
 
                 <div className="max-w-7xl mx-auto px-4 relative z-10 text-center">
-                    <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        className="space-y-8 max-w-4xl mx-auto"
-                    >
+                    <div className="space-y-8 max-w-4xl mx-auto">
                         <Badge className="bg-primary/20 text-primary border-none px-6 py-2 uppercase tracking-[0.3em] font-black italic">
-                            OUR MISSION
+                            ABOUT RESQR
                         </Badge>
                         <h1 className="text-6xl md:text-8xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
-                            Your <span className="text-primary italic-display">Life</span> is Our Mission.
+                            BUILDING A SAFER WAY TO <br />
+                            <span className="text-primary italic-display">RESPOND TO EMERGENCIES.</span>
                         </h1>
                         <p className="text-xl md:text-2xl text-slate-400 font-medium leading-relaxed max-w-2xl mx-auto">
-                            RESQR is the next-gen emergency identification system,
-                            engineered to bridge the gap between responders and medical data when every second counts.
+                            RESQR is the next-gen emergency identification system, engineered to bridge the gap between responders and medical data when every second counts.
                         </p>
-                    </motion.div>
-                </div>
-            </section>
-
-            {/* Zero-Delay Scans Section */}
-            <section className="py-24 border-b border-white/5">
-                <div className="max-w-7xl mx-auto px-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-                        <motion.div
-                            initial={{ opacity: 0, x: -50 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            className="bg-medical-card p-4 rounded-[50px] shadow-2xl shadow-black/50 border border-white/5"
-                        >
-                            <img
-                                src="https://images.unsplash.com/photo-1542884748-2b87b36c6b90?q=80&w=800&auto=format&fit=crop"
-                                alt="Emergency Scan"
-                                className="rounded-[40px] w-full object-cover aspect-video opacity-80"
-                            />
-                        </motion.div>
-
-                        <div className="space-y-10">
-                            <div className="space-y-6">
-                                <Badge className="bg-white/10 text-white border-none font-black italic">PHASE 01</Badge>
-                                <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-tight font-poppins">Zero-Delay Vital Access.</h2>
-                                <p className="text-lg text-slate-400 font-medium leading-relaxed">
-                                    In an emergency, paramedics don't have time to search for paperwork.
-                                    A simple scan of a RESQR tag reveals your **Blood Group**, **Allergies**,
-                                    and **Chronic Conditions** instantly on their device.
-                                </p>
-                            </div>
-
-                            <ul className="space-y-4">
-                                {[
-                                    'Universal Compatibility - Works on any modern smartphone.',
-                                    'Offline Ready - Essential medical flags available instantly.',
-                                    'Encrypted Vaults - Only verified responders see full records.'
-                                ].map((item, i) => (
-                                    <li key={i} className="flex items-center gap-4 text-slate-300 font-bold group">
-                                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                                            <CheckCircle2 size={18} />
-                                        </div>
-                                        {item}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* Centralized Records Section */}
-            <section className="py-24 bg-slate-950/20 border-b border-white/5">
-                <div className="max-w-7xl mx-auto px-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-                        <div className="space-y-10 lg:text-right">
-                            <div className="space-y-6">
-                                <Badge className="bg-primary/20 text-primary border-none font-black italic">PHASE 02</Badge>
-                                <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter leading-tight font-poppins">One Identity. <br /> Total Control.</h2>
-                                <p className="text-lg text-slate-400 font-medium leading-relaxed">
-                                    Manage your medical history, primary physician details, and emergency contacts
-                                    from a single, secure digital dashboard. Update your info once, and it changes
-                                    globally on your live QR tag.
-                                </p>
+            {/* Pillars Section */}
+            <section className="py-24 px-4 max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {pillars.map((p, idx) => (
+                        <Card key={idx} className="p-10 hover:border-white/10 transition-all flex gap-6 items-start border border-white/5">
+                            <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center border border-white/10 shrink-0">
+                                {p.icon}
                             </div>
-
-                            <div className="flex lg:justify-end gap-12">
-                                <div className="text-center">
-                                    <div className="text-5xl font-black text-white mb-1">100%</div>
-                                    <div className="text-[10px] uppercase font-black tracking-widest text-primary italic">Private Vaults</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-5xl font-black text-white mb-1">2.4s</div>
-                                    <div className="text-[10px] uppercase font-black tracking-widest text-primary italic">Avg. Access Time</div>
-                                </div>
+                            <div>
+                                <h3 className="text-xl font-black uppercase italic tracking-tight font-poppins mb-3 text-white">{p.title}</h3>
+                                <p className="text-slate-400 text-xs leading-relaxed font-semibold">{p.desc}</p>
                             </div>
-                        </div>
-
-                        <motion.div
-                            initial={{ opacity: 0, x: 50 }}
-                            whileInView={{ opacity: 1, x: 0 }}
-                            className="bg-medical-card p-4 rounded-[50px] shadow-2xl shadow-black/50 border border-white/5"
-                        >
-                            <img
-                                src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=800&auto=format&fit=crop"
-                                alt="Security Dashboard"
-                                className="rounded-[40px] w-full object-cover aspect-video opacity-80"
-                            />
-                        </motion.div>
-                    </div>
+                        </Card>
+                    ))}
                 </div>
             </section>
 
-            {/* Why Choose Section - Modern Flip Cards Style */}
-            <section className="py-32">
-                <div className="max-w-7xl mx-auto px-4">
-                    <div className="text-center mb-20">
-                        <Badge className="bg-white/5 text-slate-400 border-none mb-4 px-4 py-1 font-bold">THE RESQR EDGE</Badge>
-                        <h2 className="text-5xl font-black text-white italic uppercase tracking-tighter font-poppins">
-                            Engineered for <span className="text-primary italic-display">Survival.</span>
-                        </h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-                        {[
-                            {
-                                icon: <Smartphone size={40} />,
-                                title: "GPS Tracking",
-                                desc: "Automatic broadcast of GPS coordinates to emergency contacts the moment your tag is scanned."
-                            },
-                            {
-                                icon: <Heart size={40} />,
-                                title: "Health Integrity",
-                                desc: "Securely house life-critical data like Organ Donor status, surgery history, and chronic allergies."
-                            },
-                            {
-                                icon: <Activity size={40} />,
-                                title: "Universal Sync",
-                                desc: "Your RESQR profile bridges all physical gear, from medical wristbands to helmet stickers."
-                            }
-                        ].map((box, i) => (
-                            <Card key={i} className="bg-medical-card border-white/5 p-12 rounded-[40px] shadow-2xl hover:-translate-y-2 transition-all group">
-                                <div className="p-5 bg-slate-950 rounded-2xl w-fit mb-8 text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-500">
-                                    {box.icon}
+            {/* Timeline Landmarks */}
+            <section className="py-24 bg-slate-950 border-y border-white/5 px-4">
+                <div className="max-w-4xl mx-auto">
+                    <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter font-poppins text-center mb-16">COMPANY LANDMARKS & EVOLUTION</h2>
+                    <div className="space-y-12 relative border-l border-white/5 pl-8 ml-4">
+                        {timelines.map((t, idx) => (
+                            <div key={idx} className="relative">
+                                <div className="absolute -left-[41px] top-0 w-6 h-6 bg-primary border border-slate-950 rounded-full flex items-center justify-center font-black italic text-[9px] text-white">
+                                    ✓
                                 </div>
-                                <h3 className="text-2xl font-black text-white uppercase italic font-poppins mb-6">{box.title}</h3>
-                                <p className="text-slate-400 font-medium leading-relaxed">{box.desc}</p>
-                            </Card>
+                                <span className="text-xs font-black text-primary uppercase tracking-widest">{t.year}</span>
+                                <h3 className="text-lg font-black uppercase italic tracking-tight text-white mt-1">{t.title}</h3>
+                                <p className="text-slate-400 text-xs mt-2 font-semibold leading-relaxed">{t.desc}</p>
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -173,20 +91,15 @@ export default function AboutUs() {
                             Join over 50,000 users who trust RESQR to speak for them when they can't.
                         </p>
                         <div className="pt-6">
-                            <Link to="/create-profile">
-                                <Button size="lg" className="px-12 py-5 rounded-full font-black text-2xl shadow-2xl shadow-primary/30 active:scale-95 transition-transform">
-                                    GET PROTECTED <ArrowRight size={28} className="ml-3" />
+                            <Link to="/store">
+                                <Button size="lg" className="px-12 py-5 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/30 active:scale-95 transition-transform">
+                                    GET PROTECTED <ArrowRight size={18} className="ml-3" />
                                 </Button>
                             </Link>
                         </div>
                     </div>
                 </div>
             </section>
-
-            <footer className="py-20 text-center opacity-30">
-                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 mx-auto mb-6" />
-                <p className="text-[10px] font-black uppercase tracking-[0.4em]">Official About Page • Secured by Guardian Cloud</p>
-            </footer>
         </div>
     );
 }

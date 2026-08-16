@@ -19,6 +19,27 @@ import StorePage from './pages/StorePage';
 import SiconBadge from './components/SiconBadge';
 import { useEffect } from 'react';
 
+// New expansion pages
+import HowItWorks from './pages/HowItWorks';
+import SolutionsIndividuals from './pages/SolutionsIndividuals';
+import SolutionsFamilies from './pages/SolutionsFamilies';
+import SolutionsDoctors from './pages/SolutionsDoctors';
+import SolutionsHospitals from './pages/SolutionsHospitals';
+import SolutionsAmbulances from './pages/SolutionsAmbulances';
+import SolutionsFirstResponders from './pages/SolutionsFirstResponders';
+import SolutionsEnterprises from './pages/SolutionsEnterprises';
+import SolutionsSchools from './pages/SolutionsSchools';
+import SolutionsGovernment from './pages/SolutionsGovernment';
+import SafetyPrivacy from './pages/SafetyPrivacy';
+import Technology from './pages/Technology';
+import ProductsPage from './pages/ProductsPage';
+import PricingPage from './pages/PricingPage';
+import PartnersPage from './pages/PartnersPage';
+import StoriesPage from './pages/StoriesPage';
+import EmergencyAwareness from './pages/EmergencyAwareness';
+import FAQPage from './pages/FAQPage';
+import HelpCenter from './pages/HelpCenter';
+
 function ScrollToTop() {
     const { pathname } = useLocation();
     useEffect(() => {
@@ -29,7 +50,7 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center'].includes(location.pathname.split('/')[1]));
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
@@ -52,6 +73,25 @@ function App() {
                     <Route path="/contact" element={<ContactUs />} />
                     <Route path="/p/:username" element={<QRScanPage />} />
                     <Route path="/u/:username" element={<QRScanPage />} />
+                    <Route path="/how-it-works" element={<HowItWorks />} />
+                    <Route path="/solutions/individuals" element={<SolutionsIndividuals />} />
+                    <Route path="/solutions/families" element={<SolutionsFamilies />} />
+                    <Route path="/solutions/doctors" element={<SolutionsDoctors />} />
+                    <Route path="/solutions/hospitals" element={<SolutionsHospitals />} />
+                    <Route path="/solutions/ambulances" element={<SolutionsAmbulances />} />
+                    <Route path="/solutions/first-responders" element={<SolutionsFirstResponders />} />
+                    <Route path="/solutions/enterprises" element={<SolutionsEnterprises />} />
+                    <Route path="/solutions/schools" element={<SolutionsSchools />} />
+                    <Route path="/solutions/government" element={<SolutionsGovernment />} />
+                    <Route path="/safety-privacy" element={<SafetyPrivacy />} />
+                    <Route path="/technology" element={<Technology />} />
+                    <Route path="/products" element={<ProductsPage />} />
+                    <Route path="/pricing" element={<PricingPage />} />
+                    <Route path="/partners" element={<PartnersPage />} />
+                    <Route path="/stories" element={<StoriesPage />} />
+                    <Route path="/emergency-awareness" element={<EmergencyAwareness />} />
+                    <Route path="/faq" element={<FAQPage />} />
+                    <Route path="/help-center" element={<HelpCenter />} />
                     <Route path="/:username" element={<QRScanPage />} />
                     <Route path="/scanner" element={<ScannerPage />} />
                     <Route path="/store" element={<StorePage />} />
