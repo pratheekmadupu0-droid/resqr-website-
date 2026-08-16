@@ -159,7 +159,7 @@ export default function HowItWorks() {
                         className="relative rounded-3xl overflow-hidden border border-white/10 shadow-2xl bg-white p-3 hover:scale-[1.01] transition-all duration-500 cursor-zoom-in group/img"
                     >
                         <img 
-                            src="/resqr_pamphlet.png" 
+                            src="/resqr_pamphlet.jpg" 
                             alt="RESQR - How It Works Visual Infographic" 
                             className="w-full h-auto object-contain rounded-2xl mx-auto max-h-[850px]"
                         />
@@ -195,7 +195,7 @@ export default function HowItWorks() {
                         className="relative max-w-7xl max-h-[92vh] overflow-auto bg-white p-4 rounded-3xl border border-white/10"
                     >
                         <img 
-                            src="/resqr_pamphlet.png" 
+                            src="/resqr_pamphlet.jpg" 
                             alt="RESQR - How It Works Visual Infographic Fullscreen" 
                             className="max-w-full h-auto object-contain mx-auto max-h-[85vh] rounded-xl"
                         />
