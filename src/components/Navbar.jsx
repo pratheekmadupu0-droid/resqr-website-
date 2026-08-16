@@ -109,25 +109,27 @@ export default function Navbar() {
                                 Solutions <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'solutions' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[32rem] grid grid-cols-2 gap-4 backdrop-blur-xl z-50">
-                                    {solutionsLinks.map((item) => (
-                                        <Link 
-                                            key={item.name} 
-                                            to={item.path} 
-                                            onClick={() => setHoveredMenu(null)}
-                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                        >
-                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                            <div>
-                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                    {item.name}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
+                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[32rem] grid grid-cols-2 gap-4 backdrop-blur-xl">
+                                        {solutionsLinks.map((item) => (
+                                            <Link 
+                                                key={item.name} 
+                                                to={item.path} 
+                                                onClick={() => setHoveredMenu(null)}
+                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
+                                            >
+                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                                <div>
+                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                        {item.name}
+                                                    </div>
+                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                        {item.desc}
+                                                    </div>
                                                 </div>
-                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                    {item.desc}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -142,25 +144,27 @@ export default function Navbar() {
                                 Products <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'products' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-72 grid grid-cols-1 gap-4 backdrop-blur-xl z-50">
-                                    {productsLinks.map((item) => (
-                                        <Link 
-                                            key={item.name} 
-                                            to={item.path} 
-                                            onClick={() => setHoveredMenu(null)}
-                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                        >
-                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                            <div>
-                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                    {item.name}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
+                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-72 grid grid-cols-1 gap-4 backdrop-blur-xl">
+                                        {productsLinks.map((item) => (
+                                            <Link 
+                                                key={item.name} 
+                                                to={item.path} 
+                                                onClick={() => setHoveredMenu(null)}
+                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
+                                            >
+                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                                <div>
+                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                        {item.name}
+                                                    </div>
+                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                        {item.desc}
+                                                    </div>
                                                 </div>
-                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                    {item.desc}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -175,25 +179,27 @@ export default function Navbar() {
                                 Resources <ChevronDown size={12} />
                             </button>
                             {hoveredMenu === 'resources' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[30rem] grid grid-cols-2 gap-4 backdrop-blur-xl z-50">
-                                    {resourcesLinks.map((item) => (
-                                        <Link 
-                                            key={item.name} 
-                                            to={item.path} 
-                                            onClick={() => setHoveredMenu(null)}
-                                            className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                        >
-                                            <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                            <div>
-                                                <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                    {item.name}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
+                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[30rem] grid grid-cols-2 gap-4 backdrop-blur-xl">
+                                        {resourcesLinks.map((item) => (
+                                            <Link 
+                                                key={item.name} 
+                                                to={item.path} 
+                                                onClick={() => setHoveredMenu(null)}
+                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
+                                            >
+                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
+                                                <div>
+                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
+                                                        {item.name}
+                                                    </div>
+                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
+                                                        {item.desc}
+                                                    </div>
                                                 </div>
-                                                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                    {item.desc}
-                                                </div>
-                                            </div>
-                                        </Link>
-                                    ))}
+                                            </Link>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
