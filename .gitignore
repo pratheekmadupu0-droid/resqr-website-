@@ -31,3 +31,6 @@ Thumbs.db
 
 # Sensitive Data
 *.csv
+
+# Vite config timestamps
+vite.config.js.timestamp-*
