@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Shield, User, ShieldCheck, Mail, Lock, Phone, ArrowLeft, ArrowRight, Check,
-    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo, Eye
+    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo, Eye, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -30,6 +30,7 @@ export default function LoginPage() {
     const [authState, setAuthState] = useState('card_select'); // card_select, phone_verify, otp_verify, register_wizard, email_login, email_register
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
+    const [expandedPortal, setExpandedPortal] = useState('citizen'); // 'citizen' default expanded
     
     // Auth variables
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -660,155 +661,296 @@ export default function LoginPage() {
                             <div className="space-y-6">
                                 {/* Card 1: Citizen */}
                                 <Card 
-                                    onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_15px_40px_rgba(230,57,70,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
+                                    onClick={() => setExpandedPortal(expandedPortal === 'citizen' ? null : 'citizen')}
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_15px_40px_rgba(230,57,70,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     
-                                    {/* Left part: Icon & Role */}
-                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                        <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
-                                            <User size={30} />
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                        {/* Left part: Icon & Role */}
+                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                            <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
+                                                <User size={30} />
+                                            </div>
+                                            <div>
+                                                <span className="inline-block text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full italic mb-2">
+                                                    CITIZEN CORE
+                                                </span>
+                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                    Users Portal
+                                                </h3>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="inline-block text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                CITIZEN CORE
+
+                                        {/* Center part: Detailed Info */}
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                                Create, secure, and manage your Emergency Medical Identity. Link next-of-kin, medical history, and insurance records to physical smart stickers.
+                                            </p>
+                                            <div className="flex flex-wrap gap-3">
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Wallet QR Pass
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Sticker Mapping
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Encrypted Cloud
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right part: Action / Chevron */}
+                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
+                                                {expandedPortal === 'citizen' ? 'Collapse Specs' : 'View Portal Specs'}
                                             </span>
-                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                Users Portal
-                                            </h3>
+                                            {expandedPortal === 'citizen' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
                                         </div>
                                     </div>
 
-                                    {/* Center part: Detailed Info */}
-                                    <div className="flex-1 space-y-4">
-                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                            Create, secure, and manage your Emergency Medical Identity. Link next-of-kin, medical history, and insurance records to physical smart stickers.
-                                        </p>
-                                        <div className="flex flex-wrap gap-3">
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Wallet QR Pass
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Sticker Mapping
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Encrypted Cloud
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Right part: Action */}
-                                    <div className="shrink-0 md:w-48">
-                                        <Button 
-                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('citizen'); setAuthState('phone_verify'); }}
-                                            className="w-full py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
-                                        >
-                                            Login / Register
-                                        </Button>
-                                    </div>
+                                    {/* Expanded Details */}
+                                    <AnimatePresence initial={false}>
+                                        {expandedPortal === 'citizen' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">01 / Dynamic Health Profile</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Input allergies, blood type, surgical history, and emergency contacts. Modify your safety parameters in real time.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">02 / Medical Sticker Sync</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Map your digital safety QR pass to premium physical stickers. Apply to helmets, gear, or carry as a wallet card.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">03 / Granular Privacy Locks</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Choose what bystanders see (e.g., emergency contact only) versus verified medical response personnel.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
+                                                    <div className="text-left">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">SECURE REGISTRATION</span>
+                                                        <p className="text-[11px] text-slate-400">Verifying via secure OTP handshake protocol</p>
+                                                    </div>
+                                                    <Button 
+                                                        onClick={() => { setSelectedRole('citizen'); setAuthState('phone_verify'); }}
+                                                        className="w-full sm:w-auto px-8 py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
+                                                    >
+                                                        Login / Register
+                                                    </Button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </Card>
 
                                 {/* Card 2: Agent */}
                                 <Card 
-                                    onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_15px_40px_rgba(59,130,246,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
+                                    onClick={() => setExpandedPortal(expandedPortal === 'agent' ? null : 'agent')}
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_15px_40px_rgba(59,130,246,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     
-                                    {/* Left part: Icon & Role */}
-                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                        <div className="w-16 h-16 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
-                                            <ShieldCheck size={30} />
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                        {/* Left part: Icon & Role */}
+                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                            <div className="w-16 h-16 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
+                                                <ShieldCheck size={30} />
+                                            </div>
+                                            <div>
+                                                <span className="inline-block text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
+                                                    PARTNER FIELD
+                                                </span>
+                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                    Agent Portal
+                                                </h3>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="inline-block text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                PARTNER FIELD
+
+                                        {/* Center part: Detailed Info */}
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                                Authorized RESQR Sales, Distribution, & Support Channel Partner console. Review registration pipelines and track community onboardings.
+                                            </p>
+                                            <div className="flex flex-wrap gap-3">
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> Sales Telemetry
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Onboarding Audits
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> CSV Deployment
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right part: Action / Chevron */}
+                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
+                                                {expandedPortal === 'agent' ? 'Collapse Specs' : 'View Portal Specs'}
                                             </span>
-                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                Agent Portal
-                                            </h3>
+                                            {expandedPortal === 'agent' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
                                         </div>
                                     </div>
 
-                                    {/* Center part: Detailed Info */}
-                                    <div className="flex-1 space-y-4">
-                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                            Authorized RESQR Sales, Distribution, & Support Channel Partner console. Review registration pipelines and track community onboardings.
-                                        </p>
-                                        <div className="flex flex-wrap gap-3">
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> Sales Telemetry
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Onboarding Audits
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> CSV Deployment
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Right part: Action */}
-                                    <div className="shrink-0 md:w-48">
-                                        <Button 
-                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('agent'); setAuthState('phone_verify'); }}
-                                            className="w-full py-4.5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
-                                        >
-                                            Agent Login
-                                        </Button>
-                                    </div>
+                                    {/* Expanded Details */}
+                                    <AnimatePresence initial={false}>
+                                        {expandedPortal === 'agent' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">01 / Onboarding Telemetry</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Track your local citizen registrations, distribution statistics, and commission pipeline from a unified dashboard.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">02 / Physical Sticker Kits</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Distribute, map, and scan safety codes on the field. Act as a verified agent for citizen account creations.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">03 / Institutional Audits</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Perform direct validation checks for community partners, ensuring absolute accuracy of emergency medical databases.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
+                                                    <div className="text-left">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">AGENT AUTHENTICATION</span>
+                                                        <p className="text-[11px] text-slate-400">Restricted to authorized channel partners</p>
+                                                    </div>
+                                                    <Button 
+                                                        onClick={() => { setSelectedRole('agent'); setAuthState('phone_verify'); }}
+                                                        className="w-full sm:w-auto px-8 py-4.5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                                    >
+                                                        Agent Login
+                                                    </Button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </Card>
 
                                 {/* Card 3: Hospital */}
                                 <Card 
-                                    onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_15px_40px_rgba(16,185,129,0.12)] transition-all duration-300 rounded-[35px] flex flex-col md:flex-row md:items-center justify-between gap-8 cursor-pointer backdrop-blur-md relative overflow-hidden group"
+                                    onClick={() => setExpandedPortal(expandedPortal === 'hospital' ? null : 'hospital')}
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_15px_40px_rgba(16,185,129,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
                                 >
                                     <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                                     
-                                    {/* Left part: Icon & Role */}
-                                    <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                        <div className="w-16 h-16 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
-                                            <Building size={30} />
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                        {/* Left part: Icon & Role */}
+                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                            <div className="w-16 h-16 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
+                                                <Building size={30} />
+                                            </div>
+                                            <div>
+                                                <span className="inline-block text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
+                                                    CLINICAL NODE
+                                                </span>
+                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                    Hospital Hub
+                                                </h3>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="inline-block text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                CLINICAL NODE
+
+                                        {/* Center part: Detailed Info */}
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                                Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal. Instant verified access to incoming patient telemetry.
+                                            </p>
+                                            <div className="flex flex-wrap gap-3">
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Paramedic Sync
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Trauma Unit Active
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Logs
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right part: Action / Chevron */}
+                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
+                                                {expandedPortal === 'hospital' ? 'Collapse Specs' : 'View Portal Specs'}
                                             </span>
-                                            <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                Hospital Hub
-                                            </h3>
+                                            {expandedPortal === 'hospital' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
                                         </div>
                                     </div>
 
-                                    {/* Center part: Detailed Info */}
-                                    <div className="flex-1 space-y-4">
-                                        <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                            Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal. Instant verified access to incoming patient telemetry.
-                                        </p>
-                                        <div className="flex flex-wrap gap-3">
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Paramedic Sync
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Trauma Unit Active
-                                            </span>
-                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Logs
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Right part: Action */}
-                                    <div className="shrink-0 md:w-48">
-                                        <Button 
-                                            onClick={(e) => { e.stopPropagation(); setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                            className="w-full py-4.5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
-                                        >
-                                            Hospital Login
-                                        </Button>
-                                    </div>
+                                    {/* Expanded Details */}
+                                    <AnimatePresence initial={false}>
+                                        {expandedPortal === 'hospital' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">01 / Intake Stream Feed</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Receive instant telemetry updates of incoming patients before they arrive. Prepare triage units and ICU beds in advance.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">02 / EHR Sync</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Secure, HIPAA-compliant access to emergency contact details, blood groups, allergies, and pre-existing conditions.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">03 / Compliance Logs</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Manage ambulance integrations, trace field scans, and monitor security access logs across multiple wards.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
+                                                    <div className="text-left">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">CLINICAL HUB LOGIN</span>
+                                                        <p className="text-[11px] text-slate-400">Requires verified trauma center authorization credentials</p>
+                                                    </div>
+                                                    <Button 
+                                                        onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
+                                                        className="w-full sm:w-auto px-8 py-4.5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                                    >
+                                                        Hospital Login
+                                                    </Button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </Card>
                             </div>
                         </motion.div>
