@@ -59,6 +59,7 @@ export default function LoginPage() {
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
     const [citizenName, setCitizenName] = useState('');
     const [citizenEmail, setCitizenEmail] = useState('');
+    const [chosenUsername, setChosenUsername] = useState('');
     const [citizenDob, setCitizenDob] = useState('');
     const [citizenGender, setCitizenGender] = useState('');
     const [citizenAddress, setCitizenAddress] = useState({
@@ -241,6 +242,8 @@ export default function LoginPage() {
                 setSelectedRole('citizen');
                 setCitizenName(user.displayName || '');
                 setCitizenEmail(user.email || '');
+                const defaultUsername = (user.displayName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                setChosenUsername(defaultUsername);
                 setAuthState('register_wizard');
                 setCitizenStep(1);
                 toast.success("Google authenticated! Please complete your 4-Step Medical Profile.");
@@ -285,6 +288,7 @@ export default function LoginPage() {
             const profileData = {
                 id: profileId,
                 role: 'citizen',
+                username: chosenUsername.toLowerCase(),
                 profilePhoto: citizenProfilePhoto,
                 scannerType: scannerType,
                 descriptors: descriptors,
@@ -361,6 +365,7 @@ export default function LoginPage() {
                 }
             };
             updates[`profiles/${profileId}`] = profileData;
+            updates[`usernames/${chosenUsername.toLowerCase()}`] = `${uid}/profiles/${profileId}`;
 
             await update(ref(db), updates);
             localStorage.setItem('resqr_active_slug', profileId);
@@ -641,6 +646,16 @@ export default function LoginPage() {
                     }
                 };
 
+                const demoUser = `democitizen_${uid.substring(0, 5)}`.toLowerCase();
+                userData.profiles = {
+                    [`c_${uid}`]: {
+                        ...profileData,
+                        username: demoUser
+                    }
+                };
+                profileData.username = demoUser;
+
+                await set(ref(db, `usernames/${demoUser}`), `${uid}/profiles/c_${uid}`);
                 await set(ref(db, `users/${uid}`), userData);
                 await set(ref(db, `profiles/c_${uid}`), profileData);
                 await set(ref(db, `users/${uid}/profiles/c_${uid}`), profileData);
@@ -1170,6 +1185,18 @@ export default function LoginPage() {
                                                     />
                                                     <Input label="Email (Optional)" type="email" placeholder="name@email.com" value={citizenEmail} onChange={(e) => setCitizenEmail(e.target.value)} />
                                                 </div>
+                                                <div className="space-y-1">
+                                                    <Input 
+                                                        label="Choose Profile Username / Link ID" 
+                                                        placeholder="e.g. pratheek" 
+                                                        value={chosenUsername} 
+                                                        onChange={(e) => setChosenUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} 
+                                                        required 
+                                                    />
+                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider pl-1 italic">
+                                                        Your emergency link will be: <span className="text-primary italic lowercase">resqr.co.in/{chosenUsername || 'username'}</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1245,18 +1272,37 @@ export default function LoginPage() {
                                                 <Input label="Hospital Name" placeholder="City General" value={familyDoctor.hospital} onChange={(e) => setFamilyDoctor({...familyDoctor, hospital: e.target.value})} />
                                                 <Input label="Doctor Phone" maxLength="10" value={familyDoctor.phone} onChange={(e) => setFamilyDoctor({...familyDoctor, phone: e.target.value.replace(/\D/g, '')})} />
                                             </div>
-                                        </div>
+                                            <div className="pt-8 flex justify-end">
+                                             <Button onClick={async () => {
+                                                 if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode || !chosenUsername) {
+                                                     toast.error("Please fill all mandatory personal & address details, including a username.");
+                                                     return;
+                                                 }
 
-                                        <div className="pt-8 flex justify-end">
-                                            <Button onClick={() => {
-                                                if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode) {
-                                                    toast.error("Please fill all mandatory personal & address details.");
-                                                    return;
-                                                }
-                                                setCitizenStep(2);
-                                            }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Continue to Medical details <ArrowRight size={16} className="ml-2" />
-                                            </Button>
+                                                 const cleanUser = chosenUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                 if (cleanUser.length < 3) {
+                                                     toast.error("Username must be at least 3 characters long.");
+                                                     return;
+                                                 }
+
+                                                 const t = toast.loading("Checking username availability...");
+                                                 try {
+                                                     const regRef = ref(db, `usernames/${cleanUser}`);
+                                                     const existing = await get(regRef);
+                                                     if (existing.exists()) {
+                                                         toast.error("Username already taken. Please choose another one.", { id: t });
+                                                         return;
+                                                     }
+                                                     toast.success("Username available!", { id: t });
+                                                     setCitizenStep(2);
+                                                 } catch (e) {
+                                                     console.error("Username check error:", e);
+                                                     toast.error("Error validating username", { id: t });
+                                                 }
+                                             }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                 Continue to Medical details <ArrowRight size={16} className="ml-2" />
+                                             </Button>
+                                         </div>
                                         </div>
                                     </div>
                                 )}
@@ -2069,7 +2115,8 @@ export default function LoginPage() {
                     allergies: allergies || 'No known allergies',
                     medicalConditions: medicalConditions || 'Healthy',
                     medicalId: medicalId || 'RESQR-MED-94821',
-                    insuranceCompany: insuranceCompany || 'Star Health'
+                    insuranceCompany: insuranceCompany || 'Star Health',
+                    username: chosenUsername.toLowerCase()
                 }}
                 onProceedToPay={() => setIsRazorpayOpen(true)}
             />

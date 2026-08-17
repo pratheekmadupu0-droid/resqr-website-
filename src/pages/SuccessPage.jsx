@@ -119,6 +119,9 @@ export default function SuccessPage() {
     };
 
     const getQRValue = () => {
+        if (profile?.username) {
+            return `${window.location.origin}/${profile.username}`;
+        }
         const slug = localStorage.getItem('resqr_active_slug');
         if (!slug) return `${window.location.origin}/qr/demo`;
         return `${window.location.origin}/qr/${slug}`;
@@ -288,7 +291,8 @@ export default function SuccessPage() {
                         allergies: profile?.medical?.allergies || profile?.allergies || 'No known allergies',
                         medicalConditions: profile?.medical?.medicalConditions || profile?.medicalConditions || 'Healthy',
                         medicalId: profile?.medical?.medicalId || profile?.id || 'RESQR-MED-94821',
-                        insuranceCompany: profile?.insurance?.insuranceCompany || 'Star Health'
+                        insuranceCompany: profile?.insurance?.insuranceCompany || 'Star Health',
+                        username: profile?.username || ''
                     }}
                 />
             </div>

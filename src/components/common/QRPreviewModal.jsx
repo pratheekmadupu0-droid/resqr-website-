@@ -22,10 +22,13 @@ export default function QRPreviewModal({
         allergies = "None reported",
         medicalConditions = "Healthy",
         medicalId = "RESQR-MED-98421",
-        insuranceCompany = "Star Health Insurance"
+        insuranceCompany = "Star Health Insurance",
+        username = ""
     } = patientData;
 
-    const previewUrl = `${window.location.origin}/qr/${medicalId}`;
+    const previewUrl = username 
+        ? `${window.location.origin}/${username}`
+        : `${window.location.origin}/qr/${medicalId}`;
 
     return (
         <AnimatePresence>
