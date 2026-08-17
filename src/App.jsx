@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
-import ProfileCreation from './pages/ProfileCreation';
 import PaymentPage from './pages/PaymentPage';
 import SuccessPage from './pages/SuccessPage';
 import EmergencyPage from './pages/EmergencyPage';
@@ -63,7 +62,7 @@ function App() {
                     <Route path="/free-qr" element={<ViralQR />} />
                     <Route path="/viral-id" element={<ViralQR />} />
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/create-profile" element={<ProfileCreation />} />
+                    <Route path="/create-profile" element={<Navigate to="/login" replace />} />
                     <Route path="/payment" element={<PaymentPage />} />
                     <Route path="/success" element={<SuccessPage />} />
                     <Route path="/e/:id" element={<EmergencyPage />} />

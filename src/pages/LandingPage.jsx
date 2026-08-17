@@ -134,7 +134,7 @@ export default function LandingPage() {
                                     </Link>
                                 ) : (
                                     <>
-                                        <Link to="/create-profile">
+                                        <Link to="/login">
                                             <Button size="lg" className="px-10 py-6 rounded-3xl text-lg shadow-xl shadow-primary/20 bg-primary text-white border-none font-black italic uppercase tracking-tighter">
                                                 SECURE PREMIUM ID
                                             </Button>
@@ -464,7 +464,7 @@ export default function LandingPage() {
                                 </Button>
                             </Link>
                         ) : (
-                            <Link to="/create-profile">
+                            <Link to="/login">
                                 <Button size="lg" className="px-16 py-10 rounded-full text-3xl font-black italic uppercase shadow-2xl shadow-primary/30 transition-transform active:scale-95 bg-primary text-white border-none">
                                     SECURE YOUR FAMILY
                                 </Button>

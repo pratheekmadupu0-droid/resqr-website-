@@ -95,7 +95,7 @@ export default function ViralQR() {
                         <p className="text-slate-400 text-sm font-medium leading-relaxed mb-8">
                             This basic ID does not show medications, allergies, or emergency contacts. Upgrade for full protection.
                         </p>
-                        <Link to="/create-profile">
+                        <Link to="/login">
                             <Button className="w-full py-6 rounded-2xl bg-primary text-white border-none font-black italic uppercase tracking-widest">Get Full Protection @ ₹50</Button>
                         </Link>
                     </div>
@@ -228,7 +228,7 @@ export default function ViralQR() {
                                 <p className="text-slate-400 text-sm font-medium leading-relaxed mb-8">
                                     Our Premium ID includes real-time location alerts, full medical history, and physical emergency gear.
                                 </p>
-                                <Link to="/create-profile">
+                                <Link to="/login">
                                     <Button className="w-full py-6 rounded-2xl bg-primary text-white border-none font-black italic uppercase tracking-widest">Upgrade @ ₹50</Button>
                                 </Link>
                             </div>

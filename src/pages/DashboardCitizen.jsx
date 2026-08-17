@@ -58,7 +58,7 @@ export default function DashboardCitizen() {
                 
                 // Redirect users to appropriate page
                 if (!snapshot.exists()) {
-                    navigate('/create-profile');
+                    navigate('/login');
                 } else {
                     const profileArray = Object.values(snapshot.val());
                     const hasPaidProfile = profileArray.some(p => p.payment_status === 'paid');
