@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import { ref, get, onValue } from 'firebase/database';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import toast from 'react-hot-toast';
 
 const ScannerPage = () => {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ const ScannerPage = () => {
             const profiles = userSnap.val().profiles;
             if (profiles) {
               Object.entries(profiles).forEach(([id, p]) => {
-                if (p.scannerType === 'facial' && p.descriptors) {
+                if (p.descriptors) {
                   mappings.push({ id, ...p });
                 }
               });
@@ -138,6 +139,14 @@ const ScannerPage = () => {
         if (match) {
           setScanning(false);
           setMatchedProfile(match);
+          const redirectPath = match.username ? `/${match.username}` : `/qr/${match.id}`;
+          toast.success(`Identity Verified! Opening Vault for ${match.name || 'Citizen'}...`, {
+            duration: 1500,
+            icon: '🔒'
+          });
+          setTimeout(() => {
+            navigate(redirectPath);
+          }, 1500);
         }
       }
 

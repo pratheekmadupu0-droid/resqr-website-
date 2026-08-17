@@ -14,6 +14,7 @@ import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPa
 import { ref, update, set, get } from 'firebase/database';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
+import { extractFeatures } from '../lib/cvHelper';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -79,6 +80,7 @@ export default function LoginPage() {
     const [medicalId, setMedicalId] = useState('');
 
     // Citizen Insurance Details
+    const [hasInsurance, setHasInsurance] = useState('yes'); // 'yes' or 'no'
     const [insuranceCompany, setInsuranceCompany] = useState('');
     const [policyNumber, setPolicyNumber] = useState('');
     const [policyHolder, setPolicyHolder] = useState('');
@@ -208,10 +210,27 @@ export default function LoginPage() {
             const uid = currentUser.uid;
             const profileId = `c_${uid}`;
 
+            let descriptors = null;
+            let scannerType = 'qr';
+            if (citizenProfilePhoto) {
+                const t = toast.loading("Analyzing Facial Node...");
+                try {
+                    const features = await extractFeatures(citizenProfilePhoto);
+                    descriptors = features.descriptors;
+                    scannerType = 'facial';
+                    toast.success("Facial Node Mapped", { id: t });
+                } catch (e) {
+                    console.warn("Facial mapping skipped or failed:", e);
+                    toast.dismiss(t);
+                }
+            }
+
             const profileData = {
                 id: profileId,
                 role: 'citizen',
                 profilePhoto: citizenProfilePhoto,
+                scannerType: scannerType,
+                descriptors: descriptors,
                 name: citizenName,
                 phone: phoneNumber,
                 email: citizenEmail,
@@ -225,8 +244,16 @@ export default function LoginPage() {
                     currentMedication, previousSurgeries, isOrganDonor, emergencyNotes, medicalId
                 },
                 insurance: {
-                    insuranceCompany, policyNumber, policyHolder, policyAgentName,
-                    policyAgentPhone, policyExpiry, coverageAmount, insuranceCardPhoto, cashlessFacility
+                    hasInsurance,
+                    insuranceCompany: hasInsurance === 'yes' ? insuranceCompany : '',
+                    policyNumber: hasInsurance === 'yes' ? policyNumber : '',
+                    policyHolder: hasInsurance === 'yes' ? policyHolder : '',
+                    policyAgentName: hasInsurance === 'yes' ? policyAgentName : '',
+                    policyAgentPhone: hasInsurance === 'yes' ? policyAgentPhone : '',
+                    policyExpiry: hasInsurance === 'yes' ? policyExpiry : '',
+                    coverageAmount: hasInsurance === 'yes' ? coverageAmount : '',
+                    insuranceCardPhoto: hasInsurance === 'yes' ? insuranceCardPhoto : '',
+                    cashlessFacility: hasInsurance === 'yes' ? cashlessFacility : false
                 },
                 qrPackage: {
                     type: selectedPackage,
@@ -1208,59 +1235,103 @@ export default function LoginPage() {
                                 {/* Step 3: Insurance Details */}
                                 {citizenStep === 3 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Select 
-                                                label="Insurance Company" 
-                                                value={insuranceCompany} 
-                                                onChange={(e) => setInsuranceCompany(e.target.value)} 
-                                                options={[
-                                                    { label: 'Select Insurance Company', value: '' },
-                                                    { label: 'Star Health', value: 'Star Health' },
-                                                    { label: 'Care Health', value: 'Care Health' },
-                                                    { label: 'Niva Bupa', value: 'Niva Bupa' },
-                                                    { label: 'ICICI Lombard', value: 'ICICI Lombard' },
-                                                    { label: 'HDFC ERGO', value: 'HDFC ERGO' },
-                                                    { label: 'SBI Health', value: 'SBI Health' },
-                                                    { label: 'ACKO Insurance', value: 'ACKO' },
-                                                    { label: 'Aditya Birla Health', value: 'Aditya Birla' },
-                                                    { label: 'ManipalCigna', value: 'ManipalCigna' },
-                                                    { label: 'Others', value: 'Others' }
-                                                ]} 
-                                            />
-                                            <Input label="Policy ID / Number" placeholder="POL-123456" value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <Input label="Policy Holder Name" placeholder="John Doe" value={policyHolder} onChange={(e) => setPolicyHolder(e.target.value)} />
-                                            <Input label="Policy Expiry Date" type="date" value={policyExpiry} onChange={(e) => setPolicyExpiry(e.target.value)} />
-                                            <Input label="Coverage Limit (₹)" placeholder="5,000,000" type="number" value={coverageAmount} onChange={(e) => setCoverageAmount(e.target.value)} />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input label="Insurance Agent / Coordinator Name" placeholder="Agent Name" value={policyAgentName} onChange={(e) => setPolicyAgentName(e.target.value)} />
-                                            <Input label="Agent Contact Phone" maxLength="10" placeholder="9876543210" value={policyAgentPhone} onChange={(e) => setPolicyAgentPhone(e.target.value.replace(/\D/g, ''))} />
+                                        {/* Yes / No Toggle for Insurance */}
+                                        <div className="space-y-3">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic block ml-1">Do you have Health Insurance?</label>
+                                            <div className="flex gap-4">
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setHasInsurance('yes')}
+                                                    className={`flex-1 py-4 rounded-2xl font-black italic uppercase tracking-widest text-xs transition-all border ${hasInsurance === 'yes' ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-950/60 border-white/5 text-slate-500 hover:text-white'}`}
+                                                >
+                                                    Yes
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setHasInsurance('no');
+                                                        // Reset insurance values if No is chosen
+                                                        setInsuranceCompany('');
+                                                        setPolicyNumber('');
+                                                        setPolicyHolder('');
+                                                        setPolicyAgentName('');
+                                                        setPolicyAgentPhone('');
+                                                        setPolicyExpiry('');
+                                                        setCoverageAmount('');
+                                                        setInsuranceCardPhoto('');
+                                                        setCashlessFacility(false);
+                                                    }}
+                                                    className={`flex-1 py-4 rounded-2xl font-black italic uppercase tracking-widest text-xs transition-all border ${hasInsurance === 'no' ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-950/60 border-white/5 text-slate-500 hover:text-white'}`}
+                                                >
+                                                    No
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-950/40 p-6 rounded-2xl border border-white/5">
-                                            <div className="flex-1 w-full space-y-4">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic block ml-1">Upload Health Insurance Card</label>
-                                                <div className="flex gap-4 items-center">
-                                                    <label className="py-4 px-6 bg-slate-900 hover:bg-slate-800 border border-white/5 rounded-xl cursor-pointer text-xs font-black uppercase tracking-widest italic flex items-center gap-2">
-                                                        <Upload size={14} /> Browse Card Image
-                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setInsuranceCardPhoto)} />
-                                                    </label>
-                                                    {insuranceCardPhoto && <span className="text-emerald-500 text-xs font-bold flex items-center gap-1"><Check size={14} /> Uploaded</span>}
+                                        {hasInsurance === 'yes' ? (
+                                            <div className="space-y-6 animate-in fade-in duration-300">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <Select 
+                                                        label="Insurance Company" 
+                                                        value={insuranceCompany} 
+                                                        onChange={(e) => setInsuranceCompany(e.target.value)} 
+                                                        options={[
+                                                            { label: 'Select Insurance Company', value: '' },
+                                                            { label: 'Star Health', value: 'Star Health' },
+                                                            { label: 'Care Health', value: 'Care Health' },
+                                                            { label: 'Niva Bupa', value: 'Niva Bupa' },
+                                                            { label: 'ICICI Lombard', value: 'ICICI Lombard' },
+                                                            { label: 'HDFC ERGO', value: 'HDFC ERGO' },
+                                                            { label: 'SBI Health', value: 'SBI Health' },
+                                                            { label: 'ACKO Insurance', value: 'ACKO' },
+                                                            { label: 'Aditya Birla Health', value: 'Aditya Birla' },
+                                                            { label: 'ManipalCigna', value: 'ManipalCigna' },
+                                                            { label: 'Others', value: 'Others' }
+                                                        ]} 
+                                                    />
+                                                    <Input label="Policy ID / Number" placeholder="POL-123456" value={policyNumber} onChange={(e) => setPolicyNumber(e.target.value)} />
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <Input label="Policy Holder Name" placeholder="John Doe" value={policyHolder} onChange={(e) => setPolicyHolder(e.target.value)} />
+                                                    <Input label="Policy Expiry Date" type="date" value={policyExpiry} onChange={(e) => setPolicyExpiry(e.target.value)} />
+                                                    <Input label="Coverage Limit (₹)" placeholder="5,000,000" type="number" value={coverageAmount} onChange={(e) => setCoverageAmount(e.target.value)} />
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <Input label="Insurance Agent / Coordinator Name" placeholder="Agent Name" value={policyAgentName} onChange={(e) => setPolicyAgentName(e.target.value)} />
+                                                    <Input label="Agent Contact Phone" maxLength="10" placeholder="9876543210" value={policyAgentPhone} onChange={(e) => setPolicyAgentPhone(e.target.value.replace(/\D/g, ''))} />
+                                                </div>
+
+                                                <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-950/40 p-6 rounded-2xl border border-white/5">
+                                                    <div className="flex-1 w-full space-y-4">
+                                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic block ml-1">Upload Health Insurance Card</label>
+                                                        <div className="flex gap-4 items-center">
+                                                            <label className="py-4 px-6 bg-slate-900 hover:bg-slate-800 border border-white/5 rounded-xl cursor-pointer text-xs font-black uppercase tracking-widest italic flex items-center gap-2">
+                                                                <Upload size={14} /> Browse Card Image
+                                                                <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setInsuranceCardPhoto)} />
+                                                            </label>
+                                                            {insuranceCardPhoto && <span className="text-emerald-500 text-xs font-bold flex items-center gap-1"><Check size={14} /> Uploaded</span>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 border border-white/5 bg-slate-950 px-6 py-5 rounded-2xl min-w-[200px]">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            id="cashless" 
+                                                            checked={cashlessFacility} 
+                                                            onChange={(e) => setCashlessFacility(e.target.checked)} 
+                                                            className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
+                                                        />
+                                                        <label htmlFor="cashless" className="text-xs font-black uppercase tracking-widest text-slate-300 cursor-pointer">Cashless Facility Active</label>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-4 border border-white/5 bg-slate-950 px-6 py-5 rounded-2xl min-w-[200px]">
-                                                <input 
-                                                    type="checkbox" 
-                                                    id="cashless" 
-                                                    checked={cashlessFacility} 
-                                                    onChange={(e) => setCashlessFacility(e.target.checked)} 
-                                                    className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
-                                                />
-                                                <label htmlFor="cashless" className="text-xs font-black uppercase tracking-widest text-slate-300 cursor-pointer">Cashless Facility Active</label>
+                                        ) : (
+                                            <div className="p-8 bg-slate-950/40 rounded-3xl border border-white/5 text-center space-y-3 animate-in fade-in duration-300">
+                                                <p className="text-slate-400 text-xs font-black uppercase tracking-widest italic">No Insurance Linked</p>
+                                                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-wider leading-relaxed max-w-sm mx-auto">
+                                                    First responders and hospitals will rely purely on your clinical profile and emergency contacts. You can update this anytime.
+                                                </p>
                                             </div>
-                                        </div>
+                                        )}
 
                                         <div className="pt-8 flex justify-between">
                                             <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
