@@ -61,18 +61,41 @@ export default function EmergencyPage() {
 
                 if (snap.exists()) {
                     const raw = snap.val();
-                    const decoded = { ...raw, ...(raw.data || {}) };
+                    
+                    const fallbackMedical = raw.medical || {};
+                    const fallbackEmergency = raw.emergencyContacts?.[0] || {};
+                    
+                    const decoded = {
+                        name: raw.name || raw.fullName || '',
+                        phone: raw.phone || '',
+                        email: raw.email || '',
+                        dob: raw.dob || '',
+                        gender: raw.gender || '',
+                        
+                        bloodGroup: fallbackMedical.bloodGroup || raw.bloodGroup || '',
+                        healthIssues: fallbackMedical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || raw.medicalHistory || '',
+                        allergies: fallbackMedical.allergies || raw.allergies || '',
+                        currentMedication: fallbackMedical.currentMedication || raw.currentMedication || '',
+                        previousSurgeries: fallbackMedical.previousSurgeries || raw.previousSurgeries || raw.surgeries || '',
+                        emergencyNotes: fallbackMedical.emergencyNotes || raw.emergencyNotes || '',
+                        
+                        emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
+                        emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
+                        emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
+                        
+                        ...(raw.data || {})
+                    };
                     
                     const userData = {
                         name: (decoded.name || decoded.fullName || decoded.ownerName || decoded.petName || "USER NAME").toString().toUpperCase(),
                         bloodGroup: decoded.bloodGroup || "B+",
                         payment_status: decoded.payment_status || 'paid',
-                        healthIssues: decoded.healthIssues || decoded.conditions || decoded.medicalConditions || "STABLE",
+                        healthIssues: decoded.healthIssues || "STABLE",
                         allergies: decoded.allergies || "NONE REPORTED",
                         emergencyContact: {
-                            name: decoded.emergencyContactName || decoded.emergencyContact?.name || "GUARDIAN",
-                            relation: decoded.emergencyContactRelation || decoded.emergencyContact?.relation || "AUTHORIZED CONTACT",
-                            phone: decoded.emergencyContactPhone || decoded.emergencyContact?.phone || ""
+                            name: decoded.emergencyContactName || "GUARDIAN",
+                            relation: decoded.emergencyContactRelation || "AUTHORIZED CONTACT",
+                            phone: decoded.emergencyContactPhone || ""
                         }
                     };
                     setUser(userData);

@@ -82,8 +82,30 @@ export default function QRScanPage() {
 
                     if (snap.exists()) {
                         const raw = snap.val();
-                        // Flatten data to ensure name is easily accessible as in Dashboard
-                        const mergedData = { ...raw, ...(raw.data || {}) }; 
+                        
+                        const fallbackMedical = raw.medical || {};
+                        const fallbackEmergency = raw.emergencyContacts?.[0] || {};
+                        
+                        const mergedData = {
+                            name: raw.name || raw.fullName || '',
+                            phone: raw.phone || '',
+                            email: raw.email || '',
+                            dob: raw.dob || '',
+                            gender: raw.gender || '',
+                            
+                            bloodGroup: fallbackMedical.bloodGroup || raw.bloodGroup || '',
+                            healthIssues: fallbackMedical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || raw.medicalHistory || '',
+                            allergies: fallbackMedical.allergies || raw.allergies || '',
+                            currentMedication: fallbackMedical.currentMedication || raw.currentMedication || '',
+                            previousSurgeries: fallbackMedical.previousSurgeries || raw.previousSurgeries || raw.surgeries || '',
+                            emergencyNotes: fallbackMedical.emergencyNotes || raw.emergencyNotes || '',
+                            
+                            emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
+                            emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
+                            emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
+                            
+                            ...(raw.data || {})
+                        };
                         
                         actualUid = actualUid || raw.uid || (actualPid.includes('_') ? actualPid.split('_')[0] : null);
                         

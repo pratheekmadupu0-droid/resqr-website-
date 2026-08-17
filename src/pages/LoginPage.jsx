@@ -225,6 +225,10 @@ export default function LoginPage() {
                 }
             }
 
+            const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
+                ? emergencyContacts[0] 
+                : { name: '', relationship: '', phone: '' };
+
             const profileData = {
                 id: profileId,
                 role: 'citizen',
@@ -242,6 +246,26 @@ export default function LoginPage() {
                 medical: {
                     bloodGroup, height, weight, medicalConditions, allergies,
                     currentMedication, previousSurgeries, isOrganDonor, emergencyNotes, medicalId
+                },
+                data: {
+                    name: citizenName,
+                    bloodGroup: bloodGroup,
+                    healthIssues: medicalConditions,
+                    allergies: allergies,
+                    emergencyContactName: firstEmergencyContact.name,
+                    emergencyContactRelation: firstEmergencyContact.relationship || firstEmergencyContact.relation || '',
+                    emergencyContactPhone: firstEmergencyContact.phone,
+                    phone: phoneNumber,
+                    email: citizenEmail,
+                    dob: citizenDob,
+                    gender: citizenGender,
+                    height: height,
+                    weight: weight,
+                    currentMedication: currentMedication,
+                    previousSurgeries: previousSurgeries,
+                    isOrganDonor: isOrganDonor,
+                    emergencyNotes: emergencyNotes,
+                    medicalId: medicalId
                 },
                 insurance: {
                     hasInsurance,
@@ -539,6 +563,24 @@ export default function LoginPage() {
                         { name: "Sarah Morgan", relationship: "Spouse", phone: "9876543211" },
                         { name: "David Morgan", relationship: "Brother", phone: "9876543212" }
                     ],
+                    data: {
+                        name: "Alex Morgan",
+                        bloodGroup: "O+",
+                        healthIssues: "Type-1 Diabetes",
+                        allergies: "Penicillin, Peanuts",
+                        emergencyContactName: "Sarah Morgan",
+                        emergencyContactRelation: "Spouse",
+                        emergencyContactPhone: "9876543211",
+                        phone: "9876543210",
+                        email: "citizen.demo@resqr.co.in",
+                        dob: "1994-08-15",
+                        gender: "Male",
+                        height: "178",
+                        weight: "72",
+                        currentMedication: "Insulin 10IU Daily",
+                        previousSurgeries: "Appendectomy (2018)",
+                        emergencyNotes: "Diabetic patient. Carry glucose tabs in wallet."
+                    },
                     insurance: {
                         insuranceCompany: "Star Health Allied Insurance",
                         policyNumber: "POL-882910492",

@@ -34,7 +34,29 @@ export default function DashboardCitizen() {
 
     useEffect(() => {
         if (activeProfile) {
-            setEditData(activeProfile.data || {});
+            const initialData = activeProfile.data || {};
+            const fallbackEmergency = activeProfile.emergencyContacts?.[0] || {};
+            const fallbackMedical = activeProfile.medical || {};
+            
+            const resolvedEditData = {
+                name: initialData.name || activeProfile.name || activeProfile.fullName || '',
+                bloodGroup: initialData.bloodGroup || fallbackMedical.bloodGroup || activeProfile.bloodGroup || '',
+                healthIssues: initialData.healthIssues || fallbackMedical.medicalConditions || activeProfile.medicalConditions || activeProfile.healthIssues || '',
+                allergies: initialData.allergies || fallbackMedical.allergies || activeProfile.allergies || '',
+                emergencyContactName: initialData.emergencyContactName || fallbackEmergency.name || activeProfile.emergencyContactName || '',
+                emergencyContactRelation: initialData.emergencyContactRelation || fallbackEmergency.relationship || fallbackEmergency.relation || activeProfile.emergencyContactRelation || '',
+                emergencyContactPhone: initialData.emergencyContactPhone || fallbackEmergency.phone || activeProfile.emergencyContactPhone || '',
+                phone: initialData.phone || activeProfile.phone || '',
+                email: initialData.email || activeProfile.email || '',
+                dob: initialData.dob || activeProfile.dob || '',
+                gender: initialData.gender || activeProfile.gender || '',
+                height: initialData.height || fallbackMedical.height || activeProfile.height || '',
+                weight: initialData.weight || fallbackMedical.weight || activeProfile.weight || '',
+                currentMedication: initialData.currentMedication || fallbackMedical.currentMedication || activeProfile.currentMedication || '',
+                previousSurgeries: initialData.previousSurgeries || fallbackMedical.previousSurgeries || activeProfile.previousSurgeries || activeProfile.surgeries || '',
+                emergencyNotes: initialData.emergencyNotes || fallbackMedical.emergencyNotes || activeProfile.emergencyNotes || ''
+            };
+            setEditData(resolvedEditData);
             setUsername(activeProfile.username || '');
         }
     }, [selectedProfileId, profiles]);
@@ -82,6 +104,7 @@ export default function DashboardCitizen() {
             const uid = auth.currentUser.uid;
             const pid = activeProfile.id;
 
+            const updates = {};
             if (username && username !== activeProfile.username) {
                 const cleanUser = username.toLowerCase().replace(/[^a-z0-9]/g, '');
                 const regRef = ref(db, `usernames/${cleanUser}`);
@@ -92,13 +115,20 @@ export default function DashboardCitizen() {
                 }
                 if (activeProfile.username) await remove(ref(db, `usernames/${activeProfile.username.toLowerCase()}`));
                 await set(regRef, `${uid}/profiles/${pid}`);
-                await update(ref(db, `users/${uid}/profiles/${pid}`), { username: cleanUser });
+                updates[`users/${uid}/profiles/${pid}/username`] = cleanUser;
+                updates[`profiles/${pid}/username`] = cleanUser;
             }
 
-            await update(ref(db, `users/${uid}/profiles/${pid}/data`), editData);
+            updates[`users/${uid}/profiles/${pid}/data`] = editData;
+            updates[`profiles/${pid}/data`] = editData;
+
+            await update(ref(db), updates);
             toast.success("Security Node Updated", { id: t });
             setIsEditing(false);
-        } catch (error) { toast.error("Sync Failed"); }
+        } catch (error) { 
+            console.error("Save error:", error);
+            toast.error("Sync Failed"); 
+        }
     };
 
     const handleDownload = async () => {
@@ -161,7 +191,7 @@ export default function DashboardCitizen() {
         ? `${window.location.origin}/${username}` 
         : `${window.location.origin}/qr/${activeProfile?.id}`;
 
-    const profileName = (activeProfile?.data?.name || auth.currentUser.displayName || 'Guardian').split(' ')[0].toUpperCase();
+    const profileName = (editData?.name || activeProfile?.data?.name || auth.currentUser.displayName || 'Guardian').split(' ')[0].toUpperCase();
 
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30">
@@ -214,16 +244,16 @@ export default function DashboardCitizen() {
                             ) : (
                                 <div className="flex flex-col md:flex-row gap-12">
                                     <div className="flex-1 space-y-10">
-                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Blood Group</p><p className="text-8xl font-black italic text-[#E63946] font-poppins tracking-tighter leading-none">{activeProfile?.data?.bloodGroup || 'B-'}</p></div>
-                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Medical Conditions</p><div className="bg-[#050B18] p-6 rounded-3xl border border-white/5 italic font-bold text-white/80">{activeProfile?.data?.healthIssues || 'Unknown status'}</div></div>
-                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Allergies</p><div className="bg-red-500/5 p-6 rounded-3xl border border-red-500/10 italic font-bold text-red-400">{activeProfile?.data?.allergies || 'None reported'}</div></div>
+                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Blood Group</p><p className="text-8xl font-black italic text-[#E63946] font-poppins tracking-tighter leading-none">{editData?.bloodGroup || 'B-'}</p></div>
+                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Medical Conditions</p><div className="bg-[#050B18] p-6 rounded-3xl border border-white/5 italic font-bold text-white/80">{editData?.healthIssues || 'Unknown status'}</div></div>
+                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Allergies</p><div className="bg-red-500/5 p-6 rounded-3xl border border-red-500/10 italic font-bold text-red-400">{editData?.allergies || 'None reported'}</div></div>
                                     </div>
                                     <div className="w-full md:w-80 space-y-8">
                                         <div className="bg-[#050B18] p-8 rounded-[40px] border border-white/5 relative group">
                                             <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 font-poppins">Emergency Contact</p>
-                                            <h4 className="text-3xl font-black italic text-white uppercase font-poppins leading-none mb-1">{activeProfile?.data?.emergencyContactName || 'NANA'}</h4>
-                                            <Badge className="bg-red-500/10 text-red-500 border-none px-3 py-1 font-black italic text-[9px] uppercase mb-10">{activeProfile?.data?.emergencyContactRelation || 'PARENT'}</Badge>
-                                            <div className="space-y-1 mt-10"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-poppins">Private Contact Node</p><p className="text-3xl font-black italic text-white font-poppins tracking-tighter leading-none">{activeProfile?.data?.emergencyContactPhone?.replace(/\d(?=\d{4})/g, '*') || '**********'}</p></div>
+                                            <h4 className="text-3xl font-black italic text-white uppercase font-poppins leading-none mb-1">{editData?.emergencyContactName || 'NANA'}</h4>
+                                            <Badge className="bg-red-500/10 text-red-500 border-none px-3 py-1 font-black italic text-[9px] uppercase mb-10">{editData?.emergencyContactRelation || 'PARENT'}</Badge>
+                                            <div className="space-y-1 mt-10"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-poppins">Private Contact Node</p><p className="text-3xl font-black italic text-white font-poppins tracking-tighter leading-none">{editData?.emergencyContactPhone?.replace(/\d(?=\d{4})/g, '*') || '**********'}</p></div>
                                             <div className="absolute top-8 right-8 flex flex-col gap-3"><button className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-xl shadow-emerald-500/20 transition-transform active:scale-95"><Phone size={20} /></button></div>
                                         </div>
                                         <div className="space-y-4">
