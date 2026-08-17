@@ -237,13 +237,16 @@ export default function QRScanPage() {
                             </h1>
                         </div>
 
-                        {/* 2. Blood Group */}
-                        <div className="bg-red-600 rounded-[48px] p-16 flex items-center justify-center text-white shadow-2xl relative overflow-hidden group">
-                            <div className="flex flex-col items-center gap-6 relative z-10 text-center">
-                                <p className="text-[14px] font-black text-white/80 uppercase tracking-[0.6em] italic">Critical Vital: Blood Group</p>
-                                <p className="text-[10rem] font-black italic text-white font-poppins tracking-tighter leading-none drop-shadow-2xl">{data?.bloodGroup || 'B+'}</p>
+                        {/* Security Notice Card */}
+                        <div className="bg-[#11192A] rounded-[48px] border border-white/5 p-12 text-center shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+                            <div className="flex flex-col items-center gap-5 text-center">
+                                <Shield className="text-primary animate-pulse" size={48} />
+                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] italic">SECURE VAULT ENCRYPTED</p>
+                                <p className="text-xs text-slate-500 font-bold leading-relaxed max-w-sm">
+                                    Critical medical records and insurance policies are sealed. Authorized medical responders can scan this tag using the RESQR Portal to decrypt vitals.
+                                </p>
                             </div>
-                            <HeartPulse size={300} className="absolute right-[-60px] bottom-[-60px] text-white opacity-5 pointer-events-none" />
                         </div>
 
                         {/* Emergency Contact & Location */}
@@ -292,47 +295,7 @@ export default function QRScanPage() {
                             </div>
                         </div>
 
-                        {/* ALL OTHER DETAILS - MEDICAL VAULT */}
-                        <div className="bg-slate-900/40 rounded-[48px] border border-white/5 p-12 space-y-10 shadow-2xl">
-                             <div className="flex items-center gap-4 border-b border-white/5 pb-8">
-                                <div className="p-3 bg-white/5 rounded-2xl text-red-600">
-                                    <ActivityIcon size={24} />
-                                </div>
-                                <h3 className="text-2xl font-black text-white italic uppercase tracking-tighter">Medical Vault</h3>
-                             </div>
 
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="bg-black/20 p-8 rounded-[36px] border border-white/5">
-                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4 italic">Health History / Issues</span>
-                                    <p className="text-2xl font-black italic uppercase text-white leading-tight">
-                                        {data?.healthIssues || data?.conditions || data?.medicalHistory || 'STABLE'}
-                                    </p>
-                                </div>
-                                <div className="bg-red-600/5 p-8 rounded-[36px] border border-red-600/10">
-                                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-4 italic">Critical Allergies</span>
-                                    <p className="text-2xl font-black italic uppercase text-red-500 leading-tight">
-                                        {data?.allergies || 'NONE REPORTED'}
-                                    </p>
-                                </div>
-                             </div>
-
-                             {(data?.doctorContact || data?.medications) && (
-                                <div className="pt-6 space-y-6">
-                                     {data?.doctorContact && (
-                                        <div className="flex justify-between items-center border-t border-white/5 pt-6">
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Doctor Contact</span>
-                                            <span className="text-white font-black italic uppercase text-lg">{data.doctorContact}</span>
-                                        </div>
-                                     )}
-                                     {data?.medications && (
-                                        <div className="flex justify-between items-center border-t border-white/5 pt-6">
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Medications</span>
-                                            <span className="text-white font-black italic uppercase">{data.medications}</span>
-                                        </div>
-                                     )}
-                                </div>
-                             )}
-                        </div>
 
                         {/* Recovery Actions */}
                         <div className="grid grid-cols-1 gap-5">

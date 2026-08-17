@@ -4,8 +4,10 @@ import {
     Activity, ArrowUpRight, CheckCircle2, Clock, AlertTriangle,
     Plus, Trash2, Edit3, Image as ImageIcon, Megaphone, Mail,
     Package, Settings, LayoutDashboard, LogOut, ChevronRight, ExternalLink, Bell,
-    Camera, RefreshCw, X, Check, Power, HelpCircle, Eye
+    Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
+    QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert
 } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -41,6 +43,11 @@ export default function AdminPanel() {
     const [scanConfidence, setScanConfidence] = useState(0);
     const [cameraStream, setCameraStream] = useState(null);
     const [isSimulationMode, setIsSimulationMode] = useState(false);
+
+    // Secure Medical QR Scanner states
+    const [decryptedPatient, setDecryptedPatient] = useState(null);
+    const [cameraScanner, setCameraScanner] = useState(null);
+    const [isCameraScanActive, setIsCameraScanActive] = useState(false);
 
     // List of allowed admin emails
     const ADMIN_EMAILS = [
@@ -198,7 +205,15 @@ export default function AdminPanel() {
             setScannerStatus('idle');
             setMatchedProfile(null);
         }
-    }, [activeTab]);
+        if (activeTab !== 'medical_scan') {
+            if (cameraScanner) {
+                try {
+                    cameraScanner.stop();
+                } catch (e) {}
+                setIsCameraScanActive(false);
+            }
+        }
+    }, [activeTab, cameraScanner]);
 
     useEffect(() => {
         return () => {
@@ -786,6 +801,148 @@ export default function AdminPanel() {
         }, 2000);
     };
 
+    // ==========================================
+    // SECURE MEDICAL QR SCANNER METHODS
+    // ==========================================
+    const handleDecryptQR = async (decodedText) => {
+        let slug = decodedText;
+        if (decodedText.includes('/e/')) {
+            slug = decodedText.split('/e/').pop().split('?')[0];
+        } else if (decodedText.includes('/qr/')) {
+            slug = decodedText.split('/qr/').pop().split('?')[0];
+        } else if (decodedText.includes('/p/')) {
+            slug = decodedText.split('/p/').pop().split('?')[0];
+        } else if (decodedText.includes('/u/')) {
+            slug = decodedText.split('/u/').pop().split('?')[0];
+        } else if (decodedText.startsWith('http')) {
+            try {
+                const url = new URL(decodedText);
+                slug = url.pathname.split('/').pop();
+            } catch (e) {
+                console.error("URL parse error:", e);
+            }
+        }
+
+        const t = toast.loading("Decrypting Secure Medical Vault...");
+        try {
+            let targetSlug = slug.trim();
+            const usernameRef = ref(db, `usernames/${targetSlug.toLowerCase()}`);
+            const usernameSnap = await get(usernameRef);
+            if (usernameSnap.exists()) {
+                const pathParts = usernameSnap.val().split('/');
+                targetSlug = pathParts.pop();
+            }
+
+            // 1. Fetch from global profiles node
+            let profileSnap = await get(ref(db, `profiles/${targetSlug}`));
+
+            // 2. Fetch from users sub-profile node if global failed
+            if (!profileSnap.exists()) {
+                const uid = targetSlug.includes('_') ? (targetSlug.startsWith('c_') ? targetSlug.replace('c_', '') : targetSlug.split('_')[0]) : targetSlug;
+                profileSnap = await get(ref(db, `users/${uid}/profiles/${targetSlug}`));
+            }
+
+            if (profileSnap.exists()) {
+                const raw = profileSnap.val();
+                const fallbackMedical = raw.medical || {};
+                const fallbackEmergency = raw.emergencyContacts?.[0] || {};
+                
+                const mergedData = {
+                    name: raw.name || raw.fullName || '',
+                    phone: raw.phone || '',
+                    email: raw.email || '',
+                    dob: raw.dob || '',
+                    gender: raw.gender || '',
+                    bloodGroup: fallbackMedical.bloodGroup || raw.bloodGroup || '',
+                    healthIssues: fallbackMedical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || raw.medicalHistory || '',
+                    allergies: fallbackMedical.allergies || raw.allergies || '',
+                    currentMedication: fallbackMedical.currentMedication || raw.currentMedication || '',
+                    previousSurgeries: fallbackMedical.previousSurgeries || raw.previousSurgeries || raw.surgeries || '',
+                    emergencyNotes: fallbackMedical.emergencyNotes || raw.emergencyNotes || '',
+                    emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
+                    emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
+                    emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
+                    profilePhoto: raw.profilePhoto || '',
+                    insurance: raw.insurance || null,
+                    ...(raw.data || {})
+                };
+
+                setDecryptedPatient({
+                    id: targetSlug,
+                    ...raw,
+                    data: mergedData
+                });
+                toast.success("Medical Vault Decrypted Successfully!", { id: t });
+            } else {
+                toast.error("Profile not found or access denied.", { id: t });
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Decryption failed: " + err.message, { id: t });
+        }
+    };
+
+    const startCameraScanner = async () => {
+        setDecryptedPatient(null);
+        try {
+            // Need to clean up any existing one first
+            if (cameraScanner) {
+                try { await cameraScanner.stop(); } catch(e){}
+            }
+            const scannerInstance = new Html5Qrcode("medical-qr-video");
+            setCameraScanner(scannerInstance);
+            setIsCameraScanActive(true);
+
+            await scannerInstance.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                async (decodedText) => {
+                    await scannerInstance.stop();
+                    setIsCameraScanActive(false);
+                    await handleDecryptQR(decodedText);
+                },
+                (errorMessage) => {
+                    // silent verbose
+                }
+            );
+        } catch (err) {
+            console.error("Camera start error:", err);
+            toast.error("Unable to access camera: " + err.message);
+            setIsCameraScanActive(false);
+        }
+    };
+
+    const stopCameraScanner = async () => {
+        if (cameraScanner) {
+            try {
+                await cameraScanner.stop();
+            } catch (e) {
+                console.error(e);
+            }
+            setIsCameraScanActive(false);
+        }
+    };
+
+    const handleQRFileUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setDecryptedPatient(null);
+        const t = toast.loading("Decoding uploaded image file...");
+        try {
+            const uploaderScanner = new Html5Qrcode("hidden-scanner-container");
+            const decodedText = await uploaderScanner.scanFile(file, true);
+            toast.success("QR Code resolved!", { id: t });
+            await handleDecryptQR(decodedText);
+        } catch (err) {
+            console.error("File scan error:", err);
+            toast.error("Could not find a valid QR code in the image.", { id: t });
+        }
+    };
+
     const stats = [
         { label: 'Total Users', value: users.length, change: '+12%', icon: <Users /> },
         { label: 'Platform Revenue', value: '₹' + (users.length * 99).toLocaleString(), change: '+8%', icon: <CreditCard /> },
@@ -809,6 +966,7 @@ export default function AdminPanel() {
                         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
                         { id: 'users', label: 'Auth Users', icon: <Users size={20} /> },
                         { id: 'profiles', label: 'Medical Profiles', icon: <Activity size={20} /> },
+                        { id: 'medical_scan', label: 'Secure QR Scanner', icon: <QrCode size={20} /> },
                         { id: 'facial_scan', label: 'Facial Scan Node', icon: <Camera size={20} /> },
                         { id: 'verification', label: 'Onboarding Audits', icon: <AlertTriangle size={20} /> },
                         { id: 'contacts', label: 'Support Inbox', icon: <Mail size={20} /> },
@@ -844,10 +1002,11 @@ export default function AdminPanel() {
                         <h1 className="text-3xl font-extrabold capitalize">
                             {activeTab === 'users' ? 'Registered Accounts' :
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
-                                    activeTab === 'facial_scan' ? 'Biometric Facial Scan Node' :
-                                        activeTab === 'verification' ? 'Onboarding Audits' :
-                                            activeTab === 'contacts' ? 'Secure Transmissions Support Inbox' :
-                                                activeTab + ' Panel'}
+                                    activeTab === 'medical_scan' ? 'Secure Medical QR Scanner' :
+                                        activeTab === 'facial_scan' ? 'Biometric Facial Scan Node' :
+                                            activeTab === 'verification' ? 'Onboarding Audits' :
+                                                activeTab === 'contacts' ? 'Secure Transmissions Support Inbox' :
+                                                    activeTab + ' Panel'}
                         </h1>
                         <p className="text-slate-400">Manage your system from a single interface.</p>
                     </div>
@@ -1568,6 +1727,252 @@ export default function AdminPanel() {
                                 </div>
                             </Card>
                         ))}
+                    </div>
+                )}
+
+                {activeTab === 'medical_scan' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                        {/* Selector Controls */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                            {/* Scanning Controls & Camera Box */}
+                            <Card className="lg:col-span-5 bg-slate-950/80 border border-white/5 rounded-[40px] shadow-2xl p-8 flex flex-col items-center justify-between relative overflow-hidden h-[580px]">
+                                <div className="absolute top-6 left-6 z-20 flex items-center gap-2">
+                                    <span className={`w-2.5 h-2.5 rounded-full ${isCameraScanActive ? 'bg-red-500 animate-ping' : 'bg-slate-600'}`} />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500 italic">
+                                        {isCameraScanActive ? 'CAMERA [LIVE]' : 'CAMERA [STANDBY]'}
+                                    </span>
+                                </div>
+
+                                {/* Scanner Frame */}
+                                <div className="w-full flex-1 mt-10 rounded-[30px] overflow-hidden border border-white/5 bg-slate-950 flex items-center justify-center relative min-h-[300px]">
+                                    <div id="medical-qr-video" className="w-full h-full object-cover">
+                                        {!isCameraScanActive && (
+                                            <div className="absolute inset-0 bg-[#060b13] flex flex-col items-center justify-center p-6 text-center gap-4">
+                                                <div className="w-20 h-20 bg-slate-900 border border-white/5 rounded-3xl flex items-center justify-center shadow-lg text-primary animate-[pulse_3s_infinite]">
+                                                    <QrCode size={36} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 italic">SECURE DECRYPTION KEY</p>
+                                                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-2 max-w-[240px] mx-auto leading-relaxed">
+                                                        Scan a patient QR tag to fetch encrypted history & insurance policies.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Hidden element required for scanFile to bind to */}
+                                    <div id="hidden-scanner-container" className="hidden" />
+
+                                    {isCameraScanActive && (
+                                        <>
+                                            {/* Scanner Corner Brackets */}
+                                            <div className="absolute top-6 left-6 w-8 h-8 border-t-2 border-l-2 border-primary rounded-tl-xl" />
+                                            <div className="absolute top-6 right-6 w-8 h-8 border-t-2 border-r-2 border-primary rounded-tr-xl" />
+                                            <div className="absolute bottom-6 left-6 w-8 h-8 border-b-2 border-l-2 border-primary rounded-bl-xl" />
+                                            <div className="absolute bottom-6 right-6 w-8 h-8 border-b-2 border-r-2 border-primary rounded-br-xl" />
+                                            {/* Laser line animation */}
+                                            <div className="absolute left-6 right-6 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent animate-[bounce_2.5s_infinite] shadow-[0_0_15px_#e63946]" />
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Controller Buttons */}
+                                <div className="w-full mt-6 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {!isCameraScanActive ? (
+                                            <button
+                                                onClick={startCameraScanner}
+                                                className="h-14 bg-primary text-white rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-all font-black uppercase italic tracking-widest text-[10px]"
+                                            >
+                                                <Camera size={16} /> Start Feed
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={stopCameraScanner}
+                                                className="h-14 bg-red-950/40 text-red-500 border border-red-500/20 rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-all font-black uppercase italic tracking-widest text-[10px]"
+                                            >
+                                                <Power size={16} /> Stop Feed
+                                            </button>
+                                        )}
+
+                                        <label className="h-14 bg-slate-900 border border-white/5 hover:border-primary/20 text-white rounded-2xl flex items-center justify-center gap-3 active:scale-95 transition-all cursor-pointer font-black uppercase italic tracking-widest text-[10px] text-center">
+                                            <ImageIcon size={16} className="text-primary" /> Upload Image
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handleQRFileUpload}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* Patient Profile Decrypted Section */}
+                            <Card className="lg:col-span-7 bg-medical-card border border-white/5 rounded-[40px] shadow-2xl p-8 flex flex-col justify-between min-h-[580px] relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+                                
+                                {!decryptedPatient ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center gap-6">
+                                        <div className="w-24 h-24 rounded-[30px] bg-slate-950 border border-white/5 flex items-center justify-center text-slate-700 animate-[pulse_2s_infinite]">
+                                            <ShieldAlert size={48} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black italic uppercase tracking-tighter text-white">DECRYPTION ENGINE STANDBY</h3>
+                                            <p className="text-[11px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 leading-relaxed max-w-sm mx-auto">
+                                                Awaiting authentication. Scan or upload patient QR code to visualize profile, emergency vcard, medical vault, and insurance policy details.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-8 animate-in fade-in duration-500 w-full">
+                                        {/* Profile summary header */}
+                                        <div className="flex flex-col sm:flex-row items-center justify-between border-b border-white/5 pb-6 gap-6 w-full">
+                                            <div className="flex items-center gap-5">
+                                                {decryptedPatient.data?.profilePhoto ? (
+                                                    <img
+                                                        src={decryptedPatient.data.profilePhoto}
+                                                        alt="Patient Photo"
+                                                        className="w-20 h-20 rounded-[24px] object-cover border-2 border-primary/30 shadow-lg"
+                                                    />
+                                                ) : (
+                                                    <div className="w-20 h-20 rounded-[24px] bg-slate-950 border border-white/5 flex items-center justify-center text-primary font-black text-3xl italic">
+                                                        {decryptedPatient.data?.name?.[0]?.toUpperCase() || 'P'}
+                                                    </div>
+                                                )}
+                                                <div className="text-center sm:text-left">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                                        <h2 className="text-2xl font-black italic uppercase text-white tracking-tighter">
+                                                            {decryptedPatient.data?.name || 'DECRYPTED PATIENT'}
+                                                        </h2>
+                                                        <Badge className="bg-primary text-white border-none font-black italic text-[8px] px-2 py-0.5 w-fit mx-auto sm:mx-0">
+                                                            AUTHORIZED
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em] mt-1">
+                                                        ID: {decryptedPatient.id}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Big Blood Group indicator */}
+                                            <div className="bg-red-600/10 border border-red-600/20 px-8 py-4 rounded-[24px] text-center min-w-[100px] shrink-0">
+                                                <span className="text-[8px] font-black text-red-500 uppercase tracking-widest block italic mb-1">Blood Group</span>
+                                                <span className="text-4xl font-black italic text-red-500 font-poppins">{decryptedPatient.data?.bloodGroup || 'N/A'}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Contact & Personal details grid */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
+                                            <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5">
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">D.O.B</span>
+                                                <span className="text-xs font-black text-white italic">{decryptedPatient.data?.dob || 'N/A'}</span>
+                                            </div>
+                                            <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5">
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">Gender</span>
+                                                <span className="text-xs font-black text-white italic uppercase">{decryptedPatient.data?.gender || 'N/A'}</span>
+                                            </div>
+                                            <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5">
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">Phone Number</span>
+                                                <span className="text-xs font-black text-white italic">{decryptedPatient.data?.phone || 'N/A'}</span>
+                                            </div>
+                                            <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5 flex flex-col justify-center overflow-hidden">
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">Email Link</span>
+                                                <span className="text-xs font-black text-white italic truncate block max-w-full">{decryptedPatient.data?.email || 'N/A'}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Sensitive Medical Vault */}
+                                        <div className="bg-slate-950/50 p-6 rounded-[30px] border border-white/5 space-y-6 w-full">
+                                            <div className="flex items-center gap-3 border-b border-white/5 pb-4">
+                                                <HeartPulse className="text-primary" size={18} />
+                                                <h4 className="text-[10px] font-black text-white uppercase tracking-[0.25em] italic">EMERGENCY MEDICAL PASS HISTORY</h4>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1 italic">Health History / Issues</span>
+                                                    <p className="text-xs font-bold text-slate-300 leading-relaxed uppercase">{decryptedPatient.data?.healthIssues || 'None Reported'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[8px] font-black text-red-500 uppercase tracking-widest block mb-1 italic">Critical Allergies</span>
+                                                    <p className="text-xs font-bold text-red-400/90 leading-relaxed uppercase">{decryptedPatient.data?.allergies || 'None Reported'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+                                                <div>
+                                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1 italic">Current Medications</span>
+                                                    <p className="text-xs font-bold text-slate-300 leading-relaxed uppercase">{decryptedPatient.data?.currentMedication || 'None'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1 italic">Previous Surgeries</span>
+                                                    <p className="text-xs font-bold text-slate-300 leading-relaxed uppercase">{decryptedPatient.data?.previousSurgeries || 'None'}</p>
+                                                </div>
+                                            </div>
+                                            {decryptedPatient.data?.emergencyNotes && (
+                                                <div className="pt-2 border-t border-white/5">
+                                                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1 italic">Emergency Directives</span>
+                                                    <p className="text-xs font-bold text-slate-400 leading-relaxed uppercase">{decryptedPatient.data.emergencyNotes}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Insurance policy node (requested by user) */}
+                                        <div className="bg-emerald-500/5 p-6 rounded-[30px] border border-emerald-500/10 space-y-4 w-full">
+                                            <div className="flex items-center justify-between border-b border-emerald-500/10 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <Shield className="text-emerald-500" size={18} />
+                                                    <h4 className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.25em] italic">SECURE INSURANCE POLICY NODE</h4>
+                                                </div>
+                                                <Badge className="bg-emerald-500/10 text-emerald-500 border-none font-black italic text-[8px] px-2 py-0.5">
+                                                    {decryptedPatient.data?.insurance?.hasInsurance === 'no' || decryptedPatient.data?.insurance?.hasInsurance === false || !decryptedPatient.data?.insurance ? 'UNINSURED' : 'ACTIVE POLICY'}
+                                                </Badge>
+                                            </div>
+
+                                            {decryptedPatient.data?.insurance?.hasInsurance === 'no' || decryptedPatient.data?.insurance?.hasInsurance === false || !decryptedPatient.data?.insurance ? (
+                                                <p className="text-xs text-slate-500 font-bold uppercase italic">This user profile does not contain active health insurance registry data.</p>
+                                            ) : (
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    <div>
+                                                        <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1 italic">Provider Company</span>
+                                                        <p className="text-xs font-black text-white italic uppercase">{decryptedPatient.data.insurance?.provider || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1 italic">Policy Identifier</span>
+                                                        <p className="text-xs font-black text-white italic uppercase tracking-wider">{decryptedPatient.data.insurance?.policyNumber || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest block mb-1 italic">Cashless Medical Audit</span>
+                                                        <p className="text-xs font-black text-white italic uppercase">{decryptedPatient.data.insurance?.cashless === 'yes' || decryptedPatient.data.insurance?.cashless === true ? 'APPROVED (CASHLESS)' : 'CO-PAY REQUIREMENT'}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Guardian Liaison Details */}
+                                        <div className="bg-slate-950/50 p-6 rounded-[30px] border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                                            <div>
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-1 italic">PRIMARY GUARDIAN CONTACT</span>
+                                                <h5 className="text-sm font-black text-white uppercase italic">
+                                                    {decryptedPatient.data?.emergencyContactName || 'GUARDIAN CONTACT'} ({decryptedPatient.data?.emergencyContactRelation || 'AUTHORIZED'})
+                                                </h5>
+                                                <p className="text-xs text-primary font-black uppercase tracking-widest mt-1">
+                                                    {decryptedPatient.data?.emergencyContactPhone || 'NO DIRECT LINE'}
+                                                </p>
+                                            </div>
+                                            {decryptedPatient.data?.emergencyContactPhone && (
+                                                <button
+                                                    onClick={() => window.location.href = `tel:${decryptedPatient.data.emergencyContactPhone.replace(/[^0-9+]/g, '')}`}
+                                                    className="h-10 px-6 bg-primary text-white rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all font-black uppercase italic tracking-widest text-[9px] w-full sm:w-auto"
+                                                >
+                                                    <Phone size={12} fill="white" /> Connect Call
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </Card>
+                        </div>
                     </div>
                 )}
 
