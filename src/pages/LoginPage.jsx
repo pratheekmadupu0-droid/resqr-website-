@@ -749,7 +749,7 @@ export default function LoginPage() {
                                                     </div>
                                                     <Button 
                                                         onClick={() => { setSelectedRole('citizen'); setAuthState('google_verify'); }}
-                                                        className="w-full sm:w-auto px-8 py-4.5 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20"
+                                                        className="w-full sm:w-auto px-10 py-4 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
                                                     >
                                                         Login / Register
                                                     </Button>
@@ -847,7 +847,7 @@ export default function LoginPage() {
                                                     </div>
                                                     <Button 
                                                         onClick={() => { setSelectedRole('agent'); setAuthState('google_verify'); }}
-                                                        className="w-full sm:w-auto px-8 py-4.5 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                                        className="w-full sm:w-auto px-10 py-4 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all"
                                                     >
                                                         Agent Login
                                                     </Button>
@@ -945,7 +945,7 @@ export default function LoginPage() {
                                                     </div>
                                                     <Button 
                                                         onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                                        className="w-full sm:w-auto px-8 py-4.5 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-[10px]"
+                                                        className="w-full sm:w-auto px-10 py-4 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all"
                                                     >
                                                         Hospital Login
                                                     </Button>
