@@ -109,7 +109,7 @@ export default function HospitalDashboard({ data }) {
 
             // 2. Fetch from users sub-profile node if global failed
             if (!profileSnap.exists()) {
-                const uid = targetSlug.includes('_') ? targetSlug.split('_')[0] : targetSlug;
+                const uid = targetSlug.includes('_') ? (targetSlug.startsWith('c_') ? targetSlug.replace('c_', '') : targetSlug.split('_')[0]) : targetSlug;
                 profileSnap = await get(ref(db, `users/${uid}/profiles/${targetSlug}`));
             }
 

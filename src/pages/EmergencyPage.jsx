@@ -36,7 +36,7 @@ export default function EmergencyPage() {
                 let resolvedPath = null;
 
                 if (id.includes('_')) {
-                    actualUid = id.split('_')[0];
+                    actualUid = id.startsWith('c_') ? id.replace('c_', '') : id.split('_')[0];
                     resolvedPath = `users/${actualUid}/profiles/${id}`;
                     snap = await get(ref(db, resolvedPath));
                 }

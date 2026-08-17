@@ -131,7 +131,7 @@ export default function PaymentPage() {
 
                         if (activeSlug) {
                             await update(ref(db, `profiles/${activeSlug}`), finalPaymentData);
-                            const uid = activeSlug.includes('_') ? activeSlug.split('_')[0] : (currentUser?.uid);
+                             const uid = activeSlug.includes('_') ? (activeSlug.startsWith('c_') ? activeSlug.replace('c_', '') : activeSlug.split('_')[0]) : (currentUser?.uid);
                             if (uid) {
                                 await update(ref(db, `users/${uid}/profiles/${activeSlug}`), finalPaymentData);
                             }

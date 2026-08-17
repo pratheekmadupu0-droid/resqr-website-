@@ -57,7 +57,7 @@ export default function QRScanPage() {
 
                     // 1. Try direct user profile path first if ID matches Dashboard structure
                     if (cleanId.includes('_')) {
-                        actualUid = cleanId.split('_')[0];
+                        actualUid = cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0];
                         snap = await get(ref(db, `users/${actualUid}/profiles/${cleanId}`));
                     }
 
@@ -107,7 +107,7 @@ export default function QRScanPage() {
                             ...(raw.data || {})
                         };
                         
-                        actualUid = actualUid || raw.uid || (actualPid.includes('_') ? actualPid.split('_')[0] : null);
+                        actualUid = actualUid || raw.uid || (actualPid.includes('_') ? (actualPid.startsWith('c_') ? actualPid.replace('c_', '') : actualPid.split('_')[0]) : null);
                         
                         setProfile({ 
                             category: raw.category || 'people', 
