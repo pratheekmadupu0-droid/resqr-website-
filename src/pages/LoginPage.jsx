@@ -10,7 +10,7 @@ import { Input, Select } from '../components/ui/Input';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { auth, db } from '../lib/firebase';
-import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 import { ref, update, set, get } from 'firebase/database';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
@@ -138,6 +138,46 @@ export default function LoginPage() {
         enterprise: { name: 'Enterprise Hospital', beds: '500+ Beds', price: 19999, desc: 'Complete integration for tier-1 medical complexes.' }
     };
 
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (currentUser) {
+                try {
+                    const uid = currentUser.uid;
+                    const userSnap = await get(ref(db, `users/${uid}`));
+                    if (userSnap.exists()) {
+                        const userData = userSnap.val();
+                        
+                        if (userData.status === 'pending') {
+                            toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
+                            await auth.signOut();
+                            return;
+                        }
+
+                        if (userData.role === 'admin') {
+                            localStorage.setItem('resqr_active_role', 'admin');
+                            navigate('/admin');
+                            return;
+                        }
+
+                        if (userData.role === 'citizen') {
+                            const hasProfiles = userData.profiles && Object.keys(userData.profiles).length > 0;
+                            if (userData.profileCompleted || hasProfiles) {
+                                navigate('/dashboard');
+                                return;
+                            }
+                        } else if (userData.role === 'agent' || userData.role === 'hospital') {
+                            navigate('/dashboard');
+                            return;
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error auto-redirecting user:", error);
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, [navigate]);
+
     // Helper for base64 file convert
     const handleFileChange = (e, setPhoto) => {
         const file = e.target.files[0];
@@ -170,9 +210,22 @@ export default function LoginPage() {
                     return;
                 }
                 
-                const profileSnap = await get(ref(db, `profiles/c_${uid}`));
-                if (userData.role === 'agent' || userData.role === 'hospital' || (profileSnap.exists() && userData.profileCompleted)) {
-                    toast.success(`Welcome back, ${userData.name || user.displayName || 'User'}! Authentication successful.`);
+                if (userData.role === 'admin') {
+                    localStorage.setItem('resqr_active_role', 'admin');
+                    toast.success("Welcome back, Administrator!");
+                    navigate('/admin');
+                    return;
+                }
+
+                if (userData.role === 'citizen') {
+                    const hasProfiles = userData.profiles && Object.keys(userData.profiles).length > 0;
+                    if (userData.profileCompleted || hasProfiles) {
+                        toast.success(`Welcome back, ${userData.name || user.displayName || 'User'}! Authentication successful.`);
+                        navigate('/dashboard');
+                        return;
+                    }
+                } else if (userData.role === 'agent' || userData.role === 'hospital') {
+                    toast.success(`Welcome back, ${userData.name || 'User'}! Authentication successful.`);
                     navigate('/dashboard');
                     return;
                 }
