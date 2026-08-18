@@ -15,6 +15,7 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, update, remove, onValue, set } from 'firebase/database';
 import toast from 'react-hot-toast';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
+import { calculateAge } from '../lib/dateUtils';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -149,6 +150,7 @@ export default function DashboardCitizen() {
                 updates[`profiles/${pid}/username`] = cleanUser;
             }
 
+            const computedAge = calculateAge(editData.dob);
             const updatedProfile = {
                 ...activeProfile,
                 username: username || activeProfile.username || '',
@@ -156,6 +158,7 @@ export default function DashboardCitizen() {
                 phone: editData.phone || '',
                 email: editData.email || '',
                 dob: editData.dob || '',
+                age: computedAge,
                 gender: editData.gender || '',
                 address: {
                     houseNo: editData.houseNo || '',
@@ -195,7 +198,10 @@ export default function DashboardCitizen() {
                     policyAgentPhone: editData.policyAgentPhone || '',
                     cashlessFacility: editData.cashlessFacility || false
                 },
-                data: editData,
+                data: {
+                    ...editData,
+                    age: computedAge
+                },
                 lastUpdatePaymentId: paymentId || "update_pay_" + Math.random().toString(36).substr(2, 9),
                 lastUpdatedAt: new Date().toISOString()
             };
@@ -351,7 +357,14 @@ export default function DashboardCitizen() {
                                                 <Input label="EMAIL ADDRESS" name="email" value={editData.email || ''} onChange={(e) => setEditData({...editData, email: e.target.value})} />
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <Input label="DATE OF BIRTH" type="date" name="dob" value={editData.dob || ''} onChange={(e) => setEditData({...editData, dob: e.target.value})} />
+                                                <div className="relative">
+                                                    <Input label="DATE OF BIRTH" type="date" name="dob" value={editData.dob || ''} onChange={(e) => setEditData({...editData, dob: e.target.value})} />
+                                                    {editData.dob && (
+                                                        <span className="absolute right-3 top-9 text-[10px] font-black text-primary uppercase bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md italic z-10">
+                                                            Age: {calculateAge(editData.dob)} Yrs
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <Select 
                                                     label="GENDER" 
                                                     value={editData.gender || ''} 

@@ -8,6 +8,7 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import toast from 'react-hot-toast';
+import { calculateAge } from '../lib/dateUtils';
 
 export default function EmergencyPage() {
     const { id } = useParams();
@@ -92,6 +93,9 @@ export default function EmergencyPage() {
                         payment_status: decoded.payment_status || 'paid',
                         healthIssues: decoded.healthIssues || "STABLE",
                         allergies: decoded.allergies || "NONE REPORTED",
+                        dob: decoded.dob || '',
+                        age: decoded.age || calculateAge(decoded.dob) || '',
+                        gender: decoded.gender || '',
                         emergencyContact: {
                             name: decoded.emergencyContactName || "GUARDIAN",
                             relation: decoded.emergencyContactRelation || "AUTHORIZED CONTACT",
@@ -274,12 +278,21 @@ export default function EmergencyPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-black/20 p-8 rounded-[36px] border border-white/5">
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4 italic">Age / Gender / DOB</span>
+                                <p className="text-xl font-black italic uppercase text-white leading-tight">
+                                    {user?.age ? `${user.age} Yrs` : 'N/A'} • {user?.gender || 'N/A'}
+                                </p>
+                                <p className="text-xs text-slate-500 mt-2 font-bold uppercase tracking-widest">
+                                    DOB: {user?.dob || 'N/A'}
+                                </p>
+                            </div>
+                            <div className="bg-black/20 p-8 rounded-[36px] border border-white/5">
                                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-4 italic">Health History / Issues</span>
-                                <p className="text-2xl font-black italic uppercase text-white leading-tight">
+                                <p className="text-xl font-black italic uppercase text-white leading-tight">
                                     {user?.healthIssues || user?.conditions || 'STABLE'}
                                 </p>
                             </div>
-                            <div className="bg-red-600/5 p-8 rounded-[36px] border border-red-600/10">
+                            <div className="bg-red-600/5 p-8 rounded-[36px] border border-red-600/10 md:col-span-2">
                                 <span className="text-[10px] font-black text-red-500 uppercase tracking-widest block mb-4 italic">Critical Allergies</span>
                                 <p className="text-2xl font-black italic uppercase text-red-500 leading-tight">
                                     {user?.allergies || 'NONE REPORTED'}

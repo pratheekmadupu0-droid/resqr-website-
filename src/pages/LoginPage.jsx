@@ -15,6 +15,7 @@ import { ref, update, set, get } from 'firebase/database';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import { extractFeatures } from '../lib/cvHelper';
+import { calculateAge } from '../lib/dateUtils';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -296,6 +297,7 @@ export default function LoginPage() {
                 phone: phoneNumber,
                 email: citizenEmail,
                 dob: citizenDob,
+                age: calculateAge(citizenDob),
                 gender: citizenGender,
                 address: citizenAddress,
                 emergencyContacts,
@@ -315,6 +317,7 @@ export default function LoginPage() {
                     phone: phoneNumber,
                     email: citizenEmail,
                     dob: citizenDob,
+                    age: calculateAge(citizenDob),
                     gender: citizenGender,
                     height: height,
                     weight: weight,
@@ -396,11 +399,12 @@ export default function LoginPage() {
             const agentId = `AGT-${Math.floor(100000 + Math.random() * 900000)}`;
 
             const agentProfile = {
-                agentId,
+                 agentId,
                 name: agentName,
                 email: agentEmail,
                 phone: phoneNumber,
                 dob: agentDob,
+                age: calculateAge(agentDob),
                 aadhaarNo: agentAadhaar,
                 panNo: agentPan,
                 aadhaarFront: agentAadhaarFront,
@@ -1207,7 +1211,14 @@ export default function LoginPage() {
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input label="Date of Birth" type="date" value={citizenDob} onChange={(e) => setCitizenDob(e.target.value)} required />
+                                            <div className="relative">
+                                                <Input label="Date of Birth" type="date" value={citizenDob} onChange={(e) => setCitizenDob(e.target.value)} required />
+                                                {citizenDob && (
+                                                    <span className="absolute right-3 top-9 text-[10px] font-black text-primary uppercase bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md italic z-10">
+                                                        Age: {calculateAge(citizenDob)} Yrs
+                                                    </span>
+                                                )}
+                                            </div>
                                             <Select 
                                                 label="Gender" 
                                                 value={citizenGender} 
@@ -1629,7 +1640,14 @@ export default function LoginPage() {
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input label="Date of Birth" type="date" value={agentDob} onChange={(e) => setAgentDob(e.target.value)} required />
+                                            <div className="relative">
+                                                <Input label="Date of Birth" type="date" value={agentDob} onChange={(e) => setAgentDob(e.target.value)} required />
+                                                {agentDob && (
+                                                    <span className="absolute right-3 top-9 text-[10px] font-black text-primary uppercase bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md italic z-10">
+                                                        Age: {calculateAge(agentDob)} Yrs
+                                                    </span>
+                                                )}
+                                            </div>
                                             <Input label="Emergency Contact Phone" maxLength="10" placeholder="Guardian Phone" value={agentEmergencyContact} onChange={(e) => setAgentEmergencyContact(e.target.value.replace(/\D/g, ''))} required />
                                         </div>
                                     </div>

@@ -19,6 +19,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { QRCodeCanvas } from 'qrcode.react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { calculateAge } from '../lib/dateUtils';
 
 export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -852,6 +853,7 @@ export default function AdminPanel() {
                     phone: raw.phone || '',
                     email: raw.email || '',
                     dob: raw.dob || '',
+                    age: raw.age || calculateAge(raw.dob) || '',
                     gender: raw.gender || '',
                     bloodGroup: fallbackMedical.bloodGroup || raw.bloodGroup || '',
                     healthIssues: fallbackMedical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || raw.medicalHistory || '',
@@ -879,6 +881,60 @@ export default function AdminPanel() {
         } catch (err) {
             console.error(err);
             toast.error("Decryption failed: " + err.message, { id: t });
+        }
+    };
+
+    const [isMigrating, setIsMigrating] = useState(false);
+
+    const handleMigrateAges = async () => {
+        if (isMigrating) return;
+        setIsMigrating(true);
+        const t = toast.loading("Starting database backfill for missing age nodes...");
+        try {
+            const profilesSnap = await get(ref(db, 'profiles'));
+            const usersSnap = await get(ref(db, 'users'));
+
+            if (!profilesSnap.exists()) {
+                toast.error("No profiles found to migrate.", { id: t });
+                setIsMigrating(false);
+                return;
+            }
+
+            const profilesData = profilesSnap.val();
+            const usersData = usersSnap.val() || {};
+
+            const updates = {};
+            let migrateCount = 0;
+
+            for (const [pid, profile] of Object.entries(profilesData)) {
+                if (profile && profile.dob && !profile.age) {
+                    const computedAge = calculateAge(profile.dob);
+                    if (computedAge !== null && !isNaN(computedAge)) {
+                        updates[`profiles/${pid}/age`] = computedAge;
+                        updates[`profiles/${pid}/data/age`] = computedAge;
+
+                        for (const [uid, user] of Object.entries(usersData)) {
+                            if (user && user.profiles && user.profiles[pid]) {
+                                updates[`users/${uid}/profiles/${pid}/age`] = computedAge;
+                                updates[`users/${uid}/profiles/${pid}/data/age`] = computedAge;
+                            }
+                        }
+                        migrateCount++;
+                    }
+                }
+            }
+
+            if (migrateCount === 0) {
+                toast.success("Database is fully up-to-date! No legacy profiles found.", { id: t });
+            } else {
+                await update(ref(db), updates);
+                toast.success(`Successfully backfilled age for ${migrateCount} profile(s)!`, { id: t });
+            }
+        } catch (err) {
+            console.error("Migration error:", err);
+            toast.error("Failed to migrate ages: " + err.message, { id: t });
+        } finally {
+            setIsMigrating(false);
         }
     };
 
@@ -1026,6 +1082,19 @@ export default function AdminPanel() {
                                 <Plus size={18} /> New Campaign
                             </Button>
                         )}
+                        <Button 
+                            onClick={handleMigrateAges} 
+                            disabled={isMigrating}
+                            variant="outline" 
+                            className="border-slate-800 bg-slate-900 gap-2 text-primary hover:text-white"
+                        >
+                            {isMigrating ? (
+                                <RefreshCw size={14} className="animate-spin" />
+                            ) : (
+                                <Database size={14} />
+                            )}
+                            Backfill Ages
+                        </Button>
                         <Button variant="outline" className="border-slate-800 bg-slate-900">Export CSV</Button>
                     </div>
                 </header>
@@ -1866,8 +1935,8 @@ export default function AdminPanel() {
                                         {/* Contact & Personal details grid */}
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
                                             <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5">
-                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">D.O.B</span>
-                                                <span className="text-xs font-black text-white italic">{decryptedPatient.data?.dob || 'N/A'}</span>
+                                                <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">D.O.B / Age</span>
+                                                <span className="text-xs font-black text-white italic">{decryptedPatient.data?.dob || 'N/A'} {decryptedPatient.data?.age ? `(${decryptedPatient.data.age} Yrs)` : (decryptedPatient.data?.dob && `(${calculateAge(decryptedPatient.data.dob)} Yrs)`)}</span>
                                             </div>
                                             <div className="bg-slate-950/50 p-4 rounded-2xl border border-white/5">
                                                 <span className="text-[8px] font-black text-slate-500 uppercase tracking-wider block mb-1">Gender</span>
@@ -2201,7 +2270,7 @@ export default function AdminPanel() {
                                                         <div className="grid grid-cols-2 gap-4 pt-1">
                                                             <div>
                                                                 <span className="text-[8px] font-black uppercase text-slate-600 block">DOB / AGE</span>
-                                                                <span className="text-xs font-bold text-slate-300">{matchedProfile.dob || '1995-10-12'}</span>
+                                                                <span className="text-xs font-bold text-slate-300">{matchedProfile.dob || '1995-10-12'} {matchedProfile.age ? `(${matchedProfile.age} Yrs)` : (matchedProfile.dob && `(${calculateAge(matchedProfile.dob)} Yrs)`)}</span>
                                                             </div>
                                                             <div>
                                                                 <span className="text-[8px] font-black uppercase text-slate-600 block">GENDER</span>

@@ -10,6 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { calculateAge } from '../lib/dateUtils';
 
 // Initial list of patient profiles
 const INITIAL_PATIENTS = [
@@ -976,7 +977,7 @@ export default function SolutionsHospitals() {
                                     </Badge>
                                 </div>
                                 <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-2">
-                                    DOB: <span className="text-white">{selectedPatient.dob || "N/A"}</span> • Gender: <span className="text-white uppercase">{selectedPatient.gender || "N/A"}</span> • Phone: <span className="text-white">{selectedPatient.phone || "N/A"}</span>
+                                    DOB: <span className="text-white">{selectedPatient.dob || "N/A"}</span> {(selectedPatient.age || selectedPatient.dob) && <span className="text-slate-400">({selectedPatient.age ? (selectedPatient.age.toString().toLowerCase().includes('yr') ? selectedPatient.age : `${selectedPatient.age} Yrs`) : (selectedPatient.dob && `${calculateAge(selectedPatient.dob)} Yrs`)})</span>} • Gender: <span className="text-white uppercase">{selectedPatient.gender || "N/A"}</span> • Phone: <span className="text-white">{selectedPatient.phone || "N/A"}</span>
                                 </p>
                             </div>
                         </div>

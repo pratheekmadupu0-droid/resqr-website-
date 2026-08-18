@@ -14,6 +14,7 @@ import toast from 'react-hot-toast';
 import { extractFeatures } from '../lib/cvHelper';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
+import { calculateAge } from '../lib/dateUtils';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -244,14 +245,8 @@ export default function CreateIdentity() {
                 return;
             }
             // Age validation (under 17)
-            const dobDate = new Date(citizenDob);
-            const today = new Date();
-            let age = today.getFullYear() - dobDate.getFullYear();
-            const m = today.getMonth() - dobDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
-                age--;
-            }
-            if (age >= 17) {
+            const age = calculateAge(citizenDob);
+            if (age === '' || age >= 17) {
                 toast.error("Minor Node profiles must be under 17 years of age.");
                 return;
             }
@@ -335,6 +330,7 @@ export default function CreateIdentity() {
                 phone: phoneNumber,
                 email: citizenEmail,
                 dob: citizenDob,
+                age: calculateAge(citizenDob),
                 gender: citizenGender,
                 address: citizenAddress,
                 emergencyContacts,
@@ -357,6 +353,7 @@ export default function CreateIdentity() {
                     phone: phoneNumber,
                     email: citizenEmail,
                     dob: citizenDob,
+                    age: calculateAge(citizenDob),
                     gender: citizenGender,
                     height: height,
                     weight: weight,
@@ -669,13 +666,20 @@ export default function CreateIdentity() {
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input 
-                                                label={selectedType === 'child' ? "Date of Birth (Must be under 17)" : "Date of Birth"} 
-                                                type="date" 
-                                                value={citizenDob} 
-                                                onChange={(e) => setCitizenDob(e.target.value)} 
-                                                required 
-                                            />
+                                            <div className="relative">
+                                                <Input 
+                                                    label={selectedType === 'child' ? "Date of Birth (Must be under 17)" : "Date of Birth"} 
+                                                    type="date" 
+                                                    value={citizenDob} 
+                                                    onChange={(e) => setCitizenDob(e.target.value)} 
+                                                    required 
+                                                />
+                                                {citizenDob && (
+                                                    <span className="absolute right-3 top-9 text-[10px] font-black text-primary uppercase bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md italic z-10">
+                                                        Age: {calculateAge(citizenDob)} Yrs
+                                                    </span>
+                                                )}
+                                            </div>
                                             <Select 
                                                 label="Gender" 
                                                 value={citizenGender} 
