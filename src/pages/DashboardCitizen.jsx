@@ -9,11 +9,12 @@ import {
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
-import { Input } from '../components/ui/Input';
+import { Input, Select } from '../components/ui/Input';
 import { QRCodeCanvas } from 'qrcode.react';
 import { db, auth } from '../lib/firebase';
 import { ref, get, update, remove, onValue, set } from 'firebase/database';
 import toast from 'react-hot-toast';
+import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -23,6 +24,8 @@ export default function DashboardCitizen() {
     const [isEditing, setIsEditing] = useState(false);
     const [selectedProfileId, setSelectedProfileId] = useState(null);
     const [username, setUsername] = useState('');
+    const [editTab, setEditTab] = useState('personal'); // 'personal', 'medical', 'insurance'
+    const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
 
     const activeProfile = profiles.find(p => p.id === selectedProfileId) || profiles[0];
 
@@ -54,7 +57,26 @@ export default function DashboardCitizen() {
                 weight: initialData.weight || fallbackMedical.weight || activeProfile.weight || '',
                 currentMedication: initialData.currentMedication || fallbackMedical.currentMedication || activeProfile.currentMedication || '',
                 previousSurgeries: initialData.previousSurgeries || fallbackMedical.previousSurgeries || activeProfile.previousSurgeries || activeProfile.surgeries || '',
-                emergencyNotes: initialData.emergencyNotes || fallbackMedical.emergencyNotes || activeProfile.emergencyNotes || ''
+                emergencyNotes: initialData.emergencyNotes || fallbackMedical.emergencyNotes || activeProfile.emergencyNotes || '',
+                medicalId: initialData.medicalId || fallbackMedical.medicalId || activeProfile.medicalId || '',
+                isOrganDonor: initialData.isOrganDonor || fallbackMedical.isOrganDonor || activeProfile.isOrganDonor || false,
+                // Address fields
+                houseNo: activeProfile.address?.houseNo || '',
+                street: activeProfile.address?.street || '',
+                area: activeProfile.address?.area || '',
+                city: activeProfile.address?.city || '',
+                district: activeProfile.address?.district || '',
+                state: activeProfile.address?.state || '',
+                pincode: activeProfile.address?.pincode || '',
+                // Insurance fields
+                insuranceCompany: activeProfile.insurance?.insuranceCompany || '',
+                policyNumber: activeProfile.insurance?.policyNumber || '',
+                policyHolder: activeProfile.insurance?.policyHolder || '',
+                policyExpiry: activeProfile.insurance?.policyExpiry || '',
+                coverageAmount: activeProfile.insurance?.coverageAmount || '',
+                policyAgentName: activeProfile.insurance?.policyAgentName || '',
+                policyAgentPhone: activeProfile.insurance?.policyAgentPhone || '',
+                cashlessFacility: activeProfile.insurance?.cashlessFacility || false
             };
             setEditData(resolvedEditData);
             setUsername(activeProfile.username || '');
@@ -98,7 +120,15 @@ export default function DashboardCitizen() {
         return () => { if (unsubscribe) unsubscribe(); };
     }, [navigate]);
 
-    const handleSave = async () => {
+    const triggerSavePayment = () => {
+        if (!editData.name || !editData.bloodGroup || !editData.emergencyContactName || !editData.emergencyContactPhone) {
+            toast.error("Please fill Name, Blood Group, and Guardian details.");
+            return;
+        }
+        setIsRazorpayOpen(true);
+    };
+
+    const handleSave = async (paymentId) => {
         try {
             const t = toast.loading("Syncing Secure Identity...");
             const uid = auth.currentUser.uid;
@@ -119,11 +149,62 @@ export default function DashboardCitizen() {
                 updates[`profiles/${pid}/username`] = cleanUser;
             }
 
-            updates[`users/${uid}/profiles/${pid}/data`] = editData;
-            updates[`profiles/${pid}/data`] = editData;
+            const updatedProfile = {
+                ...activeProfile,
+                username: username || activeProfile.username || '',
+                name: editData.name || '',
+                phone: editData.phone || '',
+                email: editData.email || '',
+                dob: editData.dob || '',
+                gender: editData.gender || '',
+                address: {
+                    houseNo: editData.houseNo || '',
+                    street: editData.street || '',
+                    area: editData.area || '',
+                    city: editData.city || '',
+                    district: editData.district || '',
+                    state: editData.state || '',
+                    pincode: editData.pincode || ''
+                },
+                emergencyContacts: [
+                    {
+                        name: editData.emergencyContactName || '',
+                        relationship: editData.emergencyContactRelation || '',
+                        phone: editData.emergencyContactPhone || ''
+                    }
+                ],
+                medical: {
+                    bloodGroup: editData.bloodGroup || '',
+                    height: editData.height || '',
+                    weight: editData.weight || '',
+                    medicalConditions: editData.healthIssues || '',
+                    allergies: editData.allergies || '',
+                    currentMedication: editData.currentMedication || '',
+                    previousSurgeries: editData.previousSurgeries || '',
+                    isOrganDonor: editData.isOrganDonor || false,
+                    emergencyNotes: editData.emergencyNotes || '',
+                    medicalId: editData.medicalId || ''
+                },
+                insurance: {
+                    insuranceCompany: editData.insuranceCompany || '',
+                    policyNumber: editData.policyNumber || '',
+                    policyHolder: editData.policyHolder || '',
+                    policyExpiry: editData.policyExpiry || '',
+                    coverageAmount: editData.coverageAmount || '',
+                    policyAgentName: editData.policyAgentName || '',
+                    policyAgentPhone: editData.policyAgentPhone || '',
+                    cashlessFacility: editData.cashlessFacility || false
+                },
+                data: editData,
+                lastUpdatePaymentId: paymentId || "update_pay_" + Math.random().toString(36).substr(2, 9),
+                lastUpdatedAt: new Date().toISOString()
+            };
+
+            updates[`users/${uid}/profiles/${pid}`] = updatedProfile;
+            updates[`profiles/${pid}`] = updatedProfile;
 
             await update(ref(db), updates);
-            toast.success("Security Node Updated", { id: t });
+            toast.success("Security Node Updated & Synced!", { id: t });
             setIsEditing(false);
         } catch (error) { 
             console.error("Save error:", error);
@@ -225,23 +306,191 @@ export default function DashboardCitizen() {
 
                         <div className="p-12">
                             {isEditing ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="md:col-span-2">
-                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 block text-emerald-400">Ultra-Small URL Link</label>
+                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                                    {/* Tabs Selection Header */}
+                                    <div className="flex bg-[#050B18] p-1.5 rounded-2xl border border-white/5 justify-between">
+                                        <button 
+                                            type="button"
+                                            onClick={() => setEditTab('personal')}
+                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${editTab === 'personal' ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                        >
+                                            Personal Details
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setEditTab('medical')}
+                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${editTab === 'medical' ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                        >
+                                            Medical Passport
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setEditTab('insurance')}
+                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${editTab === 'insurance' ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                        >
+                                            Insurance Node
+                                        </button>
+                                    </div>
+
+                                    {/* Edit Username / Vanity URL */}
+                                    <div className="bg-[#050B18] p-6 rounded-3xl border border-white/5 space-y-4">
+                                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block text-emerald-400">Ultra-Small URL Link</label>
                                         <div className="relative group">
                                             <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none text-slate-500"><AtSign size={16} /></div>
-                                            <input className="w-full h-16 bg-[#050B18] border border-white/5 rounded-2xl pl-14 pr-6 font-black italic text-white uppercase tracking-widest focus:border-primary/50 outline-none transition-all placeholder:text-slate-700" placeholder="CHOOSE-USER-ID" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} />
+                                            <input className="w-full h-16 bg-slate-950 border border-white/5 rounded-2xl pl-14 pr-6 font-black italic text-white uppercase tracking-widest focus:border-primary/50 outline-none transition-all placeholder:text-slate-700" placeholder="CHOOSE-USER-ID" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))} />
                                             <p className="text-xs text-slate-500 font-bold mt-2 lowercase">Result: resqr.co.in/{username || 'username'}</p>
                                         </div>
                                     </div>
-                                    <Input label="FULL IDENTITY NAME" name="name" value={editData.name || ''} onChange={(e) => setEditData({...editData, name: e.target.value.toUpperCase()})} />
-                                    <Input label="BLOOD VECTOR" name="bloodGroup" value={editData.bloodGroup || ''} onChange={(e) => setEditData({...editData, bloodGroup: e.target.value.toUpperCase()})} />
-                                    <div className="md:col-span-2"><Input label="CRITICAL HEALTH CONDITIONS" name="healthIssues" value={editData.healthIssues || ''} onChange={(e) => setEditData({...editData, healthIssues: e.target.value})} /></div>
-                                    <div className="md:col-span-2"><Input label="VULNERABILITIES / ALLERGIES" name="allergies" value={editData.allergies || ''} onChange={(e) => setEditData({...editData, allergies: e.target.value})} /></div>
-                                    <Input label="GUARDIAN NAME" name="emergencyContactName" value={editData.emergencyContactName || ''} onChange={(e) => setEditData({...editData, emergencyContactName: e.target.value.toUpperCase()})} />
-                                    <Input label="GUARDIAN RELATION" name="emergencyContactRelation" value={editData.emergencyContactRelation || ''} onChange={(e) => setEditData({...editData, emergencyContactRelation: e.target.value.toUpperCase()})} />
-                                    <Input label="GUARDIAN PHONE" name="emergencyContactPhone" value={editData.emergencyContactPhone || ''} onChange={(e) => setEditData({...editData, emergencyContactPhone: e.target.value})} />
-                                    <div className="md:col-span-2 flex justify-center pt-6"><Button onClick={handleSave} className="w-full h-16 bg-primary text-white font-black italic uppercase tracking-[0.2em] rounded-2xl shadow-2xl shadow-primary/20">COMMIT RECORDS</Button></div>
+
+                                    {/* Personal Details Tab */}
+                                    {editTab === 'personal' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <Input label="FULL IDENTITY NAME" name="name" value={editData.name || ''} onChange={(e) => setEditData({...editData, name: e.target.value.toUpperCase()})} />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <Input label="MOBILE NUMBER" name="phone" value={editData.phone || ''} onChange={(e) => setEditData({...editData, phone: e.target.value.replace(/\D/g, '')})} />
+                                                <Input label="EMAIL ADDRESS" name="email" value={editData.email || ''} onChange={(e) => setEditData({...editData, email: e.target.value})} />
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <Input label="DATE OF BIRTH" type="date" name="dob" value={editData.dob || ''} onChange={(e) => setEditData({...editData, dob: e.target.value})} />
+                                                <Select 
+                                                    label="GENDER" 
+                                                    value={editData.gender || ''} 
+                                                    onChange={(e) => setEditData({...editData, gender: e.target.value})} 
+                                                    options={[
+                                                        { label: 'Select Gender', value: '' },
+                                                        { label: 'Male', value: 'male' },
+                                                        { label: 'Female', value: 'female' },
+                                                        { label: 'Other', value: 'other' }
+                                                    ]} 
+                                                />
+                                            </div>
+                                            <div className="space-y-4 border-t border-white/5 pt-6">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Address Coordinates</h4>
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                    <Input label="House No." value={editData.houseNo || ''} onChange={(e) => setEditData({...editData, houseNo: e.target.value})} />
+                                                    <Input label="Street" value={editData.street || ''} onChange={(e) => setEditData({...editData, street: e.target.value})} />
+                                                    <Input label="Area" value={editData.area || ''} onChange={(e) => setEditData({...editData, area: e.target.value})} />
+                                                    <Input label="City" value={editData.city || ''} onChange={(e) => setEditData({...editData, city: e.target.value})} />
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <Input label="District" value={editData.district || ''} onChange={(e) => setEditData({...editData, district: e.target.value})} />
+                                                    <Input label="State" value={editData.state || ''} onChange={(e) => setEditData({...editData, state: e.target.value})} />
+                                                    <Input label="Pincode" value={editData.pincode || ''} onChange={(e) => setEditData({...editData, pincode: e.target.value.replace(/\D/g, '')})} />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-4 border-t border-white/5 pt-6">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Primary Guardian Contact</h4>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <Input label="GUARDIAN NAME" name="emergencyContactName" value={editData.emergencyContactName || ''} onChange={(e) => setEditData({...editData, emergencyContactName: e.target.value.toUpperCase()})} />
+                                                    <Input label="GUARDIAN RELATION" name="emergencyContactRelation" value={editData.emergencyContactRelation || ''} onChange={(e) => setEditData({...editData, emergencyContactRelation: e.target.value.toUpperCase()})} />
+                                                    <Input label="GUARDIAN PHONE" name="emergencyContactPhone" value={editData.emergencyContactPhone || ''} onChange={(e) => setEditData({...editData, emergencyContactPhone: e.target.value})} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Medical Passport Tab */}
+                                    {editTab === 'medical' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <Input label="BLOOD GROUP" name="bloodGroup" value={editData.bloodGroup || ''} onChange={(e) => setEditData({...editData, bloodGroup: e.target.value.toUpperCase()})} />
+                                                <Input label="HEIGHT (CM)" type="number" value={editData.height || ''} onChange={(e) => setEditData({...editData, height: e.target.value})} />
+                                                <Input label="WEIGHT (KG)" type="number" value={editData.weight || ''} onChange={(e) => setEditData({...editData, weight: e.target.value})} />
+                                            </div>
+                                            <Input label="CRITICAL HEALTH CONDITIONS" name="healthIssues" value={editData.healthIssues || ''} onChange={(e) => setEditData({...editData, healthIssues: e.target.value})} />
+                                            <Input label="VULNERABILITIES / ALLERGIES" name="allergies" value={editData.allergies || ''} onChange={(e) => setEditData({...editData, allergies: e.target.value})} />
+                                            <Input label="CURRENT MEDICATION" name="currentMedication" value={editData.currentMedication || ''} onChange={(e) => setEditData({...editData, currentMedication: e.target.value})} />
+                                            <Input label="PREVIOUS SURGERIES" name="previousSurgeries" value={editData.previousSurgeries || ''} onChange={(e) => setEditData({...editData, previousSurgeries: e.target.value})} />
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <Input label="MEDICAL ID NUMBER" value={editData.medicalId || ''} onChange={(e) => setEditData({...editData, medicalId: e.target.value})} />
+                                                <div className="flex items-center gap-4 border border-white/5 bg-[#050B18] px-6 py-5 rounded-2xl mt-6">
+                                                    <input 
+                                                        type="checkbox" 
+                                                        id="organDonor" 
+                                                        checked={editData.isOrganDonor || false} 
+                                                        onChange={(e) => setEditData({...editData, isOrganDonor: e.target.checked})} 
+                                                        className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
+                                                    />
+                                                    <label htmlFor="organDonor" className="text-xs font-black uppercase tracking-widest text-slate-300 cursor-pointer">Organ Donor Consent</label>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic ml-1">Critical Emergency Notes</label>
+                                                <textarea 
+                                                    value={editData.emergencyNotes || ''} 
+                                                    onChange={(e) => setEditData({...editData, emergencyNotes: e.target.value})} 
+                                                    placeholder="Crucial emergency responder guidance..." 
+                                                    className="w-full px-4 py-4 bg-slate-950 border border-white/5 rounded-2xl text-white font-semibold outline-none transition-all focus:border-primary placeholder:text-slate-700 h-28"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Insurance Node Tab */}
+                                    {editTab === 'insurance' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <Select 
+                                                    label="Insurance Company" 
+                                                    value={editData.insuranceCompany || ''} 
+                                                    onChange={(e) => setEditData({...editData, insuranceCompany: e.target.value})} 
+                                                    options={[
+                                                        { label: 'Select Insurance Company', value: '' },
+                                                        { label: 'Star Health', value: 'Star Health' },
+                                                        { label: 'Care Health', value: 'Care Health' },
+                                                        { label: 'Niva Bupa', value: 'Niva Bupa' },
+                                                        { label: 'ICICI Lombard', value: 'ICICI Lombard' },
+                                                        { label: 'HDFC ERGO', value: 'HDFC ERGO' },
+                                                        { label: 'SBI Health', value: 'SBI Health' },
+                                                        { label: 'ACKO Insurance', value: 'ACKO' },
+                                                        { label: 'Aditya Birla Health', value: 'Aditya Birla' },
+                                                        { label: 'ManipalCigna', value: 'ManipalCigna' },
+                                                        { label: 'Others', value: 'Others' }
+                                                    ]} 
+                                                />
+                                                <Input label="Policy ID / Number" placeholder="POL-123456" value={editData.policyNumber || ''} onChange={(e) => setEditData({...editData, policyNumber: e.target.value})} />
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <Input label="Policy Holder Name" placeholder="Holder Name" value={editData.policyHolder || ''} onChange={(e) => setEditData({...editData, policyHolder: e.target.value})} />
+                                                <Input label="Policy Expiry Date" type="date" value={editData.policyExpiry || ''} onChange={(e) => setEditData({...editData, policyExpiry: e.target.value})} />
+                                                <Input label="Coverage Limit (₹)" placeholder="Coverage Amount" type="number" value={editData.coverageAmount || ''} onChange={(e) => setEditData({...editData, coverageAmount: e.target.value})} />
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <Input label="Insurance Agent Name" placeholder="Coordinator Name" value={editData.policyAgentName || ''} onChange={(e) => setEditData({...editData, policyAgentName: e.target.value})} />
+                                                <Input label="Agent Contact Phone" maxLength="10" placeholder="Agent Phone" value={editData.policyAgentPhone || ''} onChange={(e) => setEditData({...editData, policyAgentPhone: e.target.value.replace(/\D/g, '')})} />
+                                            </div>
+                                            <div className="flex items-center gap-4 border border-white/5 bg-[#050B18] px-6 py-5 rounded-2xl mt-4">
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="cashlessFac" 
+                                                    checked={editData.cashlessFacility || false} 
+                                                    onChange={(e) => setEditData({...editData, cashlessFacility: e.target.checked})} 
+                                                    className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
+                                                />
+                                                <label htmlFor="cashlessFac" className="text-xs font-black uppercase tracking-widest text-slate-300 cursor-pointer">Cashless Facility Active</label>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Action Buttons */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-white/5">
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={() => setIsEditing(false)}
+                                            className="w-full h-16 bg-transparent text-slate-400 hover:text-white border-white/10 font-black italic uppercase tracking-[0.2em] rounded-2xl"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button 
+                                            onClick={triggerSavePayment} 
+                                            className="w-full h-16 bg-primary text-white font-black italic uppercase tracking-[0.15em] rounded-2xl shadow-2xl shadow-primary/20 flex flex-col justify-center items-center leading-none"
+                                        >
+                                            <span className="text-sm">COMMIT RECORDS</span>
+                                            <span className="text-[9px] text-white/60 mt-1.5 uppercase tracking-widest font-sans font-bold">Requires ₹49 Secure Sync Fee</span>
+                                        </Button>
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="flex flex-col md:flex-row gap-12">
@@ -258,6 +507,35 @@ export default function DashboardCitizen() {
                                             <div className="space-y-1 mt-10"><p className="text-[9px] font-black text-slate-500 uppercase tracking-widest font-poppins">Private Contact Node</p><p className="text-3xl font-black italic text-white font-poppins tracking-tighter leading-none">{editData?.emergencyContactPhone?.replace(/\d(?=\d{4})/g, '*') || '**********'}</p></div>
                                             <div className="absolute top-8 right-8 flex flex-col gap-3"><button className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-xl shadow-emerald-500/20 transition-transform active:scale-95"><Phone size={20} /></button></div>
                                         </div>
+
+                                        {/* Linked Insurance */}
+                                        <div className="bg-[#050B18] p-8 rounded-[40px] border border-white/5 relative group">
+                                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6 font-poppins">Linked Insurance</p>
+                                            {activeProfile?.insurance?.insuranceCompany ? (
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <h4 className="text-xl font-black italic text-white uppercase font-poppins leading-none">{activeProfile.insurance.insuranceCompany}</h4>
+                                                        <p className="text-[9px] text-slate-500 font-bold uppercase mt-1">Provider</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-slate-500 uppercase">Policy ID</p>
+                                                            <p className="text-xs font-black italic text-white mt-1 uppercase leading-none">{activeProfile.insurance.policyNumber || 'N/A'}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[9px] font-black text-slate-500 uppercase">Coverage Limit</p>
+                                                            <p className="text-xs font-black italic text-emerald-400 mt-1 leading-none">₹{activeProfile.insurance.coverageAmount || '0'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {activeProfile.insurance.cashlessFacility && (
+                                                        <Badge className="bg-emerald-500/10 text-emerald-500 border-none px-3 py-1 font-black italic text-[9px] uppercase">Cashless Active</Badge>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-[10px] italic text-slate-600 font-semibold leading-relaxed">No insurance details linked. Click Edit Profile to add insurance.</p>
+                                            )}
+                                        </div>
+
                                         <div className="space-y-4">
                                             <div className="bg-[#050B18] p-5 rounded-[25px] border border-white/5 flex items-center gap-4"><div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20"><CheckCircle2 size={18} className="text-emerald-500" /></div><span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.25em] italic">BLOCKCHAIN VERIFIED</span></div>
                                             <div className="bg-[#050B18] p-5 rounded-[25px] border border-white/5 flex items-center gap-4"><div className="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20"><Lock size={18} className="text-indigo-500" /></div><span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.25em] italic">ENCRYPTED VAULT</span></div>
@@ -405,6 +683,20 @@ export default function DashboardCitizen() {
                 </div>
 
             </div>
+
+            <DemoRazorpayModal 
+                isOpen={isRazorpayOpen}
+                onClose={() => setIsRazorpayOpen(false)}
+                amount={49}
+                title="RESQR Vault Record Update"
+                customerName={editData.name || 'RESQR Citizen'}
+                customerEmail={editData.email || 'citizen@resqr.co.in'}
+                customerPhone={editData.phone || '9876543210'}
+                onSuccess={(paymentInfo) => {
+                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                    handleSave(paymentInfo.razorpay_payment_id);
+                }}
+            />
         </div>
     );
 }

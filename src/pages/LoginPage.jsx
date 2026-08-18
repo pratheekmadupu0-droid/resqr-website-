@@ -1116,6 +1116,20 @@ export default function LoginPage() {
                                         )}
                                     </Button>
 
+                                    <div className="relative flex py-2 items-center">
+                                        <div className="flex-grow border-t border-white/5"></div>
+                                        <span className="flex-shrink mx-4 text-[10px] font-black uppercase text-slate-600 tracking-widest">Developer Mode</span>
+                                        <div className="flex-grow border-t border-white/5"></div>
+                                    </div>
+
+                                    <Button 
+                                        onClick={() => handleDemoLogin(selectedRole)}
+                                        disabled={authLoading}
+                                        className="w-full py-5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+                                    >
+                                        ⚡ Bypass with Demo {selectedRole === 'citizen' ? 'Citizen' : 'Agent'}
+                                    </Button>
+
 
                                 </div>
                             </Card>
