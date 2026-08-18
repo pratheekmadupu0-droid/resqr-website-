@@ -200,7 +200,9 @@ export default function DashboardCitizen() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div>
                         <h1 className="text-5xl font-black italic uppercase tracking-tighter font-poppins text-white leading-tight">WELCOME BACK, {profileName}</h1>
-                        <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em] mt-2 flex items-center gap-2">System operational • All nodes secure</p>
+                        <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
+                            System operational • All nodes secure {activeProfile?.identityType && `• ${activeProfile.identityType.toUpperCase()}`}
+                        </p>
                     </div>
                     <div className="flex items-center gap-4">
                         <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-8 rounded-2xl hover:bg-slate-800" onClick={handleDownload}><Download size={16} className="mr-2" /> Download Tag</Button>
@@ -217,7 +219,7 @@ export default function DashboardCitizen() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 bg-[#11192A] rounded-[50px] border border-white/5 overflow-hidden flex flex-col relative shadow-2xl">
                         <div className="p-12 pb-0 flex justify-between items-start">
-                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20"><Shield size={24} className="text-primary" /></div><div><h3 className="text-3xl font-black uppercase tracking-tighter font-poppins text-white italic">Emergency Passport</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 italic">ACTIVE MEDICAL IDENTITY</p></div></div>
+                             <div className="flex items-center gap-4"><div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20"><Shield size={24} className="text-primary" /></div><div><h3 className="text-3xl font-black uppercase tracking-tighter font-poppins text-white italic">Emergency Passport</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1 italic">ACTIVE MEDICAL IDENTITY {activeProfile?.identityType && `• ${activeProfile.identityType.toUpperCase()}`}</p></div></div>
                               <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20"><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /><span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">{activeProfile?.scannerType === 'facial' ? 'AI FACIAL ACTIVE' : 'SECURED'}</span></div>
                         </div>
 
@@ -384,7 +386,7 @@ export default function DashboardCitizen() {
                         <h2 className="text-4xl font-black uppercase italic tracking-tighter font-poppins mb-2">Powering Multiple Identities?</h2>
                         <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em]">Add another Pet, Vehicle, or Family Member to your ResQR Vault.</p>
                     </div>
-                    <button onClick={() => navigate('/login')} className="w-full h-32 border-2 border-dashed border-white/10 rounded-[40px] flex items-center justify-center gap-6 group hover:border-primary/50 transition-all active:scale-95">
+                    <button onClick={() => navigate('/create-identity')} className="w-full h-32 border-2 border-dashed border-white/10 rounded-[40px] flex items-center justify-center gap-6 group hover:border-primary/50 transition-all active:scale-95">
                         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all">
                             <Plus size={32} />
                         </div>
@@ -395,8 +397,8 @@ export default function DashboardCitizen() {
                     </button>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-20">
                          {profiles.length > 1 && profiles.map(p => (
-                             <button key={p.id} onClick={() => { setSelectedProfileId(p.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`h-16 rounded-2xl border transition-all font-black uppercase italic tracking-widest text-[10px] ${p.id === selectedProfileId ? 'bg-primary border-primary text-white' : 'bg-[#11192A] border-white/5 text-slate-500 hover:border-white/20'}`}>
-                                 {p.data?.name || 'Identity Node'}
+                             <button key={p.id} onClick={() => { setSelectedProfileId(p.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`h-16 rounded-2xl border transition-all font-black uppercase italic tracking-widest text-[10px] px-4 ${p.id === selectedProfileId ? 'bg-primary border-primary text-white' : 'bg-[#11192A] border-white/5 text-slate-500 hover:border-white/20'}`}>
+                                 {p.data?.name || 'Identity Node'} {p.identityType && `(${p.identityType})`}
                              </button>
                          ))}
                     </div>

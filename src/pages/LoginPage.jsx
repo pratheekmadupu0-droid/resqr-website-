@@ -1116,15 +1116,7 @@ export default function LoginPage() {
                                         )}
                                     </Button>
 
-                                    <div className="pt-4 border-t border-white/5 text-center">
-                                        <button 
-                                            type="button" 
-                                            onClick={() => handleDemoLogin(selectedRole || 'citizen')}
-                                            className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline italic"
-                                        >
-                                            ⚡ Skip Verification & Launch Demo {selectedRole === 'agent' ? 'Agent' : 'Citizen'} Portal
-                                        </button>
-                                    </div>
+
                                 </div>
                             </Card>
                         </motion.div>

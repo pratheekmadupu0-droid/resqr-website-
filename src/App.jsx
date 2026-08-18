@@ -7,6 +7,7 @@ import EmergencyPage from './pages/EmergencyPage';
 import QRScanPage from './pages/QRScanPage';
 import AdminPanel from './pages/AdminPanel';
 import LoginPage from './pages/LoginPage';
+import CreateIdentity from './pages/CreateIdentity';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ContactUs from './pages/ContactUs';
@@ -49,7 +50,7 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center'].includes(location.pathname.split('/')[1]));
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
@@ -63,6 +64,7 @@ function App() {
                     <Route path="/viral-id" element={<ViralQR />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/create-profile" element={<Navigate to="/login" replace />} />
+                    <Route path="/create-identity" element={<CreateIdentity />} />
                     <Route path="/payment" element={<PaymentPage />} />
                     <Route path="/success" element={<SuccessPage />} />
                     <Route path="/e/:id" element={<EmergencyPage />} />
