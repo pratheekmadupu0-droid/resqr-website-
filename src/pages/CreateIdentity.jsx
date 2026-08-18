@@ -29,6 +29,9 @@ export default function CreateIdentity() {
     const [authLoading, setAuthLoading] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
 
+    // Primary profile backup for "Myself" autofill
+    const [primaryProfile, setPrimaryProfile] = useState(null);
+
     // Flow states
     const [selectedType, setSelectedType] = useState(null); // null, 'myself', 'family', 'child', 'friend'
     const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical, 3: Payment
@@ -41,6 +44,11 @@ export default function CreateIdentity() {
     const [citizenDob, setCitizenDob] = useState('');
     const [citizenGender, setCitizenGender] = useState('');
     const [chosenUsername, setChosenUsername] = useState('');
+
+    // Dynamic type-specific fields
+    const [relationshipToUser, setRelationshipToUser] = useState(''); // Mother, Father, Friend, Gym Partner etc.
+    const [schoolName, setSchoolName] = useState('');
+    const [gradeClass, setGradeClass] = useState('');
     
     // Address Details
     const [citizenAddress, setCitizenAddress] = useState({
@@ -82,17 +90,134 @@ export default function CreateIdentity() {
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
 
+    // Initial auth & fetch primary profile
     useEffect(() => {
-        const checkUser = auth.onAuthStateChanged((user) => {
+        const checkUser = auth.onAuthStateChanged(async (user) => {
             if (!user) {
                 toast.error("Please login to create an identity.");
                 navigate('/login');
             } else {
                 setCheckingAuth(false);
+                // Fetch user profiles to find primary profile
+                try {
+                    const profilesRef = ref(db, `users/${user.uid}/profiles`);
+                    const snapshot = await get(profilesRef);
+                    if (snapshot.exists()) {
+                        const profilesData = snapshot.val();
+                        // Find first profile without an identityType (meaning primary profile)
+                        const primary = Object.values(profilesData).find(p => !p.identityType) || Object.values(profilesData)[0];
+                        if (primary) {
+                            setPrimaryProfile(primary);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error fetching primary profile:", err);
+                }
             }
         });
         return () => checkUser();
     }, [navigate]);
+
+    // Populate or reset form fields based on selected identity type
+    useEffect(() => {
+        if (selectedType === 'myself' && primaryProfile) {
+            setCitizenName(primaryProfile.name || '');
+            setPhoneNumber(primaryProfile.phone || '');
+            setCitizenEmail(primaryProfile.email || '');
+            setCitizenDob(primaryProfile.dob || '');
+            setCitizenGender(primaryProfile.gender || '');
+            setCitizenProfilePhoto(primaryProfile.profilePhoto || '');
+            if (primaryProfile.address) {
+                setCitizenAddress({
+                    houseNo: primaryProfile.address.houseNo || '',
+                    street: primaryProfile.address.street || '',
+                    area: primaryProfile.address.area || '',
+                    city: primaryProfile.address.city || '',
+                    district: primaryProfile.address.district || '',
+                    state: primaryProfile.address.state || '',
+                    pincode: primaryProfile.address.pincode || ''
+                });
+            }
+            if (primaryProfile.emergencyContacts) {
+                setEmergencyContacts(primaryProfile.emergencyContacts);
+            } else if (primaryProfile.data?.emergencyContactName) {
+                setEmergencyContacts([
+                    {
+                        name: primaryProfile.data.emergencyContactName,
+                        relationship: primaryProfile.data.emergencyContactRelation || '',
+                        phone: primaryProfile.data.emergencyContactPhone || ''
+                    }
+                ]);
+            }
+            if (primaryProfile.familyDoctor) {
+                setFamilyDoctor({
+                    name: primaryProfile.familyDoctor.name || '',
+                    hospital: primaryProfile.familyDoctor.hospital || '',
+                    phone: primaryProfile.familyDoctor.phone || ''
+                });
+            }
+            // Medical details mapping
+            if (primaryProfile.medical) {
+                setBloodGroup(primaryProfile.medical.bloodGroup || '');
+                setHeight(primaryProfile.medical.height || '');
+                setWeight(primaryProfile.medical.weight || '');
+                setMedicalConditions(primaryProfile.medical.medicalConditions || '');
+                setAllergies(primaryProfile.medical.allergies || '');
+                setCurrentMedication(primaryProfile.medical.currentMedication || '');
+                setPreviousSurgeries(primaryProfile.medical.previousSurgeries || '');
+                setMedicalId(primaryProfile.medical.medicalId || '');
+                setIsOrganDonor(primaryProfile.medical.isOrganDonor || false);
+                setEmergencyNotes(primaryProfile.medical.emergencyNotes || '');
+            } else if (primaryProfile.data) {
+                setBloodGroup(primaryProfile.data.bloodGroup || '');
+                setHeight(primaryProfile.data.height || '');
+                setWeight(primaryProfile.data.weight || '');
+                setMedicalConditions(primaryProfile.data.healthIssues || '');
+                setAllergies(primaryProfile.data.allergies || '');
+                setCurrentMedication(primaryProfile.data.currentMedication || '');
+                setPreviousSurgeries(primaryProfile.data.previousSurgeries || '');
+                setMedicalId(primaryProfile.data.medicalId || '');
+                setIsOrganDonor(primaryProfile.data.isOrganDonor || false);
+                setEmergencyNotes(primaryProfile.data.emergencyNotes || '');
+            }
+            setRelationshipToUser('Self');
+            setSchoolName('');
+            setGradeClass('');
+        } else {
+            // Reset all values for a clean setup
+            setCitizenName('');
+            setPhoneNumber('');
+            setCitizenEmail('');
+            setCitizenDob('');
+            setCitizenGender('');
+            setCitizenProfilePhoto('');
+            setCitizenAddress({
+                houseNo: '',
+                street: '',
+                area: '',
+                city: '',
+                district: '',
+                state: '',
+                pincode: ''
+            });
+            setEmergencyContacts([{ name: '', relationship: '', phone: '' }]);
+            setFamilyDoctor({ name: '', hospital: '', phone: '' });
+            setBloodGroup('');
+            setHeight('');
+            setWeight('');
+            setMedicalConditions('');
+            setAllergies('');
+            setCurrentMedication('');
+            setPreviousSurgeries('');
+            setMedicalId('');
+            setIsOrganDonor(false);
+            setEmergencyNotes('');
+            setSchoolName('');
+            setGradeClass('');
+            setRelationshipToUser('');
+            setChosenUsername('');
+        }
+    }, [selectedType, primaryProfile]);
 
     // Helper for base64 file convert
     const handleFileChange = (e, setPhoto) => {
@@ -109,6 +234,32 @@ export default function CreateIdentity() {
     const handleStep1Submit = async () => {
         if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode || !chosenUsername) {
             toast.error("Please fill all mandatory personal & address details, including a username.");
+            return;
+        }
+
+        // Child node validations
+        if (selectedType === 'child') {
+            if (!schoolName || !gradeClass) {
+                toast.error("Please specify school/college name and grade/class.");
+                return;
+            }
+            // Age validation (under 17)
+            const dobDate = new Date(citizenDob);
+            const today = new Date();
+            let age = today.getFullYear() - dobDate.getFullYear();
+            const m = today.getMonth() - dobDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dobDate.getDate())) {
+                age--;
+            }
+            if (age >= 17) {
+                toast.error("Minor Node profiles must be under 17 years of age.");
+                return;
+            }
+        }
+
+        // Family / Friend node validations
+        if ((selectedType === 'family' || selectedType === 'friend') && !relationshipToUser) {
+            toast.error("Please enter the relationship/companion detail.");
             return;
         }
 
@@ -188,6 +339,9 @@ export default function CreateIdentity() {
                 address: citizenAddress,
                 emergencyContacts,
                 familyDoctor,
+                relationshipToUser: relationshipToUser || '',
+                schoolName: schoolName || '',
+                gradeClass: gradeClass || '',
                 medical: {
                     bloodGroup, height, weight, medicalConditions, allergies,
                     currentMedication, previousSurgeries, isOrganDonor, emergencyNotes, medicalId
@@ -210,7 +364,10 @@ export default function CreateIdentity() {
                     previousSurgeries: previousSurgeries,
                     isOrganDonor: isOrganDonor,
                     emergencyNotes: emergencyNotes,
-                    medicalId: medicalId
+                    medicalId: medicalId,
+                    relationshipToUser: relationshipToUser || '',
+                    schoolName: schoolName || '',
+                    gradeClass: gradeClass || ''
                 },
                 qrPackage: {
                     type: selectedPackage,
@@ -309,7 +466,7 @@ export default function CreateIdentity() {
                                                 Myself
                                             </h3>
                                             <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                                                Create another secondary medical profile or vehicle/helmet QR tag for yourself.
+                                                Autofills your account details. Create another secondary medical profile or vehicle/helmet QR tag for yourself.
                                             </p>
                                         </div>
                                     </div>
@@ -333,7 +490,7 @@ export default function CreateIdentity() {
                                                 Family Member
                                             </h3>
                                             <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                                                Register emergency health profile for parents, spouse, or siblings.
+                                                Register emergency health profile for parents, spouse, or siblings. Specify relationship node.
                                             </p>
                                         </div>
                                     </div>
@@ -357,7 +514,7 @@ export default function CreateIdentity() {
                                                 Children
                                             </h3>
                                             <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                                                Setup safety stickers for kids with emergency contact info and school parameters.
+                                                Setup safety stickers for kids under 17. Configure school/institution and class parameters.
                                             </p>
                                         </div>
                                     </div>
@@ -381,7 +538,7 @@ export default function CreateIdentity() {
                                                 Friends
                                             </h3>
                                             <p className="text-slate-400 text-xs mt-2 leading-relaxed">
-                                                Link companions or travel mates so first responders can coordinate support.
+                                                Link companions or travel mates. Customize companion type parameters (e.g. Gym Buddy, Colleague).
                                             </p>
                                         </div>
                                     </div>
@@ -432,6 +589,43 @@ export default function CreateIdentity() {
                                 {/* Step 1: Personal Details */}
                                 {wizardStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
+                                        
+                                        {/* Dynamic Relationship Field for Family Members */}
+                                        {selectedType === 'family' && (
+                                            <div className="p-6 bg-slate-950/40 border border-white/5 rounded-3xl space-y-2">
+                                                <Select 
+                                                    label="Relationship to Primary Owner" 
+                                                    value={relationshipToUser} 
+                                                    onChange={(e) => setRelationshipToUser(e.target.value)} 
+                                                    required
+                                                    options={[
+                                                        { label: 'Select Relationship', value: '' },
+                                                        { label: 'Father', value: 'Father' },
+                                                        { label: 'Mother', value: 'Mother' },
+                                                        { label: 'Brother', value: 'Brother' },
+                                                        { label: 'Sister', value: 'Sister' },
+                                                        { label: 'Spouse (Husband/Wife)', value: 'Spouse' },
+                                                        { label: 'Son', value: 'Son' },
+                                                        { label: 'Daughter', value: 'Daughter' },
+                                                        { label: 'Other Relative', value: 'Other' }
+                                                    ]} 
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* Dynamic Companion Field for Friends */}
+                                        {selectedType === 'friend' && (
+                                            <div className="p-6 bg-slate-950/40 border border-white/5 rounded-3xl space-y-2">
+                                                <Input 
+                                                    label="Friendship / Companion Type" 
+                                                    placeholder="e.g. Travel Buddy, Gym Partner, Roommate, Colleague" 
+                                                    value={relationshipToUser} 
+                                                    onChange={(e) => setRelationshipToUser(e.target.value)} 
+                                                    required
+                                                />
+                                            </div>
+                                        )}
+
                                         <div className="flex flex-col md:flex-row gap-8 items-center border-b border-white/5 pb-8 mb-6">
                                             <div className="relative group">
                                                 {citizenProfilePhoto ? (
@@ -475,7 +669,13 @@ export default function CreateIdentity() {
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <Input label="Date of Birth" type="date" value={citizenDob} onChange={(e) => setCitizenDob(e.target.value)} required />
+                                            <Input 
+                                                label={selectedType === 'child' ? "Date of Birth (Must be under 17)" : "Date of Birth"} 
+                                                type="date" 
+                                                value={citizenDob} 
+                                                onChange={(e) => setCitizenDob(e.target.value)} 
+                                                required 
+                                            />
                                             <Select 
                                                 label="Gender" 
                                                 value={citizenGender} 
@@ -488,6 +688,29 @@ export default function CreateIdentity() {
                                                 ]} 
                                             />
                                         </div>
+
+                                        {/* Dynamic Institution & Schooling Fields for Children */}
+                                        {selectedType === 'child' && (
+                                            <div className="space-y-4 border-t border-white/5 pt-6 animate-in slide-in-from-top-4 duration-300">
+                                                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 italic">Academic & Institution details</h3>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <Input 
+                                                        label="School / Institution Name" 
+                                                        placeholder="e.g. Greenwood High School" 
+                                                        value={schoolName} 
+                                                        onChange={(e) => setSchoolName(e.target.value)} 
+                                                        required 
+                                                    />
+                                                    <Input 
+                                                        label="Standard / Grade / Class" 
+                                                        placeholder="e.g. 7th Standard, Class 10" 
+                                                        value={gradeClass} 
+                                                        onChange={(e) => setGradeClass(e.target.value)} 
+                                                        required 
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-4 border-t border-white/5 pt-6">
                                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 italic">Address Details</h3>
