@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     User, Users, Baby, Heart, ArrowLeft, ArrowRight, Upload, Camera, 
-    Plus, Trash2, Check, CheckCircle2, Shield, ShieldCheck, Loader2, Sparkles
+    Plus, Trash2, Check, CheckCircle2, Shield, ShieldCheck, Loader2, Sparkles, Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -12,6 +12,8 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, update, set } from 'firebase/database';
 import toast from 'react-hot-toast';
 import { extractFeatures } from '../lib/cvHelper';
+import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
+import QRPreviewModal from '../components/common/QRPreviewModal';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -29,7 +31,7 @@ export default function CreateIdentity() {
 
     // Flow states
     const [selectedType, setSelectedType] = useState(null); // null, 'myself', 'family', 'child', 'friend'
-    const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical
+    const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical, 3: Payment
 
     // Form states
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
@@ -74,6 +76,11 @@ export default function CreateIdentity() {
     const [medicalId, setMedicalId] = useState('');
     const [isOrganDonor, setIsOrganDonor] = useState(false);
     const [emergencyNotes, setEmergencyNotes] = useState('');
+
+    // Payment & package states
+    const [selectedPackage, setSelectedPackage] = useState('digital');
+    const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
+    const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
 
     useEffect(() => {
         const checkUser = auth.onAuthStateChanged((user) => {
@@ -127,12 +134,15 @@ export default function CreateIdentity() {
         }
     };
 
-    const handleCreateIdentitySubmit = async () => {
+    const handleStep2Submit = () => {
         if (!bloodGroup) {
             toast.error("Please specify a blood group.");
             return;
         }
+        setWizardStep(3);
+    };
 
+    const handleCreateIdentitySubmit = async (paymentId) => {
         setAuthLoading(true);
         try {
             const currentUser = auth.currentUser;
@@ -202,8 +212,13 @@ export default function CreateIdentity() {
                     emergencyNotes: emergencyNotes,
                     medicalId: medicalId
                 },
+                qrPackage: {
+                    type: selectedPackage,
+                    price: selectedPackage === 'digital' ? 99 : 149,
+                    paymentStatus: 'paid'
+                },
                 payment_status: 'paid',
-                payment_id: "expansion_pay_" + Math.random().toString(36).substr(2, 9),
+                payment_id: paymentId || "expansion_pay_" + Math.random().toString(36).substr(2, 9),
                 payment_date: new Date().toISOString(),
                 createdAt: new Date().toISOString(),
                 uid: uid
@@ -249,7 +264,7 @@ export default function CreateIdentity() {
                 <div className="text-center mb-12">
                     <Link to="/dashboard" className="inline-block relative group">
                         <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="relative h-16 w-auto" />
+                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="relative h-16 w-auto animate-pulse" />
                     </Link>
                     <p className="text-slate-500 font-bold uppercase tracking-[0.25em] text-[10px] italic mt-4">
                         Secure Multi-Identity Vault Expansion
@@ -394,7 +409,7 @@ export default function CreateIdentity() {
                             exit={{ opacity: 0, x: -30 }}
                             className="max-w-3xl mx-auto"
                         >
-                            <Card className="p-10 bg-slate-900/80 border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden backdrop-blur-md">
+                            <Card className="p-10 bg-slate-900/80 border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden backdrop-blur-md animate-in fade-in zoom-in-95">
                                 <button 
                                     onClick={() => { setSelectedType(null); setWizardStep(1); }} 
                                     className="mb-6 flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-widest italic"
@@ -408,10 +423,10 @@ export default function CreateIdentity() {
                                             {selectedType} IDENTITY NODE
                                         </Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                            Step {wizardStep} of 2: {wizardStep === 1 ? 'Personal Details' : 'Medical Vault'}
+                                            Step {wizardStep} of 3: {wizardStep === 1 ? 'Personal Details' : wizardStep === 2 ? 'Medical Vault' : 'Secure Checkout'}
                                         </h2>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">{wizardStep * 50}% Completed</span>
+                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((wizardStep / 3) * 100)}% Completed</span>
                                 </div>
 
                                 {/* Step 1: Personal Details */}
@@ -593,21 +608,83 @@ export default function CreateIdentity() {
                                             <Button onClick={() => setWizardStep(1)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button 
-                                                onClick={handleCreateIdentitySubmit}
-                                                disabled={authLoading}
-                                                className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs shadow-lg shadow-primary/20 flex items-center gap-2"
-                                            >
-                                                {authLoading ? (
-                                                    <>
-                                                        <Loader2 className="animate-spin h-4 w-4" /> Generating...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        Generate Safety Node <Sparkles size={16} />
-                                                    </>
-                                                )}
+                                            <Button onClick={handleStep2Submit} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                Proceed to payment <ArrowRight size={16} className="ml-2" />
                                             </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 3: Payment Checkout */}
+                                {wizardStep === 3 && (
+                                    <div className="space-y-8 animate-in fade-in duration-300">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {/* Digital QR */}
+                                            <div 
+                                                onClick={() => setSelectedPackage('digital')}
+                                                className={`p-6 bg-slate-950 border rounded-3xl text-left cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden ${selectedPackage === 'digital' ? 'border-primary shadow-2xl' : 'border-white/5'}`}
+                                            >
+                                                <Badge className="bg-primary/20 text-primary border-none mb-4 font-black italic text-[8px] tracking-widest">BEST VALUE</Badge>
+                                                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-1 font-poppins">Digital QR Code</h3>
+                                                <p className="text-slate-500 text-xs leading-relaxed mb-6 font-bold">Lifetime access to your secure medical vault from any mobile web scanner.</p>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">One-Time Fee</span>
+                                                    <span className="text-2xl font-black italic text-white font-poppins">₹99</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Digital QR + Stickers */}
+                                            <div 
+                                                onClick={() => setSelectedPackage('stickers')}
+                                                className={`p-6 bg-slate-950 border rounded-3xl text-left cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden ${selectedPackage === 'stickers' ? 'border-primary shadow-2xl' : 'border-white/5'}`}
+                                            >
+                                                <Badge className="bg-primary/20 text-primary border-none mb-4 font-black italic text-[8px] tracking-widest">POPULAR CHOICE</Badge>
+                                                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-1 font-poppins">Digital QR + 2 Stickers</h3>
+                                                <p className="text-slate-500 text-xs leading-relaxed mb-6 font-bold">Digital QR code plus 2 physical reflective emergency stickers delivered to your door.</p>
+                                                <div className="flex justify-between items-baseline">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">One-Time Fee</span>
+                                                    <span className="text-2xl font-black italic text-white font-poppins">₹149</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Checkout Info */}
+                                        <div className="p-6 bg-slate-950/60 rounded-3xl border border-white/5 space-y-4">
+                                            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
+                                                <span>Subtotal</span>
+                                                <span>₹{selectedPackage === 'digital' ? '83.90' : '126.27'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
+                                                <span>GST (18%)</span>
+                                                <span>₹{selectedPackage === 'digital' ? '15.10' : '22.73'}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-base font-black uppercase tracking-widest text-primary border-t border-white/5 pt-4">
+                                                <span>Total Amount</span>
+                                                <span>₹{selectedPackage === 'digital' ? '99.00' : '149.00'}</span>
+                                            </div>
+                                            
+                                            <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                <Button onClick={() => setWizardStep(2)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                    <ArrowLeft size={16} className="mr-2" /> Back
+                                                </Button>
+
+                                                <Button 
+                                                    type="button"
+                                                    onClick={() => setIsQrPreviewOpen(true)}
+                                                    variant="outline" 
+                                                    className="w-full sm:w-auto py-4 px-6 rounded-2xl font-black italic uppercase text-xs border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-2"
+                                                >
+                                                    <Eye size={16} /> Preview QR Code
+                                                </Button>
+
+                                                <Button 
+                                                    onClick={() => setIsRazorpayOpen(true)}
+                                                    disabled={authLoading}
+                                                    className="w-full sm:flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
+                                                >
+                                                    {authLoading ? 'Transacting Secure Checkout...' : 'Secure Pay via Razorpay'}
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -616,6 +693,38 @@ export default function CreateIdentity() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Reusable Demo Razorpay Payment Gateway Modal */}
+            <DemoRazorpayModal 
+                isOpen={isRazorpayOpen}
+                onClose={() => setIsRazorpayOpen(false)}
+                amount={selectedPackage === 'digital' ? 99 : 149}
+                title={`RESQR ${selectedPackage === 'digital' ? 'Digital QR Tag' : 'Digital QR + 2 Stickers'}`}
+                customerName={citizenName || 'RESQR Citizen'}
+                customerEmail={citizenEmail || 'citizen@resqr.co.in'}
+                customerPhone={phoneNumber || '9876543210'}
+                onSuccess={(paymentInfo) => {
+                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                    handleCreateIdentitySubmit(paymentInfo.razorpay_payment_id);
+                }}
+            />
+
+            {/* Live Medical QR Preview Modal */}
+            <QRPreviewModal 
+                isOpen={isQrPreviewOpen}
+                onClose={() => setIsQrPreviewOpen(false)}
+                patientData={{
+                    name: citizenName || 'John Doe',
+                    bloodGroup: bloodGroup || 'O+',
+                    phone: phoneNumber || '9876543210',
+                    emergencyContacts: emergencyContacts,
+                    allergies: allergies || 'No known allergies',
+                    medicalConditions: medicalConditions || 'Healthy',
+                    medicalId: medicalId || 'RESQR-MED-94821',
+                    username: chosenUsername.toLowerCase()
+                }}
+                onProceedToPay={() => setIsRazorpayOpen(true)}
+            />
         </div>
     );
 }
