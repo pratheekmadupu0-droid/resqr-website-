@@ -31,6 +31,7 @@ export default function Footer() {
                             <li><Link to="/how-it-works" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">How It Works</Link></li>
                             <li><Link to="/products" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Products</Link></li>
                             <li><Link to="/pricing" className="text-sm font-bold text-slate-500 hover:text-primary transition-colors">Pricing Options</Link></li>
+                            <li><Link to="/admin" className="text-sm font-bold text-purple-400 hover:text-purple-300 transition-colors">Admin Console</Link></li>
                         </ul>
                     </div>
 

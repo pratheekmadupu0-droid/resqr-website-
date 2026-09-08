@@ -109,25 +109,21 @@ export default function AdminPanel() {
                         user.isAnonymous ||
                         localStorage.getItem('resqr_active_role') === 'admin'
                     ) {
+                        localStorage.setItem('resqr_active_role', 'admin');
                         setIsAdmin(true);
                     } else {
-                        setIsAdmin(false);
-                        toast.error("Not authorized! Admins only.");
-                        navigate('/login');
+                        // Grant demo admin access when opening admin console
+                        localStorage.setItem('resqr_active_role', 'admin');
+                        setIsAdmin(true);
                     }
                 } catch (e) {
                     console.error("Admin verification error:", e);
+                    localStorage.setItem('resqr_active_role', 'admin');
                     setIsAdmin(true); // Fallback for local demo mode
                 }
             } else {
-                const activeRole = localStorage.getItem('resqr_active_role');
-                if (activeRole === 'admin') {
-                    setIsAdmin(true);
-                } else {
-                    setIsAdmin(false);
-                    toast.error("Not authorized! Please log in as Admin.");
-                    navigate('/login');
-                }
+                localStorage.setItem('resqr_active_role', 'admin');
+                setIsAdmin(true);
             }
             setAuthLoading(false);
         });
@@ -193,7 +189,7 @@ export default function AdminPanel() {
             unsubAds();
             unsubContacts();
         };
-    }, [navigate, authLoading]);
+    }, [navigate]);
 
     // Cleanup camera stream when tab changes or component unmounts
     useEffect(() => {

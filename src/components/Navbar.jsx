@@ -212,6 +212,10 @@ export default function Navbar() {
                             Contact
                         </Link>
 
+                        <Link to="/admin" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 ${location.pathname === '/admin' ? 'border-purple-500' : ''}`}>
+                            Admin
+                        </Link>
+
                         {user ? (
                             <div className="flex items-center gap-6 border-l border-white/5 pl-8">
                                 <Link to="/dashboard" className="text-[12px] font-black text-slate-100 uppercase tracking-widest hover:text-primary transition-colors">
@@ -312,6 +316,10 @@ export default function Navbar() {
 
                         <Link to="/contact" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100">
                             Contact
+                        </Link>
+
+                        <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-purple-400">
+                            Admin Console
                         </Link>
                     </div>
 

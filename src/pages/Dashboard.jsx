@@ -87,6 +87,11 @@ export default function Dashboard() {
     }
 
     // Render corresponding dashboard
+    if (userRole === 'admin') {
+        navigate('/admin');
+        return null;
+    }
+
     if (userRole === 'agent') {
         return <AgentDashboard data={userData} />;
     }

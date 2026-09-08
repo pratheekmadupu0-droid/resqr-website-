@@ -1068,6 +1068,106 @@ export default function LoginPage() {
                                         )}
                                     </AnimatePresence>
                                 </Card>
+
+                                {/* Card 4: Admin Console */}
+                                <Card 
+                                    onClick={() => setExpandedPortal(expandedPortal === 'admin' ? null : 'admin')}
+                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-purple-500/30 hover:shadow-[0_15px_40px_rgba(168,85,247,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                                    
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                        {/* Left part: Icon & Role */}
+                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
+                                            <div className="w-16 h-16 bg-purple-500/5 rounded-2xl flex items-center justify-center text-purple-400 border border-purple-500/10 group-hover:scale-105 transition-transform">
+                                                <Key size={30} />
+                                            </div>
+                                            <div>
+                                                <span className="inline-block text-[9px] font-black tracking-widest text-purple-400 uppercase bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
+                                                    SYSTEM CORE
+                                                </span>
+                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                    Admin Console
+                                                </h3>
+                                            </div>
+                                        </div>
+
+                                        {/* Center part: Detailed Info */}
+                                        <div className="flex-1 space-y-4">
+                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
+                                                Super-admin management suite. Oversee user medical registries, biometric AI scanners, platform configurations, and system access control.
+                                            </p>
+                                            <div className="flex flex-wrap gap-3">
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" /> User Telemetry
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Biometric AI Node
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500" /> Global Config
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Right part: Action / Chevron */}
+                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
+                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
+                                                {expandedPortal === 'admin' ? 'Collapse Specs' : 'View Portal Specs'}
+                                            </span>
+                                            {expandedPortal === 'admin' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
+                                        </div>
+                                    </div>
+
+                                    {/* Expanded Details */}
+                                    <AnimatePresence initial={false}>
+                                        {expandedPortal === 'admin' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider">01 / Master User Directory</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Review, approve, or audit registered citizens, field agents, and hospital institutions across the network.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider">02 / OpenCV Biometric Telemetry</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            High-precision facial recognition scanner to match unidentifiable trauma patients with encrypted medical profiles.
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+                                                        <h4 className="text-xs font-black text-purple-400 uppercase tracking-wider">03 / Platform Control</h4>
+                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
+                                                            Configure safety sticker packages, system ads, emergency alert parameters, and global database nodes.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
+                                                    <div className="text-left">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">ADMIN ACCESS</span>
+                                                        <p className="text-[11px] text-slate-400">Direct super-user authentication console</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                        <Button 
+                                                            onClick={() => handleDemoLogin('admin')}
+                                                            className="w-full sm:w-auto px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-lg shadow-purple-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                                                        >
+                                                            ⚡ Launch Admin Console
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </Card>
                             </div>
                         </motion.div>
                     )}
