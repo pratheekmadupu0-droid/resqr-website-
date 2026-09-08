@@ -94,6 +94,21 @@ export default function AdminPanel() {
         );
     };
 
+    const handleAdminSignOut = async () => {
+        try {
+            localStorage.removeItem('resqr_active_role');
+            await auth.signOut();
+            setIsAdmin(false);
+            toast.success("Signed out of Admin Panel");
+            navigate('/login');
+        } catch (e) {
+            console.error("Sign out error:", e);
+            localStorage.removeItem('resqr_active_role');
+            setIsAdmin(false);
+            navigate('/login');
+        }
+    };
+
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -102,28 +117,29 @@ export default function AdminPanel() {
                     const rtdbRole = userSnap.exists() ? userSnap.val().role : null;
                     const rtdbEmail = userSnap.exists() ? userSnap.val().email : null;
 
-                    if (
-                        (user.email && ADMIN_EMAILS.includes(user.email)) ||
-                        rtdbRole === 'admin' ||
-                        (rtdbEmail && ADMIN_EMAILS.includes(rtdbEmail)) ||
-                        user.isAnonymous ||
-                        localStorage.getItem('resqr_active_role') === 'admin'
-                    ) {
+                    const isAuth = (user.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase())) ||
+                                   (rtdbEmail && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(rtdbEmail.toLowerCase())) ||
+                                   rtdbRole === 'admin' ||
+                                   localStorage.getItem('resqr_active_role') === 'admin';
+
+                    if (isAuth) {
                         localStorage.setItem('resqr_active_role', 'admin');
                         setIsAdmin(true);
                     } else {
-                        // Grant demo admin access when opening admin console
-                        localStorage.setItem('resqr_active_role', 'admin');
-                        setIsAdmin(true);
+                        setIsAdmin(false);
                     }
                 } catch (e) {
                     console.error("Admin verification error:", e);
-                    localStorage.setItem('resqr_active_role', 'admin');
-                    setIsAdmin(true); // Fallback for local demo mode
+                    const isAuth = user.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
+                    setIsAdmin(isAuth || localStorage.getItem('resqr_active_role') === 'admin');
                 }
             } else {
-                localStorage.setItem('resqr_active_role', 'admin');
-                setIsAdmin(true);
+                const activeRole = localStorage.getItem('resqr_active_role');
+                if (activeRole === 'admin') {
+                    setIsAdmin(true);
+                } else {
+                    setIsAdmin(false);
+                }
             }
             setAuthLoading(false);
         });
@@ -222,13 +238,37 @@ export default function AdminPanel() {
 
     if (authLoading) {
         return (
-            <div className="min-h-screen bg-transparent flex items-center justify-center">
+            <div className="min-h-screen bg-medical-bg flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
             </div>
         );
     }
 
-    if (!isAdmin) return null;
+    if (!isAdmin) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-manrope">
+                <div className="max-w-md w-full bg-slate-900/80 border border-white/10 p-8 rounded-3xl text-center space-y-6 backdrop-blur-xl shadow-2xl">
+                    <div className="w-16 h-16 bg-primary/10 border border-primary/20 text-primary rounded-2xl flex items-center justify-center mx-auto">
+                        <ShieldAlert size={36} />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter">Admin Access Restricted</h2>
+                        <p className="text-xs text-slate-400 font-medium mt-2 leading-relaxed">
+                            This area is strictly restricted to authorized RESQR system administrators. Please sign in with an authorized email account.
+                        </p>
+                    </div>
+                    <div className="pt-2 space-y-3">
+                        <Button onClick={() => navigate('/login')} className="w-full py-4 bg-primary text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20">
+                            Sign In to Authorized Account
+                        </Button>
+                        <Button onClick={() => navigate('/')} variant="ghost" className="w-full text-slate-400 hover:text-white text-xs font-bold uppercase tracking-wider">
+                            Return to Homepage
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const handleAddProduct = (e) => {
         e.preventDefault();
@@ -1041,7 +1081,7 @@ export default function AdminPanel() {
                 </nav>
 
                 <div className="pt-8 border-t border-slate-800">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-red-500 font-bold hover:bg-red-500/10 rounded-xl transition-all">
+                    <button onClick={handleAdminSignOut} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 font-bold hover:bg-red-500/10 rounded-xl transition-all">
                         <LogOut size={20} /> Sign Out
                     </button>
                 </div>

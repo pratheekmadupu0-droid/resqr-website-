@@ -6,10 +6,18 @@ import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { ref, get } from 'firebase/database';
 
+const ADMIN_EMAILS = [
+    'pratheekmadupu2006@gmail.com',
+    'pratheekmadupu0@gmail.com',
+    'resqr.official@gmail.com',
+    'admin@resqr.co.in'
+];
+
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
     const [user, setUser] = useState(null);
     const [userName, setUserName] = useState('');
+    const [isAdminUser, setIsAdminUser] = useState(false);
     const [hoveredMenu, setHoveredMenu] = useState(null);
     const [openAccordion, setOpenAccordion] = useState(null);
     const location = useLocation();
@@ -22,6 +30,16 @@ export default function Navbar() {
             if (currentUser) {
                 try {
                     const userSnap = await get(ref(db, `users/${currentUser.uid}`));
+                    const rtdbRole = userSnap.exists() ? userSnap.val().role : null;
+                    const rtdbEmail = userSnap.exists() ? userSnap.val().email : null;
+
+                    const isAuth = (currentUser.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase())) ||
+                                   (rtdbEmail && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(rtdbEmail.toLowerCase())) ||
+                                   rtdbRole === 'admin' ||
+                                   localStorage.getItem('resqr_active_role') === 'admin';
+
+                    setIsAdminUser(!!isAuth);
+
                     if (userSnap.exists() && userSnap.val().name) {
                         setUserName(userSnap.val().name);
                     } else if (currentUser.displayName) {
@@ -34,9 +52,12 @@ export default function Navbar() {
                 } catch (error) {
                     console.error("Error fetching user data:", error);
                     setUserName('User');
+                    setIsAdminUser(false);
                 }
             } else {
                 setUserName('');
+                const activeRole = localStorage.getItem('resqr_active_role');
+                setIsAdminUser(activeRole === 'admin');
             }
         });
         return () => unsubscribe();
@@ -212,9 +233,11 @@ export default function Navbar() {
                             Contact
                         </Link>
 
-                        <Link to="/admin" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 ${location.pathname === '/admin' ? 'border-purple-500' : ''}`}>
-                            Admin
-                        </Link>
+                        {isAdminUser && (
+                            <Link to="/admin" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 ${location.pathname === '/admin' ? 'border-purple-500' : ''}`}>
+                                Admin
+                            </Link>
+                        )}
 
                         {user ? (
                             <div className="flex items-center gap-6 border-l border-white/5 pl-8">
@@ -318,9 +341,11 @@ export default function Navbar() {
                             Contact
                         </Link>
 
-                        <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-purple-400">
-                            Admin Console
-                        </Link>
+                        {isAdminUser && (
+                            <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-purple-400">
+                                Admin Console
+                            </Link>
+                        )}
                     </div>
 
                     <div className="pt-6 border-t border-white/5 space-y-4">
