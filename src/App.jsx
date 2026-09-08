@@ -40,6 +40,55 @@ import EmergencyAwareness from './pages/EmergencyAwareness';
 import FAQPage from './pages/FAQPage';
 import HelpCenter from './pages/HelpCenter';
 
+import React, { Component } from 'react';
+import { ShieldAlert, RefreshCw } from 'lucide-react';
+
+class AdminErrorBoundary extends Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error("AdminPanel Error Boundary caught an error:", error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-white font-manrope">
+                    <div className="max-w-md w-full bg-slate-900/90 border border-white/10 p-8 rounded-3xl text-center space-y-6 backdrop-blur-xl shadow-2xl">
+                        <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl flex items-center justify-center mx-auto">
+                            <ShieldAlert size={36} />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-black italic uppercase tracking-tighter">Admin Interface Recovered</h2>
+                            <p className="text-xs text-slate-400 font-medium mt-2 leading-relaxed">
+                                A transient data exception occurred. Click below to refresh and re-sync the command console.
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                this.setState({ hasError: false, error: null });
+                                window.location.reload();
+                            }}
+                            className="w-full py-4 bg-primary text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all"
+                        >
+                            <RefreshCw size={16} /> Reload Admin Panel
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
 function ScrollToTop() {
     const { pathname } = useLocation();
     useEffect(() => {
@@ -69,7 +118,7 @@ function App() {
                     <Route path="/success" element={<SuccessPage />} />
                     <Route path="/e/:id" element={<EmergencyPage />} />
                     <Route path="/qr/:profileId" element={<QRScanPage />} />
-                    <Route path="/admin" element={<AdminPanel />} />
+                    <Route path="/admin" element={<AdminErrorBoundary><AdminPanel /></AdminErrorBoundary>} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/contact" element={<ContactUs />} />
                     <Route path="/p/:username" element={<QRScanPage />} />
