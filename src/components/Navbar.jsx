@@ -102,7 +102,7 @@ export default function Navbar() {
     ];
 
     return (
-        <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-white/5 font-manrope">
+        <nav className="sticky top-0 z-40 bg-black backdrop-blur-md border-b border-white/10 font-manrope">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between py-4 items-center">
                     {/* Far Left Logo with safety margins to prevent mixing */}
@@ -266,13 +266,13 @@ export default function Navbar() {
 
             {/* Mobile Sidebar overlay */}
             {isOpen && (
-                <div className="md:hidden bg-slate-950 border-b border-white/5 py-8 px-6 space-y-6 shadow-2xl overflow-y-auto max-h-[85vh]">
+                <div className="md:hidden bg-black border-b border-white/10 py-8 px-6 space-y-6 shadow-2xl overflow-y-auto max-h-[85vh]">
                     <div className="space-y-4">
-                        <Link to="/" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100">
+                        <Link to="/" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
                             Home
                         </Link>
 
-                        <Link to="/how-it-works" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100">
+                        <Link to="/how-it-works" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
                             How It Works
                         </Link>
 
@@ -280,14 +280,14 @@ export default function Navbar() {
                         <div>
                             <button 
                                 onClick={() => setOpenAccordion(openAccordion === 'solutions' ? null : 'solutions')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100"
+                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
                             >
                                 Solutions <ChevronDown size={14} />
                             </button>
                             {openAccordion === 'solutions' && (
                                 <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
                                     {solutionsLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 uppercase tracking-wide py-1">
+                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
                                             {item.name}
                                         </Link>
                                     ))}
@@ -299,14 +299,14 @@ export default function Navbar() {
                         <div>
                             <button 
                                 onClick={() => setOpenAccordion(openAccordion === 'products' ? null : 'products')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100"
+                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
                             >
                                 Products <ChevronDown size={14} />
                             </button>
                             {openAccordion === 'products' && (
                                 <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
                                     {productsLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 uppercase tracking-wide py-1">
+                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
                                             {item.name}
                                         </Link>
                                     ))}
@@ -318,14 +318,14 @@ export default function Navbar() {
                         <div>
                             <button 
                                 onClick={() => setOpenAccordion(openAccordion === 'resources' ? null : 'resources')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100"
+                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
                             >
                                 Resources <ChevronDown size={14} />
                             </button>
                             {openAccordion === 'resources' && (
                                 <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
                                     {resourcesLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 uppercase tracking-wide py-1">
+                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
                                             {item.name}
                                         </Link>
                                     ))}
@@ -333,11 +333,11 @@ export default function Navbar() {
                             )}
                         </div>
 
-                        <Link to="/about" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100">
+                        <Link to="/about" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
                             About
                         </Link>
 
-                        <Link to="/contact" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100">
+                        <Link to="/contact" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
                             Contact
                         </Link>
 
