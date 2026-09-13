@@ -27,6 +27,14 @@ const ADMIN_EMAILS = [
     'admin@resqr.co.in'
 ];
 
+// RESQR Admin WhatsApp SENDER account (the account the admin sends from manually).
+// NEVER used as a recipient — recipients always come from the selected user's Firebase profile.
+const ADMIN_SENDER = {
+    raw: '9441151466',
+    waNumber: '919441151466',
+    display: '+91 94411 51466'
+};
+
 const MESSAGE_TEMPLATES = [
     {
         id: 'welcome',
@@ -254,6 +262,11 @@ export default function WhatsAppMessaging({ users = [], profilesList = [] }) {
                 : 'Invalid phone number.');
             return;
         }
+        // Safety: the admin sender account must never be used as a recipient.
+        if (user.phoneInfo.waNumber === ADMIN_SENDER.waNumber) {
+            toast.error("This user's phone matches the RESQR admin sender account. Verify the user's number in Firebase first.");
+            return;
+        }
         setComposer({ user, templateId: 'welcome', text: '', previewMode: false, bulkIndex: null, bulkQueue: null });
     };
 
@@ -268,6 +281,7 @@ export default function WhatsAppMessaging({ users = [], profilesList = [] }) {
 
     return (
         <div className="space-y-6">
+            <SenderBanner />
             <StatsBar stats={stats} />
             <SectionHeader
                 search={search} setSearch={setSearch}
@@ -308,6 +322,23 @@ export default function WhatsAppMessaging({ users = [], profilesList = [] }) {
 }
 
 // ============ SUB-COMPONENTS ============
+
+function SenderBanner() {
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 rounded-2xl bg-[#25D366]/[0.06] border border-[#25D366]/20 px-4 py-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-[#25D366] shadow-[0_0_8px_rgba(37,211,102,0.8)] shrink-0" aria-hidden="true" />
+                <p className="text-xs text-slate-300 font-semibold truncate">
+                    Sending from <span className="text-[#25D366] font-black">RESQR Admin</span>
+                    <span className="text-slate-400 font-mono text-[11px] ml-1.5">{ADMIN_SENDER.display}</span>
+                </p>
+            </div>
+            <p className="text-[10px] text-slate-500 font-medium sm:ml-auto sm:text-right leading-relaxed">
+                Recipients always come from each user's Firebase profile. WhatsApp opens on the device logged in with this account.
+            </p>
+        </div>
+    );
+}
 
 function StatsBar({ stats }) {
     const items = [
@@ -545,6 +576,11 @@ function ComposerModal({ composer, setComposer, onClose }) {
                 : 'Invalid phone number.');
             return;
         }
+        // Defense-in-depth: never send TO the RESQR admin sender account.
+        if (user.phoneInfo.waNumber === ADMIN_SENDER.waNumber) {
+            toast.error("This user's phone matches the RESQR admin sender account. Verify the user's number in Firebase first.");
+            return;
+        }
         setOpening(true);
         try {
             const waUrl = `https://wa.me/${user.phoneInfo.waNumber}?text=${encodeURIComponent(preview)}`;
@@ -620,12 +656,21 @@ function ComposerModal({ composer, setComposer, onClose }) {
                 </div>
 
                 <div className="p-5 space-y-5">
-                    {/* To */}
-                    <div className="rounded-2xl bg-slate-950/60 border border-white/5 p-4">
-                        <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 mb-1.5">To</p>
-                        <p className="text-white font-bold text-sm">{user.name}</p>
-                        <p className="text-slate-400 text-xs mt-0.5">{user.phoneInfo.display}</p>
-                        {user.email && <p className="text-slate-600 text-[10px] mt-0.5">{user.email}</p>}
+                    {/* From (RESQR admin sender account) / To (from Firebase) */}
+                    <div className="rounded-2xl bg-slate-950/60 border border-white/5 p-4 space-y-3">
+                        <div>
+                            <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 mb-1 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#25D366]" aria-hidden="true" />
+                                From — RESQR Admin
+                            </p>
+                            <p className="text-slate-300 text-xs font-mono">{ADMIN_SENDER.display}</p>
+                        </div>
+                        <div className="pt-3 border-t border-white/5">
+                            <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-500 mb-1">To</p>
+                            <p className="text-white font-bold text-sm">{user.name}</p>
+                            <p className="text-slate-400 text-xs mt-0.5">{user.phoneInfo.display}</p>
+                            {user.email && <p className="text-slate-600 text-[10px] mt-0.5">{user.email}</p>}
+                        </div>
                     </div>
 
                     {/* Template picker */}
