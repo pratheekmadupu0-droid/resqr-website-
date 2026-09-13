@@ -111,7 +111,7 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
         <div className="relative overflow-hidden bg-[#05080F] text-slate-100 font-sans">
 
             {/* ============ HERO — CINEMATIC FIRST SCREEN ============ */}
-            <section className="relative min-h-[100svh] flex flex-col items-center overflow-hidden pt-10 pb-8 lg:pt-14 lg:pb-10" aria-label="RESQR — your emergency information when it matters most">
+            <section className="relative min-h-[100svh] flex flex-col items-center overflow-hidden pt-10 pb-2 lg:pt-14 lg:pb-4" aria-label="RESQR — your emergency information when it matters most">
                 {/* Ambient cinematic lighting */}
                 <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                     <div className="absolute -top-[12%] -left-[8%] w-[55vw] h-[55vw] bg-primary/8 rounded-full blur-[120px]" />
@@ -255,12 +255,12 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
             </section>
 
 {/* ============ VINAYAKA CHAVITHI CAMPAIGN ============ */}
-            <div className="max-w-4xl mx-auto px-4 mt-8">
+            <div className="max-w-4xl mx-auto px-4 mt-2">
                 <FestiveBanner mode="hero" />
             </div>
 
             {/* ============ TRUST — BECAUSE EMERGENCIES DON'T WAIT ============ */}
-            <section className="pt-4 sm:pt-6 pb-14 sm:pb-16 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
+            <section className="pt-2 sm:pt-3 pb-10 sm:pb-12 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
                 <DevotionalBackground
                     intensity="low"
                     showGanesha={false}
