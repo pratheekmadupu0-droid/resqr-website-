@@ -32,7 +32,7 @@ export default function FestiveBanner({ mode = 'ribbon' }) {
                     />
                 ))}
 
-                <div className="relative px-6 sm:px-10 pt-2 sm:pt-3 pb-6 sm:pb-8 text-center">
+                <div className="relative px-6 sm:px-10 pt-2 sm:pt-3 pb-2 sm:pb-3 text-center">
                     {/* Ganesha-inspired ornament row */}
                     <div className="relative flex justify-center -mt-1 mb-1" aria-hidden="true">
                         <img src="/g2.png" alt="Lord Ganesha" className="festive-idol" loading="lazy" />

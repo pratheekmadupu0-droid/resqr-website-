@@ -260,7 +260,7 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
             </div>
 
             {/* ============ TRUST — BECAUSE EMERGENCIES DON'T WAIT ============ */}
-            <section className="pt-2 sm:pt-3 pb-10 sm:pb-12 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
+            <section className="pt-0 pb-10 sm:pb-12 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
                 <DevotionalBackground
                     intensity="low"
                     showGanesha={false}
