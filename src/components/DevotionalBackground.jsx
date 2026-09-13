@@ -58,14 +58,14 @@ export default function DevotionalBackground({
         return 16;
     })();
 
-    const baseSize = intensity === 'low' ? 72 : intensity === 'high' ? 110 : 92;
+    const baseSize = intensity === 'low' ? 200 : intensity === 'high' ? 320 : 260;
     const haloSize = baseSize * 3.2;
 
-    const ganeshaOpacity = intensity === 'low' ? 0.10 : intensity === 'high' ? 0.22 : 0.16;
-    const haloOpacity = intensity === 'low' ? 0.10 : intensity === 'high' ? 0.22 : 0.16;
-    const particleOpacity = intensity === 'low' ? 0.35 : intensity === 'high' ? 0.7 : 0.5;
-    const mandalaOpacity = intensity === 'low' ? 0.06 : intensity === 'high' ? 0.14 : 0.10;
-    const diyaOpacity = intensity === 'low' ? 0.18 : intensity === 'high' ? 0.4 : 0.3;
+    const ganeshaOpacity = intensity === 'low' ? 0.55 : intensity === 'high' ? 0.85 : 0.7;
+    const haloOpacity = intensity === 'low' ? 0.5 : intensity === 'high' ? 0.75 : 0.6;
+    const particleOpacity = intensity === 'low' ? 0.8 : intensity === 'high' ? 1 : 0.9;
+    const mandalaOpacity = intensity === 'low' ? 0.35 : intensity === 'high' ? 0.6 : 0.45;
+    const diyaOpacity = intensity === 'low' ? 0.8 : intensity === 'high' ? 1 : 0.9;
 
     // subtle parallax (max px varies with intensity)
     const offsetPx = useCallback(
@@ -125,12 +125,48 @@ export default function DevotionalBackground({
                     inset: 0,
                     background:
                         'radial-gradient(1400px 800px at 50% 100%, rgba(217,164,65,0.035), transparent 65%), linear-gradient(180deg, #04070C 0%, #05080F 40%, #060A13 100%)',
-                    opacity: 1,
+                    opacity: 0.35,
                     animation: shouldAnimate ? 'devotional-fade-in 1s ease-out both' : 'none',
                     animationDelay: '0s',
                 }}
                 aria-hidden="true"
             />
+
+            {/* ===== Golden halo behind Ganesha ===== */}
+            {showGanesha && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: '50%',
+                        top: '50%',
+                        width: haloSize,
+                        height: haloSize,
+                        transform: 'translate(-50%, -50%)',
+                        borderRadius: '50%',
+                        background:
+                            'radial-gradient(50% 50% at 50% 50%, rgba(255,178,80,0.22), rgba(217,164,65,0.10) 45%, transparent 70%)',
+                        filter: 'blur(10px)',
+                        opacity: haloOpacity,
+                        pointerEvents: 'none',
+                    }}
+                    aria-hidden="true"
+                >
+                    <div
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            borderRadius: '50%',
+                            animation: shouldAnimate
+                                ? 'devotional-halo-pulse 6s ease-in-out infinite'
+                                : 'none',
+                            background:
+                                'radial-gradient(50% 50% at 50% 50%, rgba(255,200,110,0.10), transparent 70%)',
+                            pointerEvents: 'none',
+                        }}
+                        aria-hidden="true"
+                    />
+                </div>
+            )}
 
             {/* ===== Subtle mandala motif ===== */}
             {showMandala && (
