@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit3, Image as ImageIcon, Megaphone, Mail,
     Package, Settings, LayoutDashboard, LogOut, ChevronRight, ExternalLink, Bell,
     Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
-    QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database
+    QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -20,6 +20,7 @@ import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signI
 import { QRCodeCanvas } from 'qrcode.react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAge } from '../lib/dateUtils';
+import WhatsAppMessaging from '../components/admin/WhatsAppMessaging';
 
 export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -1054,15 +1055,21 @@ export default function AdminPanel() {
                         { id: 'facial_scan', label: 'Facial Scan Node', icon: <Camera size={20} /> },
                         { id: 'verification', label: 'Onboarding Audits', icon: <AlertTriangle size={20} /> },
                         { id: 'contacts', label: 'Support Inbox', icon: <Mail size={20} /> },
+                        { id: 'notif_group', label: 'Notifications', group: true },
+                        { id: 'whatsapp', label: 'WhatsApp', icon: <MessageCircle size={20} />, nested: true },
                         { id: 'analytics', label: 'Tactical Intel', icon: <ArrowUpRight size={20} /> },
                         { id: 'products', label: 'Inventory & Prices', icon: <Package size={20} /> },
                         { id: 'ads', label: 'Ad Campaigns', icon: <Megaphone size={20} /> },
                         { id: 'settings', label: 'Settings', icon: <Settings size={20} /> },
-                    ].map(item => (
+                    ].map(item => item.group ? (
+                        <p key={item.id} className="px-6 pt-5 pb-1 text-[9px] font-black uppercase tracking-[0.35em] text-slate-600 italic flex items-center gap-2">
+                            <Bell size={12} className="text-primary/60" /> {item.label}
+                        </p>
+                    ) : (
                         <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-black uppercase italic tracking-widest text-[10px] ${activeTab === item.id
+                            className={`w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-black uppercase italic tracking-widest text-[10px] ${item.nested ? 'ml-5 !w-[calc(100%-1.25rem)]' : ''} ${activeTab === item.id
                                 ? 'bg-primary text-white shadow-[0_10px_20px_rgba(230,57,70,0.2)]'
                                 : 'text-slate-500 hover:bg-white/5 hover:text-white'
                                 }`}
@@ -1084,7 +1091,8 @@ export default function AdminPanel() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold capitalize">
-                            {activeTab === 'users' ? 'Registered Accounts' :
+                            {activeTab === 'whatsapp' ? 'WhatsApp Messages' :
+                                activeTab === 'users' ? 'Registered Accounts' :
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
                                     activeTab === 'medical_scan' ? 'Secure Medical QR Scanner' :
                                         activeTab === 'facial_scan' ? 'Biometric Facial Scan Node' :
@@ -1797,6 +1805,10 @@ export default function AdminPanel() {
                             </Card>
                         ))}
                     </div>
+                )}
+
+                {activeTab === 'whatsapp' && (
+                    <WhatsAppMessaging users={safeUsers} profilesList={safeProfiles} />
                 )}
 
                 {activeTab === 'ads' && (
