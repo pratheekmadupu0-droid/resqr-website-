@@ -23,7 +23,7 @@ export default function FestiveBanner({ mode = 'ribbon' }) {
                 className="festive-banner relative overflow-hidden mx-auto w-full animate-in slide-in-from-bottom-3 duration-700"
                 aria-label="Vinayaka Chavithi greetings"
             >
-                <img src="/ganesha-bg.png" alt="" aria-hidden="true" className="festive-bg-photo festive-bg-neon" loading="lazy" />
+                <img src="/ganesha-idol.png" alt="" aria-hidden="true" className="festive-bg-photo festive-bg-neon" loading="lazy" />
                 <div className="festive-bg-scrim" aria-hidden="true" />
                 {particles.map((p, i) => (
                     <span

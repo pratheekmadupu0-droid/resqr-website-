@@ -126,8 +126,8 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
                     ))}
                 </div>
 
-                {/* ===== Neon Ganesha photo background (public/ganesha-bg.png) ===== */}
-                <img src="/ganesha-bg.png" alt="" aria-hidden="true" className="hero-ganesha-bg" loading="eager" />
+                {/* ===== Ganesha idol photo background (public/ganesha-idol.png = user's 'ganesh idol.png') ===== */}
+                <img src="/ganesha-idol.png" alt="" aria-hidden="true" className="hero-ganesha-bg" loading="eager" />
                 <div className="hero-ganesha-scrim" aria-hidden="true" />
                 <span style={{ display: 'none' }} aria-hidden="true" />
                 {/* ===== /devotional atmosphere ===== */}
