@@ -14,7 +14,7 @@ export default function SolutionsGovernment() {
     ];
 
     return (
-        <div className="min-h-screen bg-medical-bg text-white font-manrope">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope">
             {/* Hero Section */}
             <section className="relative pt-32 pb-24 px-4 overflow-hidden border-b border-white/5 bg-slate-950/40">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(230,57,70,0.05),transparent)] pointer-events-none" />

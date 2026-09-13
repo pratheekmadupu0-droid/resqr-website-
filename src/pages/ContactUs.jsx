@@ -176,7 +176,7 @@ export default function ContactUs() {
     const currentTheme = priorityColors[priority];
 
     return (
-        <div className="min-h-screen bg-medical-bg relative overflow-hidden text-white font-manrope pt-28 pb-20 px-4 md:px-8">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha relative overflow-hidden text-white font-manrope pt-28 pb-20 px-4 md:px-8">
             {/* Holographic Ambient Glow Background */}
             <div className="absolute inset-0 pointer-events-none z-0">
                 <div className={`absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[60vh] bg-gradient-to-b ${currentTheme.glow} blur-[120px] rounded-full transition-all duration-1000`} />

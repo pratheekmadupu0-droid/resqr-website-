@@ -75,7 +75,7 @@ export default function LegalPage() {
     };
 
     return (
-        <div className="min-h-screen bg-medical-bg py-24 px-4 text-white font-manrope">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha py-24 px-4 text-white font-manrope">
             <div className="max-w-6xl mx-auto">
                 <header className="text-center mb-16">
                     <Badge className="bg-primary/20 text-primary border-none px-6 py-1 font-black italic tracking-widest mb-6">TRANSPARENCY HUB</Badge>

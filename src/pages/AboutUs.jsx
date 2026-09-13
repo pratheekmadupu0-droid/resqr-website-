@@ -29,7 +29,7 @@ export default function AboutUs() {
     ];
 
     return (
-        <div className="min-h-screen bg-medical-bg text-slate-300 font-manrope">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha text-slate-300 font-manrope">
             {/* Hero Section */}
             <section className="relative py-32 overflow-hidden bg-slate-950/40 border-b border-white/5">
                 <div className="absolute top-0 right-0 p-32 opacity-[0.03] rotate-12 text-white pointer-events-none">

@@ -66,7 +66,7 @@ export default function StorePage() {
     };
 
     return (
-        <div className="min-h-screen bg-medical-bg text-white font-manrope">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope">
             {/* Store Header */}
             <div className="bg-slate-950/40 border-b border-white/5 pt-32 pb-24 px-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] -translate-y-1/2 translate-x-1/2" />

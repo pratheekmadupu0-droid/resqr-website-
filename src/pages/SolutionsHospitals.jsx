@@ -198,7 +198,7 @@ export default function SolutionsHospitals() {
     ]);
 
     return (
-        <div className="min-h-screen bg-medical-bg text-white font-manrope">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope">
             {/* Embedded CSS for custom scanner line animation */}
             <style>{`
                 @keyframes scan {

@@ -52,7 +52,7 @@ export default function ViralQR() {
 
     if (step === 'profile') {
         return (
-            <div className="min-h-screen bg-medical-bg text-white font-manrope selection:bg-primary/30 py-10 px-4">
+            <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope selection:bg-primary/30 py-10 px-4">
                 <div className="max-w-xl mx-auto space-y-8">
                     <div className="text-center mb-10">
                         <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-12 mx-auto mb-6" />
@@ -105,7 +105,7 @@ export default function ViralQR() {
     }
 
     return (
-        <div className="min-h-screen bg-medical-bg text-white font-manrope selection:bg-primary/30 py-20 px-4">
+        <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope selection:bg-primary/30 py-20 px-4">
             <div className="max-w-4xl mx-auto">
                 <div className="text-center mb-16">
                     <Badge className="bg-primary/20 text-primary border-none mb-4 px-6 py-1 font-black italic tracking-widest text-[10px]">FREE IDENTITY ENGINE</Badge>

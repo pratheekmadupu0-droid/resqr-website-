@@ -75,6 +75,32 @@ body::before {
         linear-gradient(180deg, #04070C 0%, #05080F 40%, #060A13 100%);
 }
 
+/* ---------- Marketing pages: Ganesha photo background (public/ganesha-bg.png) ---------- */
+/* Adds the Vinayaka Chavithi idol photo as a fixed cinematic backdrop behind
+   marketing page content while keeping app pages (Login, Dashboard, Emergency,
+   Payment…) on their clean solid background. The dark gradient scrim keeps
+   headings and body text readable over the photo. */
+.page-bg-ganesha {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+}
+
+.page-bg-ganesha::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg,
+            rgba(5, 8, 15, 0.84) 0%,
+            rgba(5, 8, 15, 0.38) 30%,
+            rgba(5, 8, 15, 0.5) 55%,
+            rgba(5, 8, 15, 0.94) 100%),
+        url('/ganesha-bg.png') center 18% / cover no-repeat;
+}
+
 /* ---------- Component classes (kept from original) ---------- */
 
 .btn-primary {
