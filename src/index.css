@@ -75,11 +75,12 @@ body::before {
         linear-gradient(180deg, #04070C 0%, #05080F 40%, #060A13 100%);
 }
 
-/* ---------- Marketing pages: Ganesha idol photo background (public/ganesha-idol.png) ---------- */
-/* Adds the Vinayaka Chavithi idol photo as a fixed cinematic backdrop behind
-   marketing page content while keeping app pages (Login, Dashboard, Emergency,
-   Payment…) on their clean solid background. The dark gradient scrim keeps
-   headings and body text readable over the photo. */
+/* ---------- Marketing pages: Ganesha idol photo background ---------- */
+/* Background = the user's 'ganesh idol.png' (portrait 1149x1369), served from
+   public/ganesha-idol.png. Adds the Vinayaka Chavithi idol photo as a fixed
+   cinematic backdrop behind marketing page content while keeping app pages
+   (Login, Dashboard, Emergency, Payment…) on their clean solid background.
+   The dark gradient scrim keeps headings and body text readable over the photo. */
 .page-bg-ganesha {
     position: relative;
     z-index: 0;
