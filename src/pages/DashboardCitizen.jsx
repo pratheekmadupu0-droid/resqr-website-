@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
+import DevotionalBackground from '../components/DevotionalBackground';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -290,8 +291,19 @@ export default function DashboardCitizen() {
     };
 
     return (
-        <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30">
-            <div className="max-w-7xl mx-auto px-6 py-20 lg:py-32 space-y-12">
+        <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30 relative overflow-hidden">
+            {/* ===== Devotional atmosphere (restrained — particles + diyas only, no Ganesha behind content) ===== */}
+            <DevotionalBackground
+                intensity="low"
+                showGanesha={false}
+                showMandala={false}
+                showDiya={true}
+                showParticles={true}
+                className="dashboard-devotional"
+            />
+            {/* ===== /devotional atmosphere ===== */}
+
+            <div className="max-w-7xl mx-auto px-6 py-20 lg:py-32 space-y-12 relative z-10">
                 
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-8">
                     <div className="min-w-0">

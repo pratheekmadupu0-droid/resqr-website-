@@ -11,6 +11,7 @@ import { db, auth } from '../lib/firebase';
 import { ref, onValue, get } from 'firebase/database';
 import PromotedAd from '../components/PromotedAd';
 import FestiveBanner from '../components/FestiveBanner';
+import DevotionalBackground from '../components/DevotionalBackground';
 import { Modal } from '../components/ui/Modal';
 
 const HERO_PARTICLES = [
@@ -124,6 +125,16 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
                         />
                     ))}
                 </div>
+
+                {/* ===== Devotional atmosphere (cinematic, subtle) ===== */}
+                <DevotionalBackground
+                    intensity="medium"
+                    parallaxX={0}
+                    parallaxY={0}
+                    className="hero-devotional"
+                    style={{ zIndex: 1 }}
+                />
+                {/* ===== /devotional atmosphere ===== */}
 
                 <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-14 items-center relative z-10">
                     {/* Left column */}
@@ -254,6 +265,14 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
 
             {/* ============ TRUST — BECAUSE EMERGENCIES DON'T WAIT ============ */}
             <section className="py-16 sm:py-20 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
+                <DevotionalBackground
+                    intensity="low"
+                    showGanesha={false}
+                    showMandala={false}
+                    showDiya={false}
+                    showParticles={true}
+                    className="section-devotional"
+                />
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="text-center max-w-2xl mx-auto">
                         <span className="inline-flex items-center px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-slate-300 font-bold text-[10px] uppercase tracking-[0.2em]">

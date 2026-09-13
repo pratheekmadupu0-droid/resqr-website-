@@ -853,6 +853,149 @@ button {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* ============================================================
+   DevotionalBackground — cinematic Ganesha-inspired atmosphere
+   (appended block; layered behind UI via DevotionalBackground.jsx)
+   ============================================================ */
+
+.devotional-bg {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+    will-change: transform;
+}
+
+/* base cinematic fade-in sequence (used internally by the component too) */
+@keyframes devotional-fade-in {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Ganesha line-art entrance fade (inner element only — no centering translate) */
+@keyframes devotional-ganesha-fade {
+    0% {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* soft halo pulse — very gentle (no positioning translate) */
+@keyframes devotional-halo-pulse {
+    0%,
+    100% {
+        opacity: 0.7;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.95;
+        transform: scale(1.02);
+    }
+}
+
+/* slow mandala drift (inner element only — no centering translate) */
+@keyframes devotional-mandala-float {
+    0%,
+    100% {
+        transform: rotate(0deg) scale(1);
+    }
+    33% {
+        transform: rotate(2deg) scale(1.01);
+    }
+    66% {
+        transform: rotate(-2deg) scale(1.005);
+    }
+}
+
+/* particles float upward with slight horizontal drift */
+@keyframes devotional-particle-float {
+    0% {
+        opacity: 0;
+        transform: translateY(0) translateX(0);
+    }
+    15% {
+        opacity: 1;
+    }
+    85% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(-120px) translateX(var(--pdx, 6px));
+    }
+}
+
+/* diya group slow drift (subtle) */
+@keyframes devotional-diyas-drift {
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+    50% {
+        transform: translate(8px, -6px);
+    }
+}
+
+/* tiny flicker on each diya glow */
+@keyframes devotional-diyas-flicker {
+    0%,
+    100% {
+        opacity: 0.85;
+        transform: scale(1);
+    }
+    33% {
+        opacity: 0.95;
+        transform: scale(1.04);
+    }
+    66% {
+        opacity: 0.8;
+        transform: scale(0.97);
+    }
+}
+
+/* flame flicker */
+@keyframes devotional-flame {
+    0%,
+    100% {
+        transform: scaleY(1) scaleX(1) translateY(0);
+    }
+    25% {
+        transform: scaleY(1.12) scaleX(0.96) translateY(-1px);
+    }
+    50% {
+        transform: scaleY(0.94) scaleX(1.04) translateY(0);
+    }
+    75% {
+        transform: scaleY(1.06) scaleX(0.98) translateY(-1px);
+    }
+}
+
+/* Reduced-motion: kill animations */
+@media (prefers-reduced-motion: reduce) {
+    .devotional-bg,
+    .devotional-bg *,
+    .devotional-bg *::before,
+    .devotional-bg *::after {
+        animation-duration: 0.001s !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0s !important;
+        transition-duration: 0.001s !important;
+        scroll-behavior: auto !important;
+    }
+    .devotional-bg {
+        transform: none !important;
+    }
+}
+
 /* ---------- Accessibility ---------- */
 
 :focus-visible {

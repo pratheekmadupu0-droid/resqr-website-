@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Twitter, Facebook, Instagram, Github, HeartHandshake } from 'lucide-react';
+import DevotionalBackground from './DevotionalBackground';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
@@ -37,6 +38,17 @@ export default function Footer() {
 
     return (
         <footer className="bg-[#05070D] border-t border-white/5 relative overflow-hidden">
+            {/* ===== Subtle devotional particles (very low intensity) ===== */}
+            <DevotionalBackground
+                intensity="low"
+                showGanesha={false}
+                showMandala={false}
+                showDiya={false}
+                showParticles={true}
+                className="footer-devotional"
+            />
+            {/* ===== /devotional atmosphere ===== */}
+
             {/* faint festive glow */}
             <div className="pointer-events-none absolute inset-0 opacity-50" aria-hidden="true">
                 <div className="absolute bottom-0 left-1/4 w-[45vw] h-[30vh] bg-gold/4 rounded-full blur-[100px]" />
