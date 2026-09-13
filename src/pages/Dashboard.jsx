@@ -5,6 +5,7 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, onValue } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Button } from '../components/ui/Button';
+import AppLoading from '../components/ui/AppLoading';
 
 // Dashboards
 import CitizenDashboard from './DashboardCitizen';
@@ -52,16 +53,7 @@ export default function Dashboard() {
     }, [navigate]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-medical-bg flex items-center justify-center">
-                <div className="flex flex-col items-center gap-6">
-                    <Loader2 className="text-primary animate-spin" size={48} />
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 animate-pulse italic">
-                        Synchronizing Security Hub...
-                    </p>
-                </div>
-            </div>
-        );
+        return <AppLoading message="Synchronizing your security hub..." />;
     }
 
     if (!auth.currentUser) {

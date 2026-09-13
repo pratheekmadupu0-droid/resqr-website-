@@ -1,7 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Shield, User, LayoutDashboard, Settings, LogOut, Home, Info, QrCode, CreditCard, ChevronDown } from 'lucide-react';
+import { Menu, X, Shield, User, LayoutDashboard, LogOut, QrCode, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { Button } from './ui/Button';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { ref, get } from 'firebase/database';
@@ -18,8 +17,6 @@ export default function Navbar() {
     const [user, setUser] = useState(null);
     const [userName, setUserName] = useState('');
     const [isAdminUser, setIsAdminUser] = useState(false);
-    const [hoveredMenu, setHoveredMenu] = useState(null);
-    const [openAccordion, setOpenAccordion] = useState(null);
     const location = useLocation();
     const navigate = useNavigate();
     const isEmergency = location.pathname.startsWith('/e/');
@@ -74,293 +71,137 @@ export default function Navbar() {
 
     if (isEmergency) return null;
 
-    const solutionsLinks = [
-        { name: 'Individuals', path: '/solutions/individuals', desc: 'Personal safety tags for daily commutes' },
-        { name: 'Families', path: '/solutions/families', desc: 'Secure medical protection for households' },
-        { name: 'Doctors', path: '/solutions/doctors', desc: 'Verification-based patient access portal' },
-        { name: 'Hospitals', path: '/solutions/hospitals', desc: 'Triage ER databases & ERP integration' },
-        { name: 'Ambulances', path: '/solutions/ambulances', desc: 'Paramedic telemetry & dispatch mapping' },
-        { name: 'First Responders', path: '/solutions/first-responders', desc: 'Bystander emergency response tools' },
-        { name: 'Enterprises', path: '/solutions/enterprises', desc: 'Workforce safety and compliance' },
-        { name: 'Schools', path: '/solutions/schools', desc: 'Smart campus student protection cards' },
-        { name: 'Government', path: '/solutions/government', desc: 'Civic safety and relief coordination' }
+    const desktopLinks = [
+        { name: 'Home', path: '/' },
+        { name: 'How It Works', path: '/how-it-works' },
+        { name: 'About', path: '/about' },
+        { name: 'Contact', path: '/contact' },
     ];
 
-    const resourcesLinks = [
-        { name: 'Safety & Privacy', path: '/safety-privacy', desc: 'Data encryption & storage compliance' },
-        { name: 'Technology', path: '/technology', desc: 'Decentralized cloud network parameters' },
-        { name: 'Stories', path: '/stories', desc: 'Emergency response editorial journals' },
-        { name: 'Emergency Awareness', path: '/emergency-awareness', desc: 'Road safety & first-aid guidelines' },
-        { name: 'FAQ', path: '/faq', desc: 'General help desk and setup answers' },
-        { name: 'Help Center', path: '/help-center', desc: 'Account restoration & offline backup' }
-    ];
+    const isActive = (path) =>
+        path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
+return (
+        <nav
+            className="app-header"
+            style={{ padding: '10px 16px', borderRadius: 0 }}
+            aria-label="Main navigation"
+        >
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2 shrink-0 group" aria-label="RESQR home">
+                <img
+                    src={`${import.meta.env.BASE_URL}resqr_logo.png`}
+                    alt="RESQR Logo"
+                    className="app-header-logo transition-transform group-hover:scale-105"
+                />
+            </Link>
 
-    const productsLinks = [
-        { name: 'Products Page', path: '/products', desc: 'NFC tags, helmet stickers, smart bands' },
-        { name: 'Pricing', path: '/pricing', desc: 'Transparent safety package matrices' },
-        { name: 'Partners', path: '/partners', desc: 'Submit safety network partnership audits' }
-    ];
-
-    return (
-        <nav className="sticky top-0 z-40 bg-black backdrop-blur-md border-b border-white/10 font-manrope">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between py-4 items-center">
-                    {/* Far Left Logo with safety margins to prevent mixing */}
-                    <Link to="/" className="flex items-center gap-2 shrink-0 group mr-8 lg:mr-16">
-                        <img 
-                            src={`${import.meta.env.BASE_URL}resqr_logo.png`} 
-                            alt="RESQR Logo" 
-                            className="h-10 sm:h-12 w-auto object-contain transition-transform group-hover:scale-105" 
-                        />
+            {/* Desktop links */}
+            <div className="hidden lg:flex items-center gap-7 flex-1 justify-center">
+                {desktopLinks.map((link) => (
+                    <Link
+                        key={link.name}
+                        to={link.path}
+                        className={`text-[13px] font-black uppercase tracking-[0.14em] transition-colors relative ${isActive(link.path) ? 'text-white' : 'text-slate-300 hover:text-white'}`}
+                    >
+                        {link.name}
+                        {isActive(link.path) && (
+                            <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(230,57,70,0.8)]" />
+                        )}
                     </Link>
-
-                    {/* Desktop Links (Home removed from Desktop nav since logo points to Home) */}
-                    <div className="hidden md:flex items-center gap-8">
-                        <Link to="/how-it-works" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/how-it-works' ? 'text-primary' : 'text-slate-100/60 hover:text-primary'}`}>
-                            How It Works
-                        </Link>
-
-                        {/* Solutions Dropdown */}
-                        <div 
-                            className="relative py-2"
-                            onMouseEnter={() => setHoveredMenu('solutions')}
-                            onMouseLeave={() => setHoveredMenu(null)}
-                        >
-                            <button className="flex items-center gap-1.5 text-[12px] font-black uppercase tracking-[0.2em] text-slate-100/60 hover:text-primary transition-colors">
-                                Solutions <ChevronDown size={12} />
-                            </button>
-                            {hoveredMenu === 'solutions' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
-                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[32rem] grid grid-cols-2 gap-4 backdrop-blur-xl">
-                                        {solutionsLinks.map((item) => (
-                                            <Link 
-                                                key={item.name} 
-                                                to={item.path} 
-                                                onClick={() => setHoveredMenu(null)}
-                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                            >
-                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                                <div>
-                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                        {item.name}
-                                                    </div>
-                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                        {item.desc}
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Products Dropdown */}
-                        <div 
-                            className="relative py-2"
-                            onMouseEnter={() => setHoveredMenu('products')}
-                            onMouseLeave={() => setHoveredMenu(null)}
-                        >
-                            <button className="flex items-center gap-1.5 text-[12px] font-black uppercase tracking-[0.2em] text-slate-100/60 hover:text-primary transition-colors">
-                                Products <ChevronDown size={12} />
-                            </button>
-                            {hoveredMenu === 'products' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
-                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-72 grid grid-cols-1 gap-4 backdrop-blur-xl">
-                                        {productsLinks.map((item) => (
-                                            <Link 
-                                                key={item.name} 
-                                                to={item.path} 
-                                                onClick={() => setHoveredMenu(null)}
-                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                            >
-                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                                <div>
-                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                        {item.name}
-                                                    </div>
-                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                        {item.desc}
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Resources Dropdown */}
-                        <div 
-                            className="relative py-2"
-                            onMouseEnter={() => setHoveredMenu('resources')}
-                            onMouseLeave={() => setHoveredMenu(null)}
-                        >
-                            <button className="flex items-center gap-1.5 text-[12px] font-black uppercase tracking-[0.2em] text-slate-100/60 hover:text-primary transition-colors">
-                                Resources <ChevronDown size={12} />
-                            </button>
-                            {hoveredMenu === 'resources' && (
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50">
-                                    <div className="bg-slate-950/95 border border-white/5 shadow-2xl p-6 rounded-3xl w-[30rem] grid grid-cols-2 gap-4 backdrop-blur-xl">
-                                        {resourcesLinks.map((item) => (
-                                            <Link 
-                                                key={item.name} 
-                                                to={item.path} 
-                                                onClick={() => setHoveredMenu(null)}
-                                                className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-white/5 transition-all"
-                                            >
-                                                <div className="w-1 h-6 bg-transparent group-hover:bg-primary rounded-full transition-colors self-stretch shrink-0" />
-                                                <div>
-                                                    <div className="text-[11px] font-black text-slate-100 group-hover:text-primary uppercase tracking-wider transition-colors">
-                                                        {item.name}
-                                                    </div>
-                                                    <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wide mt-0.5 leading-tight">
-                                                        {item.desc}
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <Link to="/about" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/about' ? 'text-primary' : 'text-slate-100/60 hover:text-primary'}`}>
-                            About
-                        </Link>
-
-                        <Link to="/contact" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors ${location.pathname === '/contact' ? 'text-primary' : 'text-slate-100/60 hover:text-primary'}`}>
-                            Contact
-                        </Link>
-
-                        {isAdminUser && (
-                            <Link to="/admin" className={`text-[12px] font-black uppercase tracking-[0.2em] transition-colors px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 ${location.pathname === '/admin' ? 'border-purple-500' : ''}`}>
-                                Admin
-                            </Link>
-                        )}
-
-                        {user ? (
-                            <div className="flex items-center gap-6 border-l border-white/5 pl-8">
-                                <Link to="/dashboard" className="text-[12px] font-black text-slate-100 uppercase tracking-widest hover:text-primary transition-colors">
-                                    {userName || 'Dashboard'}
-                                </Link>
-                                <Button size="md" variant="ghost" className="text-white opacity-40 hover:text-primary hover:opacity-100 transition-all" onClick={handleLogout}>
-                                    <LogOut size={18} />
-                                </Button>
-                            </div>
-                        ) : (
-                            <Link to="/login">
-                                <Button size="md" className="rounded-full px-8 py-5 font-black italic shadow-xl shadow-primary/20 bg-primary text-white border-none text-xs tracking-widest">SIGN IN</Button>
-                            </Link>
-                        )}
-                    </div>
-
-                    {/* Mobile Menu Toggle */}
-                    <div className="md:hidden">
-                        <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-white">
-                            {isOpen ? <X size={24} /> : <Menu size={24} />}
-                        </button>
-                    </div>
-                </div>
+                ))}
+                {isAdminUser && (
+                    <Link
+                        to="/admin"
+                        className={`text-[13px] font-black uppercase tracking-[0.14em] transition-colors ${isActive('/admin') ? 'text-purple-400' : 'text-slate-300 hover:text-purple-400'}`}
+                    >
+                        Admin
+                    </Link>
+                )}
             </div>
 
-            {/* Mobile Sidebar overlay */}
+            {/* Desktop auth actions */}
+            <div className="hidden lg:flex items-center gap-3">
+                {user ? (
+                    <>
+                        <Link to="/dashboard" className="btn-app-outline" style={{ minHeight: 42, padding: '0 18px' }}>
+                            <LayoutDashboard size={16} /> {userName || 'Dashboard'}
+                        </Link>
+                        <button
+                            onClick={handleLogout}
+                            className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 text-slate-300 hover:text-primary hover:border-primary/40 transition-all flex items-center justify-center"
+                            aria-label="Log out"
+                        >
+                            <LogOut size={18} />
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <Link to="/login" className="btn-app-outline" style={{ minHeight: 42, padding: '0 18px' }}>
+                            LOGIN
+                        </Link>
+                        <Link to="/login" className="btn-app-primary" style={{ minHeight: 42, padding: '0 20px' }}>
+                            CREATE RESQR
+                        </Link>
+                    </>
+                )}
+            </div>
+{/* Mobile actions: quick CTA + hamburger */}
+            <div className="flex lg:hidden items-center gap-2.5">
+                {!user && (
+                    <Link to="/login" className="btn-app-primary" style={{ minHeight: 40, padding: '0 16px', fontSize: 13 }}>
+                        CREATE RESQR
+                    </Link>
+                )}
+                {user && (
+                    <Link to="/dashboard" className="btn-app-outline" style={{ minHeight: 40, padding: '0 16px', fontSize: 13 }}>
+                        <User size={15} /> {userName?.split(' ')[0] || 'Account'}
+                    </Link>
+                )}
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="w-11 h-11 rounded-2xl bg-white/6 border border-white/10 text-white flex items-center justify-center"
+                    aria-label={isOpen ? 'Close menu' : 'Open menu'}
+                    aria-expanded={isOpen}
+                >
+                    {isOpen ? <X size={22} /> : <Menu size={22} />}
+                </button>
+            </div>
+
+            {/* Mobile slide-down menu */}
             {isOpen && (
-                <div className="md:hidden bg-black border-b border-white/10 py-8 px-6 space-y-6 shadow-2xl overflow-y-auto max-h-[85vh]">
-                    <div className="space-y-4">
-                        <Link to="/" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
-                            Home
+                <div className="lg:hidden absolute left-0 right-0 top-full bg-[#060A13]/96 backdrop-blur-xl border-b border-white/10 shadow-2xl py-6 px-5 space-y-5 overflow-y-auto max-h-[80vh] animate-in slide-in-from-top-4 duration-300 z-[70]">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Menu</p>
+                    {[...desktopLinks, ...(isAdminUser ? [{ name: 'Admin', path: '/admin' }] : [])].map((link) => (
+                        <Link
+                            key={link.name}
+                            to={link.path}
+                            onClick={() => setIsOpen(false)}
+                            className="flex items-center justify-between py-3 rounded-2xl bg-white/4 border border-white/8 text-sm font-black uppercase tracking-widest text-slate-200 hover:border-primary/30 hover:text-primary transition-all"
+                        >
+                            {link.name}
+                            <ChevronDown size={14} className="rotate-[-90deg]" />
                         </Link>
+                    ))}
 
-                        <Link to="/how-it-works" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
-                            How It Works
-                        </Link>
-
-                        {/* Solutions Accordion */}
-                        <div>
-                            <button 
-                                onClick={() => setOpenAccordion(openAccordion === 'solutions' ? null : 'solutions')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
-                            >
-                                Solutions <ChevronDown size={14} />
-                            </button>
-                            {openAccordion === 'solutions' && (
-                                <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
-                                    {solutionsLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
-                                            {item.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Products Accordion */}
-                        <div>
-                            <button 
-                                onClick={() => setOpenAccordion(openAccordion === 'products' ? null : 'products')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
-                            >
-                                Products <ChevronDown size={14} />
-                            </button>
-                            {openAccordion === 'products' && (
-                                <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
-                                    {productsLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
-                                            {item.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Resources Accordion */}
-                        <div>
-                            <button 
-                                onClick={() => setOpenAccordion(openAccordion === 'resources' ? null : 'resources')}
-                                className="w-full flex justify-between items-center text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary"
-                            >
-                                Resources <ChevronDown size={14} />
-                            </button>
-                            {openAccordion === 'resources' && (
-                                <div className="mt-3 pl-4 space-y-2 border-l border-white/10">
-                                    {resourcesLinks.map((item) => (
-                                        <Link key={item.name} to={item.path} onClick={() => setIsOpen(false)} className="block text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-wide py-1">
-                                            {item.name}
-                                        </Link>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <Link to="/about" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
-                            About
-                        </Link>
-
-                        <Link to="/contact" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-slate-100 hover:text-primary">
-                            Contact
-                        </Link>
-
-                        {isAdminUser && (
-                            <Link to="/admin" onClick={() => setIsOpen(false)} className="block text-sm font-black uppercase tracking-widest text-purple-400">
-                                Admin Console
-                            </Link>
-                        )}
-                    </div>
-
-                    <div className="pt-6 border-t border-white/5 space-y-4">
+                    <div className="pt-4 border-t border-white/10 space-y-3">
                         {user ? (
                             <>
-                                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="block text-center py-4 bg-white/5 border border-white/10 rounded-xl font-black text-xs uppercase tracking-widest text-white">
-                                    DASHBOARD ({userName})
+                                <Link to="/dashboard" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-black uppercase tracking-widest text-white">
+                                    <LayoutDashboard size={16} /> My Dashboard
                                 </Link>
-                                <Button size="lg" className="w-full bg-primary/10 hover:bg-primary/20 text-primary border-primary/20 rounded-xl font-black italic" onClick={handleLogout}>
-                                    LOGOUT
-                                </Button>
+                                <Link to="/scanner" onClick={() => setIsOpen(false)} className="w-full flex items-center gap-3 py-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-black uppercase tracking-widest text-white">
+                                    <QrCode size={16} /> Scan RESQR
+                                </Link>
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full flex items-center gap-3 py-4 rounded-2xl bg-primary/10 border border-primary/20 text-xs font-black uppercase tracking-widest text-primary"
+                                >
+                                    <LogOut size={16} /> Logout
+                                </button>
                             </>
                         ) : (
-                            <Link to="/login" onClick={() => setIsOpen(false)}>
-                                <Button size="lg" className="w-full rounded-xl shadow-xl bg-primary text-white border-none font-black italic">SIGN IN</Button>
+                            <Link to="/login" onClick={() => setIsOpen(false)} className="w-full flex items-center justify-center py-4 rounded-2xl btn-app-primary">
+                                <Shield size={16} /> Login / Create RESQR
                             </Link>
                         )}
                     </div>

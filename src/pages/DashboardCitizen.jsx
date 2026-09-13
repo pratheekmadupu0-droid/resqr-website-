@@ -15,6 +15,7 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, update, remove, onValue, set } from 'firebase/database';
 import toast from 'react-hot-toast';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
+import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
 
 export default function DashboardCitizen() {
@@ -271,7 +272,7 @@ export default function DashboardCitizen() {
         } catch (err) { toast.error('Download failed'); }
     };
 
-    if (loading) return <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white italic">SYNCHRONIZING HUB...</div>;
+    if (loading) return <AppLoading message="Synchronizing your emergency profile..." />;
     if (!auth.currentUser) return <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white"><Button onClick={() => navigate('/login')}>RE-AUTHENTICATE</Button></div>;
 
     const qrValue = username 
@@ -280,19 +281,29 @@ export default function DashboardCitizen() {
 
     const profileName = (editData?.name || activeProfile?.data?.name || auth.currentUser.displayName || 'Guardian').split(' ')[0].toUpperCase();
 
+    const openEmergencyPreview = () => {
+        if (username) {
+            window.open(`/${username}`, '_blank');
+        } else if (activeProfile?.id) {
+            window.open(`/qr/${activeProfile.id}`, '_blank');
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30">
             <div className="max-w-7xl mx-auto px-6 py-20 lg:py-32 space-y-12">
                 
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                    <div>
-                        <h1 className="text-5xl font-black italic uppercase tracking-tighter font-poppins text-white leading-tight">WELCOME BACK, {profileName}</h1>
+                    <div className="min-w-0">
+                        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black italic uppercase tracking-tighter font-poppins text-white leading-tight break-words">WELCOME BACK, {profileName}</h1>
                         <p className="text-slate-500 font-bold text-sm uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
                             System operational • All nodes secure {activeProfile?.identityType && `• ${activeProfile.identityType.toUpperCase()}`}
                         </p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-8 rounded-2xl hover:bg-slate-800" onClick={handleDownload}><Download size={16} className="mr-2" /> Download Tag</Button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button variant="outline" className="bg-[#11192A] border-white/5 text-emerald-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800 hover:text-emerald-300" onClick={openEmergencyPreview}><Eye size={16} className="mr-2" /> Preview Mode</Button>
+                        <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800" onClick={() => navigate('/scanner')}><QrCode size={16} className="mr-2" /> Scan RESQR</Button>
+                        <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800" onClick={handleDownload}><Download size={16} className="mr-2" /> Download Tag</Button>
                         <Button className="bg-primary text-white font-black italic uppercase text-xs h-12 px-8 rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-all border-none" onClick={() => setIsEditing(!isEditing)}><Edit3 size={16} className="mr-2" /> {isEditing ? 'Discard Changes' : 'Edit Profile'}</Button>
                     </div>
                 </header>

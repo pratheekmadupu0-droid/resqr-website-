@@ -16,10 +16,22 @@ export default {
                     light: '#457B9D',
                 },
                 medical: {
-                    bg: '#0A0E17', // Deep Medical Dark
-                    card: '#161C2C', // Medical Dark Card
+                    bg: '#05080F', // Deep Medical Night
+                    card: '#0C1322', // Medical Dark Card
                     accent: '#E63946',
-                }
+                },
+                gold: {
+                    DEFAULT: '#D9A441', // Vinayaka Chavithi premium gold
+                    light: '#F2C94C',
+                    dark: '#B8863B',
+                },
+                maroon: {
+                    DEFAULT: '#7A1F2E', // Deep festive maroon
+                },
+                night: {
+                    bg: '#04070C',
+                    card: '#0A101D',
+                },
             },
             borderRadius: {
                 'xl': '1rem',
@@ -30,6 +42,11 @@ export default {
                 sans: ['Inter', 'sans-serif'],
                 poppins: ['Poppins', 'sans-serif'],
                 manrope: ['Manrope', 'sans-serif'],
+            },
+            boxShadow: {
+                'gold-glow': '0 0 24px rgba(217, 164, 65, 0.35)',
+                'red-glow': '0 0 28px rgba(230, 57, 70, 0.35)',
+                'card-premium': '0 20px 48px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)',
             },
         },
     },
