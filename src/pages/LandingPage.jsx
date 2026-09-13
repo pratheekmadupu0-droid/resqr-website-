@@ -111,7 +111,7 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
         <div className="relative overflow-hidden bg-[#05080F] text-slate-100 font-sans">
 
             {/* ============ HERO — CINEMATIC FIRST SCREEN ============ */}
-            <section className="relative min-h-[100svh] flex flex-col items-center overflow-hidden pt-16 pb-16 lg:pt-24 lg:pb-24" aria-label="RESQR — your emergency information when it matters most">
+            <section className="relative min-h-[100svh] flex flex-col items-center overflow-hidden pt-10 pb-8 lg:pt-14 lg:pb-10" aria-label="RESQR — your emergency information when it matters most">
                 {/* Ambient cinematic lighting */}
                 <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                     <div className="absolute -top-[12%] -left-[8%] w-[55vw] h-[55vw] bg-primary/8 rounded-full blur-[120px]" />
@@ -126,14 +126,10 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
                     ))}
                 </div>
 
-                {/* ===== Devotional atmosphere (cinematic, subtle) ===== */}
-                <DevotionalBackground
-                    intensity="medium"
-                    parallaxX={0}
-                    parallaxY={0}
-                    className="hero-devotional"
-                    style={{ zIndex: 1 }}
-                />
+                {/* ===== Neon Ganesha photo background (public/ganesha-bg.png) ===== */}
+                <img src="/ganesha-bg.png" alt="" aria-hidden="true" className="hero-ganesha-bg" loading="eager" />
+                <div className="hero-ganesha-scrim" aria-hidden="true" />
+                <span style={{ display: 'none' }} aria-hidden="true" />
                 {/* ===== /devotional atmosphere ===== */}
 
                 <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-14 items-center relative z-10">
@@ -259,12 +255,12 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
             </section>
 
 {/* ============ VINAYAKA CHAVITHI CAMPAIGN ============ */}
-            <div className="max-w-4xl mx-auto px-4 mt-14">
+            <div className="max-w-4xl mx-auto px-4 mt-8">
                 <FestiveBanner mode="hero" />
             </div>
 
             {/* ============ TRUST — BECAUSE EMERGENCIES DON'T WAIT ============ */}
-            <section className="py-16 sm:py-20 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
+            <section className="pt-4 sm:pt-6 pb-14 sm:pb-16 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
                 <DevotionalBackground
                     intensity="low"
                     showGanesha={false}
@@ -324,7 +320,7 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
                 </div>
             </section>
 {/* ============ HOW RESQR WORKS — 3 CINEMATIC STEPS ============ */}
-            <section id="how-it-works" className="py-20 bg-[#05080F] border-t border-white/5 relative overflow-hidden" aria-label="How RESQR works">
+            <section id="how-it-works" className="pt-8 sm:pt-10 pb-16 sm:pb-20 bg-[#05080F] border-t border-white/5 relative overflow-hidden" aria-label="How RESQR works">
                 <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                     <div className="absolute top-1/4 left-0 w-[40vw] h-[40vh] bg-primary/5 rounded-full blur-[110px]" />
                     <div className="absolute bottom-1/4 right-0 w-[40vw] h-[40vh] bg-gold/5 rounded-full blur-[110px]" />

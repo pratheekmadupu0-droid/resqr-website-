@@ -23,6 +23,8 @@ export default function FestiveBanner({ mode = 'ribbon' }) {
                 className="festive-banner relative overflow-hidden mx-auto w-full animate-in slide-in-from-bottom-3 duration-700"
                 aria-label="Vinayaka Chavithi greetings"
             >
+                <img src="/ganesha-bg.png" alt="" aria-hidden="true" className="festive-bg-photo" loading="lazy" />
+                <div className="festive-bg-scrim" aria-hidden="true" />
                 {particles.map((p, i) => (
                     <span
                         key={i}
@@ -31,9 +33,12 @@ export default function FestiveBanner({ mode = 'ribbon' }) {
                     />
                 ))}
 
-                <div className="relative px-6 sm:px-10 py-10 sm:py-12 text-center">
+                <div className="relative px-6 sm:px-10 pt-6 sm:pt-8 pb-8 sm:pb-10 text-center">
                     {/* Ganesha-inspired ornament row */}
-                    <div className="flex items-center justify-center gap-4 mb-5" aria-hidden="true">
+                    <div className="relative flex justify-center mb-4" aria-hidden="true">
+                        <img src="/ganesha-idol.png" alt="Lord Ganesha" className="festive-idol" loading="lazy" />
+                    </div>
+                    <div className="flex items-center justify-center gap-4 mb-5" aria-hidden="true" style={{ display: 'none' }}>
                         <span className="festive-orbit" />
                         <span className="diya" />
                         <Sparkles size={26} className="text-gold" />
