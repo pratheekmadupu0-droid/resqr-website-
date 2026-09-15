@@ -114,6 +114,33 @@ export default function QRScanPage() {
                             
                             ...(raw.data || {})
                         };
+
+                        // ===== Privacy enforcement (owner-controlled field visibility) =====
+                        // Fields set to `false` in the profile's `privacy` node are stripped
+                        // BEFORE anything renders, so a scanner never receives hidden data.
+                        const pv = raw.privacy || {};
+                        if (pv.bloodGroup === false) mergedData.bloodGroup = '';
+                        if (pv.allergies === false) mergedData.allergies = '';
+                        if (pv.medicalConditions === false) mergedData.healthIssues = '';
+                        if (pv.currentMedication === false) mergedData.currentMedication = '';
+                        if (pv.previousSurgeries === false) mergedData.previousSurgeries = '';
+                        if (pv.emergencyNotes === false) mergedData.emergencyNotes = '';
+                        if (pv.emergencyContacts === false) {
+                            mergedData.emergencyContactName = '';
+                            mergedData.emergencyContactRelation = '';
+                            mergedData.emergencyContactPhone = '';
+                        }
+                        if (pv.insurance === false) {
+                            mergedData.insuranceCompany = '';
+                            mergedData.policyNumber = '';
+                            mergedData.coverageAmount = '';
+                            mergedData.cashlessFacility = false;
+                        }
+                        if (pv.organDonor === false) mergedData.isOrganDonor = false;
+                        if (pv.address === false) {
+                            mergedData.address = null;
+                            ['houseNo', 'street', 'area', 'city', 'district', 'state', 'pincode'].forEach(k => { delete mergedData[k]; });
+                        }
                         
                         actualUid = actualUid || raw.uid || (actualPid.includes('_') ? (actualPid.startsWith('c_') ? actualPid.replace('c_', '') : actualPid.split('_')[0]) : null);
                         

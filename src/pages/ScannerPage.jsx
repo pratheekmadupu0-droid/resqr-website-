@@ -21,7 +21,8 @@ const ScannerPage = () => {
   const [isCvLoaded, setIsCvLoaded] = useState(false);
 
   useEffect(() => {
-    // Check if OpenCV is ready
+    // Check if OpenCV is ready — load it on demand (lazy, ~2MB, only needed here)
+    if (window.loadOpenCV) window.loadOpenCV();
     const checkCV = setInterval(() => {
       if (window.cvReady && window.cv) {
         setIsCvLoaded(true);

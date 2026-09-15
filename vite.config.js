@@ -5,4 +5,16 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/',
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Firebase SDK is large and stable — cache it separately from app code
+          firebase: ['firebase/app', 'firebase/auth', 'firebase/database', 'firebase/analytics'],
+          // Animation + QR render libraries used across the app
+          vendor: ['framer-motion', 'qrcode.react', 'lucide-react'],
+        },
+      },
+    },
+  },
 })

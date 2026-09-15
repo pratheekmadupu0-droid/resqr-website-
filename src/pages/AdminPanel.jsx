@@ -535,7 +535,9 @@ export default function AdminPanel() {
 
     const compareFacesOpenCV = async (liveCanvas, profilePhotoSrc) => {
         if (!window.cv) {
-            console.warn("OpenCV is not loaded.");
+            // Trigger a lazy load so the engine is ready for subsequent scans
+            if (window.loadOpenCV) window.loadOpenCV();
+            console.warn("OpenCV is not loaded yet.");
             return null; // Indicates OpenCV is not ready
         }
         const cv = window.cv;

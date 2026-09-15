@@ -305,6 +305,8 @@ export default function CreateIdentity() {
             if (citizenProfilePhoto) {
                 const t = toast.loading("Analyzing Facial Node...");
                 try {
+                    // Ensure OpenCV engine is loaded before extracting features (lazy load)
+                    if (window.loadOpenCV) await window.loadOpenCV();
                     const features = await extractFeatures(citizenProfilePhoto);
                     descriptors = features.descriptors;
                     scannerType = 'facial';

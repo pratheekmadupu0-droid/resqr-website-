@@ -1,51 +1,54 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
-import Dashboard from './pages/Dashboard';
-import MyQR from './pages/MyQR';
-import EmergencyPreview from './pages/EmergencyPreview';
-import NotFound from './pages/NotFound';
-import PaymentPage from './pages/PaymentPage';
-import SuccessPage from './pages/SuccessPage';
-import EmergencyPage from './pages/EmergencyPage';
-import QRScanPage from './pages/QRScanPage';
-import AdminPanel from './pages/AdminPanel';
-import LoginPage from './pages/LoginPage';
-import CreateIdentity from './pages/CreateIdentity';
+
+// Route-level code splitting: each page is fetched on demand so the initial
+// bundle stays small and the homepage loads fast (perf requirement #32).
+import React, { Component, lazy, Suspense, useEffect } from 'react';
+import { ShieldAlert, RefreshCw } from 'lucide-react';
+
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import MobileNav from './components/MobileNav';
-import ContactUs from './pages/ContactUs';
-import LegalPage from './pages/LegalPage';
-import AboutUs from './pages/AboutUs';
-import ViralQR from './pages/ViralQR';
-import ScannerPage from './pages/ScannerPage';
-import StorePage from './pages/StorePage';
 import SiconBadge from './components/SiconBadge';
-import { useEffect } from 'react';
+import AppLoading from './components/ui/AppLoading';
 
-// New expansion pages
-import HowItWorks from './pages/HowItWorks';
-import SolutionsIndividuals from './pages/SolutionsIndividuals';
-import SolutionsFamilies from './pages/SolutionsFamilies';
-import SolutionsDoctors from './pages/SolutionsDoctors';
-import SolutionsHospitals from './pages/SolutionsHospitals';
-import SolutionsAmbulances from './pages/SolutionsAmbulances';
-import SolutionsFirstResponders from './pages/SolutionsFirstResponders';
-import SolutionsEnterprises from './pages/SolutionsEnterprises';
-import SolutionsSchools from './pages/SolutionsSchools';
-import SolutionsGovernment from './pages/SolutionsGovernment';
-import SafetyPrivacy from './pages/SafetyPrivacy';
-import Technology from './pages/Technology';
-import ProductsPage from './pages/ProductsPage';
-import PricingPage from './pages/PricingPage';
-import PartnersPage from './pages/PartnersPage';
-import StoriesPage from './pages/StoriesPage';
-import EmergencyAwareness from './pages/EmergencyAwareness';
-import FAQPage from './pages/FAQPage';
-import HelpCenter from './pages/HelpCenter';
-
-import React, { Component } from 'react';
-import { ShieldAlert, RefreshCw } from 'lucide-react';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MyQR = lazy(() => import('./pages/MyQR'));
+const EmergencyPreview = lazy(() => import('./pages/EmergencyPreview'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const PaymentPage = lazy(() => import('./pages/PaymentPage'));
+const PrivacySettings = lazy(() => import('./pages/PrivacySettings'));
+const SuccessPage = lazy(() => import('./pages/SuccessPage'));
+const EmergencyPage = lazy(() => import('./pages/EmergencyPage'));
+const QRScanPage = lazy(() => import('./pages/QRScanPage'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const CreateIdentity = lazy(() => import('./pages/CreateIdentity'));
+const ContactUs = lazy(() => import('./pages/ContactUs'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
+const AboutUs = lazy(() => import('./pages/AboutUs'));
+const ViralQR = lazy(() => import('./pages/ViralQR'));
+const ScannerPage = lazy(() => import('./pages/ScannerPage'));
+const StorePage = lazy(() => import('./pages/StorePage'));
+const HowItWorks = lazy(() => import('./pages/HowItWorks'));
+const SolutionsIndividuals = lazy(() => import('./pages/SolutionsIndividuals'));
+const SolutionsFamilies = lazy(() => import('./pages/SolutionsFamilies'));
+const SolutionsDoctors = lazy(() => import('./pages/SolutionsDoctors'));
+const SolutionsHospitals = lazy(() => import('./pages/SolutionsHospitals'));
+const SolutionsAmbulances = lazy(() => import('./pages/SolutionsAmbulances'));
+const SolutionsFirstResponders = lazy(() => import('./pages/SolutionsFirstResponders'));
+const SolutionsEnterprises = lazy(() => import('./pages/SolutionsEnterprises'));
+const SolutionsSchools = lazy(() => import('./pages/SolutionsSchools'));
+const SolutionsGovernment = lazy(() => import('./pages/SolutionsGovernment'));
+const SafetyPrivacy = lazy(() => import('./pages/SafetyPrivacy'));
+const Technology = lazy(() => import('./pages/Technology'));
+const ProductsPage = lazy(() => import('./pages/ProductsPage'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
+const PartnersPage = lazy(() => import('./pages/PartnersPage'));
+const StoriesPage = lazy(() => import('./pages/StoriesPage'));
+const EmergencyAwareness = lazy(() => import('./pages/EmergencyAwareness'));
+const FAQPage = lazy(() => import('./pages/FAQPage'));
+const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 
 class AdminErrorBoundary extends Component {
     constructor(props) {
@@ -103,13 +106,14 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings'].includes(location.pathname.split('/')[1]));
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <ScrollToTop />
             {!isScanPage && <Navbar />}
             <main className={`flex-grow ${isScanPage ? 'pt-0' : 'pb-24 lg:pb-0'}`}>
+                <Suspense fallback={<AppLoading message="Loading RESQR..." />}>
                 <Routes>
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/about" element={<AboutUs />} />
@@ -121,6 +125,7 @@ function App() {
                     <Route path="/create-profile" element={<Navigate to="/login" replace />} />
                     <Route path="/create-identity" element={<CreateIdentity />} />
                     <Route path="/payment" element={<PaymentPage />} />
+                    <Route path="/privacy-settings" element={<PrivacySettings />} />
                     <Route path="/success" element={<SuccessPage />} />
                     <Route path="/e/:id" element={<EmergencyPage />} />
                     <Route path="/qr/:profileId" element={<QRScanPage />} />
@@ -155,6 +160,7 @@ function App() {
                     <Route path="/:username" element={<QRScanPage />} />
                     <Route path="*" element={<NotFound />} />
                 </Routes>
+                </Suspense>
             </main>
             {!isScanPage && <Footer />}
             {!isScanPage && <MobileNav />}

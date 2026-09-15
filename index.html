@@ -3,12 +3,12 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="resqr_logo.png" sizes="32x32" />
-  <link rel="icon" type="image/png" href="resqr_logo.png" sizes="192x192" />
-  <link rel="icon" type="image/png" href="resqr_logo.png" sizes="512x512" />
-  <link rel="apple-touch-icon" href="resqr_logo.png" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="shortcut icon" href="resqr_logo.png" />
+  <link rel="icon" type="image/png" href="/resqr_logo.png" sizes="32x32" />
+  <link rel="icon" type="image/png" href="/resqr_logo.png" sizes="192x192" />
+  <link rel="icon" type="image/png" href="/resqr_logo.png" sizes="512x512" />
+  <link rel="apple-touch-icon" href="/resqr_logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="shortcut icon" href="/resqr_logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#040812" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -21,29 +21,54 @@
   <meta property="og:title" content="RESQR — Official Emergency QR Identity Platform" />
   <meta property="og:description"
     content="RESQR (resqr.co.in) is the official emergency QR identity platform designed to provide instant access to life-saving information during accidents." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.resqr.co.in/" />
+  <meta property="og:image" content="https://www.resqr.co.in/resqr_logo.png" />
+  <meta property="og:site_name" content="RESQR" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="RESQR — Emergency-First QR Identity" />
+  <meta name="twitter:description" content="RESQR makes critical emergency information accessible when it matters most." />
+  <meta name="twitter:image" content="https://www.resqr.co.in/resqr_logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <meta name="google-site-verification" content="google1e5895ef3925f1c9.html" />
   <script>
+    // OpenCV is loaded LAZILY on demand (scanner / facial enrollment pages only).
+    // Pages poll window.cvReady === true before using window.cv.
     window.cvReady = false;
     var Module = {
       onRuntimeInitialized: function() {
         window.cvReady = true;
         window.cv = window.cv || cv;
-        console.log('RESQR AI Engine: OpenCV.js is ready');
       }
     };
+    window.loadOpenCV = function () {
+      if (window.cvReady) return Promise.resolve();
+      if (!window._cvLoadPromise) {
+        window._cvLoadPromise = new Promise(function (resolve) {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://docs.opencv.org/4.5.4/opencv.js';
+          s.onload = function () {
+            // Runtime init is async — resolve once the poll condition can flip.
+            var check = setInterval(function () {
+              if (window.cvReady) { clearInterval(check); resolve(); }
+            }, 200);
+          };
+          s.onerror = function () { window._cvLoadPromise = null; resolve(); };
+          document.head.appendChild(s);
+        });
+      }
+      return window._cvLoadPromise;
+    };
   </script>
-  <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript"></script>
 </head>
 
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
-  <!-- Razorpay Checkout script -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <!-- Razorpay Checkout is loaded on demand by DemoRazorpayModal (no blocking CDN script needed) -->
 </body>
 
 </html>
