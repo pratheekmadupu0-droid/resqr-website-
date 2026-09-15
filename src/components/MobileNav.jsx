@@ -25,7 +25,7 @@ export default function MobileNav() {
     const items = [
         { key: 'home', label: 'Home', icon: Home, to: '/' },
         { key: 'profile', label: 'Profile', icon: UserRound, to: '/dashboard' },
-        { key: 'myqr', label: 'My QR', icon: QrCode, to: '/dashboard#my-qr' },
+        { key: 'myqr', label: 'My QR', icon: QrCode, to: '/my-qr' },
         { key: 'scan', label: 'Scan', icon: ScanLine, to: '/scanner' },
         { key: 'account', label: 'Account', icon: CircleUserRound, to: isAuthed ? '/dashboard' : '/login' },
     ];
@@ -33,7 +33,8 @@ export default function MobileNav() {
     const activeKey = (() => {
         if (path === '/') return 'home';
         if (path === '/scanner') return 'scan';
-        if (path.startsWith('/dashboard')) return location.hash === '#my-qr' ? 'myqr' : 'profile';
+        if (path === '/my-qr') return 'myqr';
+        if (path.startsWith('/dashboard')) return 'profile';
         if (path === '/login' || path === '/payment') return 'account';
         return null;
     })();

@@ -1,6 +1,25 @@
 ﻿import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 
 /**
+ * Builds animation style props using longhands only.
+ *
+ * React warns when the `animation` shorthand and a longhand such as
+ * `animationDelay` are set on the same element (it causes styling bugs on
+ * rerender), so every animated layer here composes longhands instead.
+ */
+function anim(name, { duration, timing = 'ease-in-out', iteration = 'infinite', fill = 'none', delay = '0s' } = {}, enabled = true) {
+    return {
+        animationName: enabled ? name : 'none',
+        animationDuration: duration,
+        animationTimingFunction: timing,
+        animationIterationCount: iteration,
+        animationFillMode: fill,
+        animationDelay: delay,
+        animationPlayState: 'running',
+    };
+}
+
+/**
  * DevotionalBackground — reusable cinematic devotional atmosphere layer.
  *
  * Places a subtle Lord Ganesha-inspired atmosphere BEHIND the UI.
@@ -126,8 +145,7 @@ export default function DevotionalBackground({
                     background:
                         'radial-gradient(1400px 800px at 50% 100%, rgba(217,164,65,0.035), transparent 65%), linear-gradient(180deg, #04070C 0%, #05080F 40%, #060A13 100%)',
                     opacity: 0.35,
-                    animation: shouldAnimate ? 'devotional-fade-in 1s ease-out both' : 'none',
-                    animationDelay: '0s',
+                    ...anim('devotional-fade-in', { duration: '1s', timing: 'ease-out', iteration: '1', fill: 'both' }, shouldAnimate),
                 }}
                 aria-hidden="true"
             />
@@ -184,10 +202,7 @@ export default function DevotionalBackground({
                         style={{
                             position: 'absolute',
                             inset: 0,
-                            animation: shouldAnimate
-                                ? 'devotional-mandala-float 24s ease-in-out infinite'
-                                : 'none',
-                            animationDelay: '1s',
+                            ...anim('devotional-mandala-float', { duration: '24s', delay: '1s' }, shouldAnimate),
                             pointerEvents: 'none',
                         }}
                         aria-hidden="true"
@@ -215,10 +230,7 @@ export default function DevotionalBackground({
                 >
                     <div
                         style={{
-                            animation: shouldAnimate
-                                ? 'devotional-ganesha-fade 1.4s ease-out both'
-                                : 'none',
-                            animationDelay: '0.4s',
+                            ...anim('devotional-ganesha-fade', { duration: '1.4s', timing: 'ease-out', iteration: '1', fill: 'both', delay: '0.4s' }, shouldAnimate),
                             pointerEvents: 'none',
                         }}
                         aria-hidden="true"
@@ -263,10 +275,7 @@ export default function DevotionalBackground({
                             position: 'absolute',
                             inset: 0,
                             pointerEvents: 'none',
-                            animation: shouldAnimate
-                                ? 'devotional-diyas-drift 28s ease-in-out infinite'
-                                : 'none',
-                            animationDelay: '2s',
+                            ...anim('devotional-diyas-drift', { duration: '28s', delay: '2s' }, shouldAnimate),
                         }}
                         aria-hidden="true"
                     >
@@ -294,10 +303,7 @@ function DevotionalParticle({ particle, animate }) {
                 background: 'rgba(217,164,65,0.55)',
                 boxShadow: '0 0 6px rgba(217,164,65,0.7), 0 0 2px rgba(255,210,122,0.5)',
                 opacity: animate ? undefined : 0.8,
-                animation: animate
-                    ? `devotional-particle-float ${particle.duration}s ease-in-out infinite`
-                    : 'none',
-                animationDelay: animate ? particle.delay : '0s',
+                ...anim('devotional-particle-float', { duration: `${particle.duration}s`, delay: animate ? particle.delay : '0s' }, animate),
                 pointerEvents: 'none',
             }}
             aria-hidden="true"
@@ -329,8 +335,7 @@ function Diya({ position, scale = 1, glowSize = 120, delay = 0, animate = true }
                     background:
                         'radial-gradient(50% 50% at 50% 50%, rgba(255,178,80,0.45), rgba(255,140,40,0.18) 40%, transparent 72%)',
                     filter: 'blur(7px)',
-                    animation: animate ? 'devotional-diyas-flicker 3.2s ease-in-out infinite' : 'none',
-                    animationDelay: animate ? String(delay) + 's' : '0s',
+                    ...anim('devotional-diyas-flicker', { duration: '3.2s', delay: animate ? String(delay) + 's' : '0s' }, animate),
                 }}
                 aria-hidden="true"
             />
@@ -352,8 +357,7 @@ function Diya({ position, scale = 1, glowSize = 120, delay = 0, animate = true }
                     background: '#FFD27A',
                     boxShadow: '0 0 10px rgba(255,178,80,0.8), 0 0 3px #FFB350',
                     marginTop: -4,
-                    animation: animate ? 'devotional-flame 2.6s ease-in-out infinite' : 'none',
-                    animationDelay: animate ? String(delay) + 's' : '0s',
+                    ...anim('devotional-flame', { duration: '2.6s', delay: animate ? String(delay) + 's' : '0s' }, animate),
                 }}
                 aria-hidden="true"
             />

@@ -123,15 +123,23 @@ export default function DashboardCitizen() {
         return () => { if (unsubscribe) unsubscribe(); };
     }, [navigate]);
 
-    const triggerSavePayment = () => {
-        if (!editData.name || !editData.bloodGroup || !editData.emergencyContactName || !editData.emergencyContactPhone) {
-            toast.error("Please fill Name, Blood Group, and Guardian details.");
+    /**
+     * Profile records belong to the citizen — saving them is always free.
+     * Physical tag orders are a separate, optional purchase (see the QR card).
+     */
+    const saveSection = async (section) => {
+        if (section === 'personal' && (!editData.name || !editData.emergencyContactName || !editData.emergencyContactPhone)) {
+            toast.error("Please fill Name and Guardian details.");
             return;
         }
-        setIsRazorpayOpen(true);
+        if (section === 'medical' && !editData.bloodGroup) {
+            toast.error("Please select a blood group before saving medical records.");
+            return;
+        }
+        await handleSave();
     };
 
-    const handleSave = async (paymentId) => {
+    const handleSave = async () => {
         try {
             const t = toast.loading("Syncing Secure Identity...");
             const uid = auth.currentUser.uid;
@@ -204,7 +212,7 @@ export default function DashboardCitizen() {
                     ...editData,
                     age: computedAge
                 },
-                lastUpdatePaymentId: paymentId || "update_pay_" + Math.random().toString(36).substr(2, 9),
+                lastSyncRef: "sync_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
                 lastUpdatedAt: new Date().toISOString()
             };
 
@@ -314,6 +322,7 @@ export default function DashboardCitizen() {
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                         <Button variant="outline" className="bg-[#11192A] border-white/5 text-emerald-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800 hover:text-emerald-300" onClick={openEmergencyPreview}><Eye size={16} className="mr-2" /> Preview Mode</Button>
+                        <Button variant="outline" className="bg-gold/10 border-gold/30 text-gold font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-gold/20" onClick={() => navigate('/my-qr')}><QrCode size={16} className="mr-2" /> MY RESQR</Button>
                         <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800" onClick={() => navigate('/scanner')}><QrCode size={16} className="mr-2" /> Scan RESQR</Button>
                         <Button variant="outline" className="bg-[#11192A] border-white/5 text-slate-400 font-black italic uppercase text-xs h-12 px-6 rounded-2xl hover:bg-slate-800" onClick={handleDownload}><Download size={16} className="mr-2" /> Download Tag</Button>
                         <Button className="bg-primary text-white font-black italic uppercase text-xs h-12 px-8 rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-all border-none" onClick={() => setIsEditing(!isEditing)}><Edit3 size={16} className="mr-2" /> {isEditing ? 'Discard Changes' : 'Edit Profile'}</Button>
@@ -513,18 +522,17 @@ export default function DashboardCitizen() {
                                     {/* Action Buttons */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-white/5">
                                         <Button 
-                                            variant="outline" 
                                             onClick={() => setIsEditing(false)}
-                                            className="w-full h-16 bg-transparent text-slate-400 hover:text-white border-white/10 font-black italic uppercase tracking-[0.2em] rounded-2xl"
+                                            className="w-full h-16 bg-transparent text-slate-400 hover:text-white border border-white/10 font-black italic uppercase tracking-[0.2em] rounded-2xl"
                                         >
                                             Cancel
                                         </Button>
                                         <Button 
-                                            onClick={triggerSavePayment} 
-                                            className="w-full h-16 bg-primary text-white font-black italic uppercase tracking-[0.15em] rounded-2xl shadow-2xl shadow-primary/20 flex flex-col justify-center items-center leading-none"
+                                            onClick={() => saveSection(editTab)} 
+                                            className="w-full h-16 bg-primary hover:bg-primary-dark text-white font-black italic uppercase tracking-[0.15em] rounded-2xl shadow-2xl shadow-primary/20 flex flex-col justify-center items-center leading-none"
                                         >
-                                            <span className="text-sm">COMMIT RECORDS</span>
-                                            <span className="text-[9px] text-white/60 mt-1.5 uppercase tracking-widest font-sans font-bold">Requires ₹49 Secure Sync Fee</span>
+                                            <span className="text-sm">SAVE {editTab === 'personal' ? 'PERSONAL' : editTab === 'medical' ? 'MEDICAL' : 'INSURANCE'} DETAILS</span>
+                                            <span className="text-[9px] text-white/70 mt-1.5 uppercase tracking-widest font-sans font-bold">Instant sync • Always free</span>
                                         </Button>
                                     </div>
                                 </div>
@@ -608,7 +616,15 @@ export default function DashboardCitizen() {
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-6 font-poppins leading-relaxed">Personalized Link: <span className="text-emerald-400 lowercase">resqr.co.in/{username || '...'}</span></p>
                                 <div className="flex flex-col gap-3 w-full">
                                     <Button onClick={handleDownload} className="w-full h-16 bg-red-600 hover:bg-red-700 text-white font-black italic uppercase tracking-widest rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-red-600/20">DOWNLOAD TAG <Download size={18} /></Button>
+                                    <Link to="/my-qr" className="w-full"><Button className="w-full h-14 bg-gold hover:bg-gold-light text-black font-black italic uppercase tracking-widest rounded-2xl flex items-center justify-center gap-3 shadow-gold-glow">MY RESQR CONSOLE <QrCode size={16} /></Button></Link>
                                     <Link to={username ? `/${username}` : `/qr/${activeProfile?.id}`} target="_blank" className="w-full"><Button variant="outline" className="w-full h-14 bg-transparent text-white border-white/10 font-black italic uppercase tracking-widest rounded-2xl flex items-center justify-center gap-3">Preview Page <ExternalLink size={16} /></Button></Link>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRazorpayOpen(true)}
+                                        className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-gold transition-colors py-2"
+                                    >
+                                        Order a physical tag • from ₹149
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -723,14 +739,13 @@ export default function DashboardCitizen() {
             <DemoRazorpayModal 
                 isOpen={isRazorpayOpen}
                 onClose={() => setIsRazorpayOpen(false)}
-                amount={49}
-                title="RESQR Vault Record Update"
+                amount={149}
+                title="RESQR Physical Emergency Tag"
                 customerName={editData.name || 'RESQR Citizen'}
                 customerEmail={editData.email || 'citizen@resqr.co.in'}
                 customerPhone={editData.phone || '9876543210'}
                 onSuccess={(paymentInfo) => {
-                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
-                    handleSave(paymentInfo.razorpay_payment_id);
+                    toast.success(`Physical tag order confirmed! Reference: ${paymentInfo.razorpay_payment_id}`);
                 }}
             />
         </div>

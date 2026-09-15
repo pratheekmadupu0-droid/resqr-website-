@@ -101,7 +101,7 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr'].includes(location.pathname.split('/')[1]));
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
@@ -114,6 +114,7 @@ function App() {
                     <Route path="/free-qr" element={<ViralQR />} />
                     <Route path="/viral-id" element={<ViralQR />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/my-qr" element={<MyQR />} />
                     <Route path="/create-profile" element={<Navigate to="/login" replace />} />
                     <Route path="/create-identity" element={<CreateIdentity />} />
                     <Route path="/payment" element={<PaymentPage />} />
