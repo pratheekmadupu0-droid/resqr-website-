@@ -1184,3 +1184,420 @@ input[type='number']::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
+
+/* ============================================================
+   EMERGENCY PROFILE SURFACE
+   Used by EmergencyProfileView (live scan + owner preview).
+   Deliberately restrained: calm surfaces, clear hierarchy,
+   big touch targets, no festive/ambient decoration behind data.
+   ============================================================ */
+
+.em-card {
+    background: linear-gradient(180deg, #0E1626 0%, #0A101D 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--resqr-radius-2xl);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.em-card-emergency {
+    background: linear-gradient(180deg, #E63946 0%, #C22E3A 100%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: var(--resqr-radius-2xl);
+    box-shadow: 0 18px 44px rgba(230, 57, 70, 0.32);
+    color: #fff;
+}
+
+.em-topline {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, rgba(230, 57, 70, 0.7), transparent);
+}
+
+.em-topline-muted {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+.em-eyebrow {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--resqr-text-dim);
+    font-style: italic;
+}
+
+.em-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #cbd5e1;
+}
+
+.em-chip-verified {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.28);
+    color: #4ade80;
+}
+
+.em-icon-tile {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(29, 53, 87, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #93c5fd;
+}
+
+.em-icon-tile-red {
+    background: rgba(230, 57, 70, 0.12);
+    border-color: rgba(230, 57, 70, 0.24);
+    color: #ff6b78;
+}
+
+.em-icon-tile-gold {
+    background: rgba(217, 164, 65, 0.12);
+    border-color: rgba(217, 164, 65, 0.26);
+    color: var(--resqr-gold);
+}
+/* ---------- Data tiles ---------- */
+.em-tile {
+    padding: 18px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.em-tile-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--resqr-text-dim);
+    margin-bottom: 8px;
+}
+
+.em-tile-danger {
+    background: rgba(230, 57, 70, 0.07);
+    border-color: rgba(230, 57, 70, 0.22);
+}
+.em-tile-danger .em-tile-label {
+    color: #ff8a94;
+}
+
+.em-tile-info {
+    background: rgba(59, 130, 246, 0.06);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+.em-tile-info .em-tile-label {
+    color: #93c5fd;
+}
+
+.em-tile-muted .em-tile-label {
+    color: #94a3b8;
+}
+
+/* ---------- Emergency contacts ---------- */
+.em-contact-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.em-call-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    min-height: 48px;
+    border-radius: 18px;
+    background: var(--resqr-red);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 28px rgba(230, 57, 70, 0.28);
+    transition: transform 0.2s var(--resqr-ease), background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.em-call-button:hover {
+    background: #d62828;
+    transform: translateY(-1px);
+}
+
+.em-call-button:active {
+    transform: scale(0.97);
+}
+
+/* ---------- Emergency actions ---------- */
+.em-action-primary,
+.em-action-secondary,
+.em-action-ghost,
+.em-action-ambulance {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    border-radius: 30px;
+    font-weight: 900;
+    font-style: italic;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    transition: transform 0.22s var(--resqr-ease), box-shadow 0.22s var(--resqr-ease), background 0.22s ease;
+}
+
+.em-action-primary {
+    min-height: 60px;
+    padding: 0 24px;
+    background: var(--resqr-red);
+    color: #fff;
+    font-size: 13px;
+    box-shadow: 0 16px 34px rgba(230, 57, 70, 0.3);
+}
+
+.em-action-secondary {
+    min-height: 62px;
+    padding: 0 24px;
+    background: #059669;
+    color: #fff;
+    font-size: 14px;
+    box-shadow: 0 16px 34px rgba(16, 185, 129, 0.28);
+}
+
+.em-action-ambulance {
+    min-height: 76px;
+    padding: 14px 24px;
+    background: #ffffff;
+    color: #05080F;
+    font-size: 14px;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.45);
+}
+
+.em-action-ghost {
+    min-height: 60px;
+    padding: 0 24px;
+    background: rgba(17, 25, 42, 0.9);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px;
+}
+
+.em-action-primary:hover,
+.em-action-secondary:hover,
+.em-action-ambulance:hover,
+.em-action-ghost:hover {
+    transform: translateY(-2px);
+}
+
+.em-action-primary:active,
+.em-action-secondary:active,
+.em-action-ambulance:active,
+.em-action-ghost:active {
+    transform: scale(0.985);
+}
+
+.em-action-secondary:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: progress;
+}
+
+/* ============================================================
+   SHARED APP UTILITIES (consistent across every page)
+   ============================================================ */
+
+/* Secondary app button (glass, neutral) — pairs with btn-app-primary */
+.btn-app-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 20px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: all 0.25s var(--resqr-ease);
+}
+
+.btn-app-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.22);
+    transform: translateY(-1px);
+}
+
+.btn-app-secondary:active {
+    transform: scale(0.97);
+}
+
+/* Small status pill used in dashboards and previews */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+}
+
+.status-pill-success {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.28);
+    color: #34d399;
+}
+
+.status-pill-warning {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.28);
+    color: #fbbf24;
+}
+
+.status-pill-danger {
+    background: rgba(230, 57, 70, 0.1);
+    border-color: rgba(230, 57, 70, 0.3);
+    color: #ff7180;
+}
+
+/* Empty-state block: dashed, calm, always with an action */
+.empty-state {
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: var(--resqr-radius-2xl);
+    padding: 28px 22px;
+    text-align: center;
+}
+
+.empty-state-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #cbd5e1;
+    margin-top: 12px;
+}
+
+.empty-state-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 6px;
+    line-height: 1.6;
+}
+
+/* Loading shimmer for skeletons */
+@keyframes resqr-shimmer {
+    0% { background-position: -420px 0; }
+    100% { background-position: 420px 0; }
+}
+
+.skeleton {
+    border-radius: 16px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.035) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.035) 100%);
+    background-size: 840px 100%;
+    animation: resqr-shimmer 1.5s linear infinite;
+}
+
+/* ============================================================
+   QR SAFETY RULES
+   A scannable QR must never sit under moving/animated layers.
+   Any wrapper marked .qr-safe disables animation & blend effects
+   on its children so contrast stays stable for camera scanning.
+   ============================================================ */
+.qr-safe,
+.qr-safe * {
+    animation: none !important;
+    mix-blend-mode: normal !important;
+    filter: none !important;
+}
+
+.qr-safe {
+    background: #ffffff;
+    isolation: isolate;
+}
+
+/* Route transition wrapper (respects reduced motion) */
+.route-fade {
+    animation: resqr-route-fade 0.32s var(--resqr-ease) both;
+}
+
+@keyframes resqr-route-fade {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .route-fade,
+    .skeleton {
+        animation: none !important;
+        transform: none !important;
+    }
+    .em-action-primary:hover,
+    .em-action-secondary:hover,
+    .em-action-ambulance:hover,
+    .em-action-ghost:hover,
+    .btn-app-secondary:hover,
+    .em-call-button:hover {
+        transform: none;
+    }
+}
+
+/* Keep emergency data screens readable on very small phones */
+@media (max-width: 380px) {
+    .em-card {
+        border-radius: 24px;
+    }
+    .em-card-emergency p.text-5xl {
+        font-size: 2.5rem;
+    }
+    .em-contact-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .em-call-button {
+        width: 100%;
+        justify-content: center;
+    }
+}

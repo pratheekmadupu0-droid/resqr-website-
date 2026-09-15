@@ -103,15 +103,10 @@ export default function DashboardCitizen() {
                 setProfiles(profilesData);
                 setLoading(false);
                 
-                // Redirect users to appropriate page
+                // New profiles are usable immediately — physical tag products
+                // remain a separate, optional purchase via the Store.
                 if (!snapshot.exists()) {
                     navigate('/login');
-                } else {
-                    const profileArray = Object.values(snapshot.val());
-                    const hasPaidProfile = profileArray.some(p => p.payment_status === 'paid');
-                    if (!hasPaidProfile) {
-                        navigate('/payment');
-                    }
                 }
             });
         };

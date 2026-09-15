@@ -2,6 +2,8 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import MyQR from './pages/MyQR';
+import EmergencyPreview from './pages/EmergencyPreview';
+import NotFound from './pages/NotFound';
 import PaymentPage from './pages/PaymentPage';
 import SuccessPage from './pages/SuccessPage';
 import EmergencyPage from './pages/EmergencyPage';
@@ -115,6 +117,7 @@ function App() {
                     <Route path="/viral-id" element={<ViralQR />} />
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/my-qr" element={<MyQR />} />
+                    <Route path="/emergency-preview" element={<EmergencyPreview />} />
                     <Route path="/create-profile" element={<Navigate to="/login" replace />} />
                     <Route path="/create-identity" element={<CreateIdentity />} />
                     <Route path="/payment" element={<PaymentPage />} />
@@ -146,10 +149,11 @@ function App() {
                     <Route path="/emergency-awareness" element={<EmergencyAwareness />} />
                     <Route path="/faq" element={<FAQPage />} />
                     <Route path="/help-center" element={<HelpCenter />} />
-                    <Route path="/:username" element={<QRScanPage />} />
                     <Route path="/scanner" element={<ScannerPage />} />
                     <Route path="/store" element={<StorePage />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
+                    <Route path="/emergency-profile" element={<EmergencyPreview />} />
+                    <Route path="/:username" element={<QRScanPage />} />
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
             </main>
             {!isScanPage && <Footer />}

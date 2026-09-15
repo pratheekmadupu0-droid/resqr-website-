@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom';
 import { Phone, MapPin, AlertCircle, Heart, Activity as ActivityIcon, Loader2, Info, Lock, Shield, Share2, Activity as HeartPulse, Navigation, Siren, Users, ChevronRight, MessageSquare, ShieldAlert, CheckCircle2, XCircle, Key } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import EmergencyInfoSections from '../components/emergency/EmergencyInfoSections';
+import AppLoading from '../components/ui/AppLoading';
 import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
@@ -103,6 +105,12 @@ export default function QRScanPage() {
                             emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
                             emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
                             emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
+                            // Insurance + donor status are shown to responders when present
+                            insuranceCompany: raw.insurance?.insuranceCompany || '',
+                            policyNumber: raw.insurance?.policyNumber || '',
+                            coverageAmount: raw.insurance?.coverageAmount || '',
+                            cashlessFacility: raw.insurance?.cashlessFacility || false,
+                            isOrganDonor: fallbackMedical.isOrganDonor || raw.isOrganDonor || false,
                             
                             ...(raw.data || {})
                         };
@@ -205,8 +213,18 @@ export default function QRScanPage() {
         }
     };
 
-    if (loading) return <div className="min-h-screen bg-[#040812] flex items-center justify-center"><Loader2 className="text-red-600 animate-spin" size={48} /></div>;
-    if (!profile) return <div className="min-h-screen bg-[#040812] flex flex-col items-center justify-center text-white p-10 text-center"><Shield size={64} className="text-red-600 mb-6 opacity-30" /><h1 className="text-2xl font-black uppercase italic tracking-tighter">NODE UNAVAILABLE</h1></div>;
+    if (loading) return <AppLoading message="Verifying RESQR tag..." />;
+    if (!profile) return (
+        <div className="min-h-screen bg-[#040812] flex flex-col items-center justify-center text-white p-8 text-center">
+            <ShieldAlert size={56} className="text-amber-400/70 mb-6" />
+            <h1 className="text-3xl font-black uppercase italic tracking-tighter font-poppins">QR not recognised</h1>
+            <p className="mt-3 text-sm font-semibold text-slate-400 max-w-sm leading-relaxed">
+                This RESQR tag is not linked to an emergency profile. It may have been mistyped, or the profile may no longer be active.
+            </p>
+            <a href="/scanner" className="btn-app-primary mt-8">SCAN ANOTHER RESQR</a>
+            <a href="/" className="mt-4 text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 hover:text-white transition-colors">Back to home</a>
+        </div>
+    );
 
     const { category, data } = profile;
 
@@ -237,14 +255,17 @@ export default function QRScanPage() {
                             </h1>
                         </div>
 
-                        {/* Security Notice Card */}
+                        {/* Emergency medical information — the reason the tag exists */}
+                        <EmergencyInfoSections data={data} />
+
+                        {/* Safety note */}
                         <div className="bg-[#11192A] rounded-[48px] border border-white/5 p-12 text-center shadow-2xl relative overflow-hidden">
                             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
                             <div className="flex flex-col items-center gap-5 text-center">
                                 <Shield className="text-primary animate-pulse" size={48} />
-                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] italic">SECURE VAULT ENCRYPTED</p>
+                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] italic">SHARED WITH RESPONDERS</p>
                                 <p className="text-xs text-slate-500 font-bold leading-relaxed max-w-sm">
-                                    Critical medical records and insurance policies are sealed. Authorized medical responders can scan this tag using the RESQR Portal to decrypt vitals.
+                                    Medical details above are shared so responders can act immediately. Internal account identifiers and login details are never shown on a scanned tag.
                                 </p>
                             </div>
                         </div>
@@ -327,7 +348,7 @@ export default function QRScanPage() {
                     <div className="py-32 px-10 bg-[#11192A] rounded-[48px] border border-white/5 text-center shadow-2xl">
                         <ShieldAlert size={48} className="mx-auto mb-8 text-slate-700 opacity-20" />
                         <p className="text-slate-500 font-black uppercase italic text-sm tracking-[0.4em] leading-relaxed">
-                            Node Registry Verified.<br />Unauthorized access blocked.
+                            This RESQR tag has no emergency profile to display.
                         </p>
                     </div>
                 )}
