@@ -69,6 +69,23 @@ export default function Navbar() {
         }
     };
 
+    // Lock page scroll while the mobile menu is open so the page behind it
+    // never scrolls or mixes with the menu panel.
+    useEffect(() => {
+        if (!isOpen) return;
+        const previous = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = previous;
+        };
+    }, [isOpen]);
+
+    // Always close the menu after navigation so a stale menu can't
+    // overlap whatever page the user just landed on.
+    useEffect(() => {
+        setIsOpen(false);
+    }, [location.pathname]);
+
     if (isEmergency) return null;
 
     const desktopLinks = [
@@ -167,19 +184,23 @@ return (
                 </button>
             </div>
 
-            {/* Mobile slide-down menu */}
+            {/* Mobile menu — a solid full-height drawer that slides under the
+                header so it never mixes with the page content behind it */}
             {isOpen && (
-                <div className="lg:hidden absolute left-0 right-0 top-full bg-[#060A13]/96 backdrop-blur-xl border-b border-white/10 shadow-2xl py-6 px-5 space-y-5 overflow-y-auto max-h-[80vh] animate-in slide-in-from-top-4 duration-300 z-[70]">
+                <div
+                    className="app-mobile-menu-panel lg:hidden overflow-y-auto py-6 px-5 space-y-5"
+                    aria-label="Mobile navigation menu"
+                >
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Menu</p>
                     {[...desktopLinks, ...(isAdminUser ? [{ name: 'Admin', path: '/admin' }] : [])].map((link) => (
                         <Link
                             key={link.name}
                             to={link.path}
                             onClick={() => setIsOpen(false)}
-                            className="flex items-center justify-between py-3 rounded-2xl bg-white/4 border border-white/8 text-sm font-black uppercase tracking-widest text-slate-200 hover:border-primary/30 hover:text-primary transition-all"
+                            className="flex items-center justify-between py-3.5 px-4 rounded-2xl bg-white/5 border border-white/10 text-sm font-black uppercase tracking-widest text-white hover:border-primary/30 hover:text-primary hover:bg-primary/10 transition-all"
                         >
                             {link.name}
-                            <ChevronDown size={14} className="rotate-[-90deg]" />
+                            <ChevronDown size={14} className="rotate-[-90deg] text-slate-500" />
                         </Link>
                     ))}
 

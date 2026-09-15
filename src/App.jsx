@@ -11,7 +11,6 @@ import CreateIdentity from './pages/CreateIdentity';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import MobileNav from './components/MobileNav';
-import FestiveBanner from './components/FestiveBanner';
 import ContactUs from './pages/ContactUs';
 import LegalPage from './pages/LegalPage';
 import AboutUs from './pages/AboutUs';
@@ -101,15 +100,12 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const APP_PATHS = ['dashboard', 'create-identity', 'payment', 'success', 'admin', 'login', 'scanner'];
-    const isAppPage = APP_PATHS.includes(location.pathname.split('/')[1]);
     const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center'].includes(location.pathname.split('/')[1]));
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <ScrollToTop />
             {!isScanPage && <Navbar />}
-            {!isScanPage && !isAppPage && <FestiveBanner mode="ribbon" />}
             <main className={`flex-grow ${isScanPage ? 'pt-0' : 'pb-24 lg:pb-0'}`}>
                 <Routes>
                     <Route path="/" element={<LandingPage />} />

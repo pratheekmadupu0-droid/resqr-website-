@@ -621,9 +621,10 @@ body::before {
 /* ---------- App header (mobile) ---------- */
 
 .app-header {
+    --app-header-h: 65px;
     position: sticky;
     top: 0;
-    z-index: 55;
+    z-index: 70;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -645,6 +646,37 @@ body::before {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+/* Mobile menu drawer — solid, viewport-height panel directly under the
+   header. Stays inside the header's stacking context (all above the page,
+   the bottom mobile nav, and the floating Sicon badge) so the landing/home
+   content never shows through or mixes with the menu. */
+.app-mobile-menu-panel {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 70;
+    background: #0A101D;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    -webkit-overflow-scrolling: touch;
+    /* fallback first, then dynamic viewport height for modern mobile browsers */
+    height: calc(100vh - var(--app-header-h, 65px));
+    height: calc(100dvh - var(--app-header-h, 65px));
+    animation: menu-panel-slide-down 0.28s var(--resqr-ease);
+}
+
+@keyframes menu-panel-slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ---------- Steps indicator ---------- */
