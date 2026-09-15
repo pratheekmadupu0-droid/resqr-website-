@@ -4,7 +4,7 @@ import {
     Shield, ChevronRight, Activity, Heart, CheckCircle2,
     QrCode, Smartphone, Users, Lock, Zap, User, ScanLine,
     Play, Navigation, Sparkles, ArrowRight, HeartHandshake,
-    Droplet, AlertCircle, PhoneCall, Star
+    Droplet, AlertCircle, PhoneCall
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
@@ -167,23 +167,6 @@ const primaryHref = hasPaid ? '/dashboard' : '/login';
                             How RESQR works
                             <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
                         </a>
-
-                        {/* Social proof */}
-                        <div className="mt-8 flex items-center justify-center lg:justify-start gap-4">
-                            <div className="flex -space-x-3">
-                                {[1, 2, 3, 4].map((i) => (
-                                    <div key={i} className="w-10 h-10 rounded-full border-2 border-[#0A101D] bg-slate-800 overflow-hidden">
-                                        <img src={`https://i.pravatar.cc/60?u=${i + 30}`} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="text-left leading-tight">
-                                <div className="flex text-gold" aria-label="Rated 5 out of 5">
-                                    {[1, 2, 3, 4, 5].map((s) => <Star key={s} size={13} fill="currentColor" className="fill-gold" />)}
-                                </div>
-                                <p className="text-xs text-slate-400 font-semibold">Trusted by <span className="text-white font-bold">{userCount}</span> active profiles</p>
-                            </div>
-                        </div>
                     </div>
 
 {/* Right column — phone prototype of what a rescuer sees */}
