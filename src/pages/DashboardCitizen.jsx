@@ -235,14 +235,16 @@ export default function DashboardCitizen() {
 
             const logo = new Image();
             logo.crossOrigin = 'anonymous';
-            logo.src = `${import.meta.env.BASE_URL}resqr_qr_logo.png`;
+            logo.src = `${import.meta.env.BASE_URL}resqr_logo.png`;
             await new Promise((resolve, reject) => { 
                 logo.onload = resolve; 
                 logo.onerror = () => reject(new Error("Failed to load logo for download"));
             });
-            const logoW = 480;
-            const logoH = (logo.height / logo.width) * logoW || 189;
+            const logoW = 450;
+            const logoH = (logo.height / logo.width) * logoW || 130;
+            ctx.filter = 'brightness(0)';
             ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 70, logoW, logoH);
+            ctx.filter = 'none';
 
             // QR Code Matrix
             ctx.drawImage(canvas, (CANVAS_W - 720) / 2, logoH + 130, 720, 720);
