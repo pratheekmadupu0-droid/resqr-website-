@@ -41,7 +41,7 @@ export default function DemoRazorpayModal({
     const [bankOtp, setBankOtp] = useState('123456');
     const [useDemoFallback, setUseDemoFallback] = useState(false);
 
-    const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TKBNy6z2Vsd0cq";
+    const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TdeJyUV9tLfxvJ";
 
     useEffect(() => {
         if (!isOpen) return;

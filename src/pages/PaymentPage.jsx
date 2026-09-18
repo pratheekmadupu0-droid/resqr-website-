@@ -112,41 +112,72 @@ export default function PaymentPage() {
             return;
         }
 
-        const isDemo = true; // DEMO MODE ACTIVE
+        // Launch Razorpay Live Checkout
+        const loadScript = () => {
+            return new Promise((resolve) => {
+                if (window.Razorpay) return resolve(true);
+                const script = document.createElement('script');
+                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+                script.onload = () => resolve(true);
+                script.onerror = () => resolve(false);
+                document.body.appendChild(script);
+            });
+        };
 
-        if (isDemo) {
-            const t = toast.loading("Processing tactical demo payment...");
-            setTimeout(async () => {
+        const res = await loadScript();
+        if (!res || !window.Razorpay) {
+            toast.error("Could not load payment gateway. Please check your internet connection.");
+            return;
+        }
+
+        const currentUser = auth.currentUser;
+        const options = {
+            key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TdeJyUV9tLfxvJ",
+            amount: Math.round(Number(selectedProduct.price) * 100),
+            currency: "INR",
+            name: "RESQR",
+            description: selectedProduct.title,
+            image: `${import.meta.env.BASE_URL}resqr_logo.png`,
+            handler: async function (response) {
+                const t = toast.loading("Confirming activation...");
                 try {
-                    const currentUser = auth.currentUser;
                     let activeSlug = localStorage.getItem('resqr_active_slug');
+                    const finalPaymentData = {
+                        payment_status: 'paid',
+                        payment_id: response.razorpay_payment_id,
+                        payment_date: new Date().toISOString(),
+                        last_updated: new Date().toISOString()
+                    };
 
-                    if (activeSlug || currentUser) {
-                        const finalPaymentData = {
-                            payment_status: 'paid',
-                            payment_id: "demo_" + Math.random().toString(36).substr(2, 9),
-                            payment_date: new Date().toISOString(),
-                            last_updated: new Date().toISOString()
-                        };
-
-                        if (activeSlug) {
-                            await update(ref(db, `profiles/${activeSlug}`), finalPaymentData);
-                             const uid = activeSlug.includes('_') ? (activeSlug.startsWith('c_') ? activeSlug.replace('c_', '') : activeSlug.split('_')[0]) : (currentUser?.uid);
-                            if (uid) {
-                                await update(ref(db, `users/${uid}/profiles/${activeSlug}`), finalPaymentData);
-                            }
+                    if (activeSlug) {
+                        await update(ref(db, `profiles/${activeSlug}`), finalPaymentData);
+                        const uid = activeSlug.includes('_') ? (activeSlug.startsWith('c_') ? activeSlug.replace('c_', '') : activeSlug.split('_')[0]) : (currentUser?.uid);
+                        if (uid) {
+                            await update(ref(db, `users/${uid}/profiles/${activeSlug}`), finalPaymentData);
                         }
                     }
 
-                    toast.success('Demo Payment Success! Identity Activated.', { id: t });
+                    toast.success('Payment Verified! Identity Activated.', { id: t });
                     navigate('/success');
                 } catch (error) {
-                    console.error("Demo payment error:", error);
-                    toast.error("Demo sequence failed.", { id: t });
+                    console.error("Payment save error:", error);
+                    toast.error("Payment received, but error activating profile. Contact support.", { id: t });
                 }
-            }, 1500);
-            return;
-        }
+            },
+            prefill: {
+                name: currentUser?.displayName || '',
+                email: currentUser?.email || '',
+            },
+            theme: {
+                color: "#E63946"
+            }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+            toast.error(resp.error?.description || "Payment failed");
+        });
+        rzp.open();
     };
 
     if (loading) {
@@ -166,9 +197,11 @@ export default function PaymentPage() {
         <div className="min-h-screen bg-medical-bg py-24 px-4 text-white font-manrope">
             <div className="max-w-6xl mx-auto">
                 <header className="mb-16 text-center">
-                    <Badge className="bg-primary/20 text-primary border-none mb-4 px-6 py-1 font-black italic tracking-widest">DEMO MODE ACTIVE</Badge>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-none mb-4 px-6 py-1 font-black italic tracking-widest flex items-center gap-2 w-fit mx-auto">
+                        <ShieldCheck size={14} /> SECURE 256-BIT ENCRYPTED CHECKOUT
+                    </Badge>
                     <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
-                        Checkout <span className="text-primary">Preview.</span>
+                        Checkout <span className="text-primary">Summary.</span>
                     </h1>
                 </header>
 
@@ -191,7 +224,7 @@ export default function PaymentPage() {
 
                             <div className="mt-12">
                                 <Button className="w-full py-10 text-2xl font-black italic rounded-[30px] bg-primary text-white border-none uppercase tracking-tighter shadow-2xl shadow-primary/20" onClick={handlePayment}>
-                                    PROCESS DEMO PAYMENT <ChevronRight size={24} className="ml-2" />
+                                    PAY NOW <ChevronRight size={24} className="ml-2" />
                                 </Button>
                             </div>
                         </Card>
@@ -206,8 +239,8 @@ export default function PaymentPage() {
                                     <span>₹{selectedProduct.price}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-slate-500 uppercase tracking-widest">
-                                    <span>Tax (Demo)</span>
-                                    <span>₹0.00</span>
+                                    <span>GST (Included)</span>
+                                    <span>₹{gst.toFixed(2)}</span>
                                 </div>
                                 <div className="pt-4 border-t border-white/5 flex justify-between font-black text-3xl text-primary">
                                     <span>Total</span>
