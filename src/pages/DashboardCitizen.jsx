@@ -232,7 +232,7 @@ export default function DashboardCitizen() {
             const downloadCanvas = document.createElement('canvas');
             const ctx = downloadCanvas.getContext('2d');
             const CANVAS_W = 1200;
-            const CANVAS_H = 1500;
+            const CANVAS_H = 1600;
             downloadCanvas.width = CANVAS_W;
             downloadCanvas.height = CANVAS_H;
 
@@ -246,26 +246,30 @@ export default function DashboardCitizen() {
                 logo.onload = resolve; 
                 logo.onerror = () => reject(new Error("Failed to load logo for download"));
             });
-            const logoW = 500;
-            const logoH = (logo.height / logo.width) * logoW;
+            const logoW = 450;
+            const logoH = (logo.height / logo.width) * logoW || 130;
             ctx.filter = 'brightness(0)';
-            ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 80, logoW, logoH);
+            ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 70, logoW, logoH);
             ctx.filter = 'none';
 
-            ctx.drawImage(canvas, (CANVAS_W - 800) / 2, logoH + 200, 800, 800);
+            // QR Code Matrix
+            ctx.drawImage(canvas, (CANVAS_W - 720) / 2, logoH + 130, 720, 720);
 
-            // Draw Bottom Text
-            ctx.fillStyle = '#111111';
-            ctx.font = 'italic 900 90px sans-serif';
+            // Registered User Name at Bottom of QR
+            const displayName = (editData?.name || activeProfile?.name || activeProfile?.data?.name || 'REGISTERED HOLDER').toUpperCase();
+            ctx.fillStyle = '#0F172A';
+            ctx.font = 'italic 900 64px sans-serif';
             ctx.textAlign = 'center';
-            ctx.letterSpacing = "-4px";
-            ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, CANVAS_H - 120);
+            ctx.fillText(displayName, CANVAS_W / 2, logoH + 130 + 720 + 80);
+
+            ctx.fillStyle = '#E63946';
+            ctx.font = 'italic 900 44px sans-serif';
+            ctx.fillText('EMERGENCY QR', CANVAS_W / 2, logoH + 130 + 720 + 150);
 
             // Footer Site Name
-            ctx.font = 'bold 36px sans-serif';
+            ctx.font = 'bold 30px sans-serif';
             ctx.fillStyle = '#94a3b8';
-            ctx.letterSpacing = "4px";
-            ctx.fillText('POWERED BY RESQR.CO.IN', CANVAS_W / 2, CANVAS_H - 50);
+            ctx.fillText('POWERED BY RESQR.CO.IN', CANVAS_W / 2, CANVAS_H - 60);
 
             const link = document.createElement('a');
             const fileName = `RESQR_${username || activeProfile.id.split('_').pop()}`.toUpperCase();

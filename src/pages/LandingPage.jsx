@@ -4,7 +4,7 @@ import {
     Shield, ChevronRight, Activity, Heart, CheckCircle2,
     QrCode, Smartphone, Users, Lock, Zap, User, ScanLine,
     Play, Navigation, Sparkles, ArrowRight, HeartHandshake,
-    Droplet, AlertCircle, PhoneCall
+    Droplet, AlertCircle, PhoneCall, Building2, Stethoscope, Siren, ShieldCheck, HelpCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
@@ -14,30 +14,81 @@ import FestiveBanner from '../components/FestiveBanner';
 import DevotionalBackground from '../components/DevotionalBackground';
 import { Modal } from '../components/ui/Modal';
 
-const HERO_PARTICLES = [
-    { top: '18%', left: '8%', delay: '0s', size: 4 },
-    { top: '30%', left: '88%', delay: '1.4s', size: 5 },
-    { top: '64%', left: '4%', delay: '0.8s', size: 3 },
-    { top: '76%', left: '90%', delay: '2.1s', size: 5 },
-    { top: '45%', left: '50%', delay: '1.8s', size: 3 },
-    { top: '12%', left: '60%', delay: '2.6s', size: 4 },
-    { top: '82%', left: '38%', delay: '0.4s', size: 4 },
-    { top: '55%', left: '18%', delay: '3.1s', size: 3 },
-];
-
-export default function LandingPage() {
-    const [products, setProducts] = useState([]);
-    const [userCount, setUserCount] = useState('...');
-    const [loading, setLoading] = useState(true);
-    const [isDemoOpen, setIsDemoOpen] = useState(false);
-    const [hasPaid, setHasPaid] = useState(false);
-
-    const defaultProducts = [
-        { title: "Digital QR", price: "99", features: ["Digital Dashboard", "Instant Access", "Lifetime Validity"], best: true }
+function TypewriterHeroHeadline() {
+    const phrases = [
+        { text: "ONE SCAN.", isGradient: false },
+        { text: "THE RIGHT INFORMATION.", isGradient: false },
+        { text: "THE RIGHT CONNECTION WHEN EVERY SECOND MATTERS.", isGradient: true },
     ];
 
+    const [phraseIndex, setPhraseIndex] = useState(0);
+    const [charIndex, setCharIndex] = useState(0);
+    const [mode, setMode] = useState("TYPING"); // TYPING, PAUSED, DELETING
+
     useEffect(() => {
-        // Fetch Registered User Count (Profiles)
+        const currentPhrase = phrases[phraseIndex];
+
+        if (mode === "TYPING") {
+            if (charIndex < currentPhrase.text.length) {
+                const timeout = setTimeout(() => {
+                    setCharIndex((prev) => prev + 1);
+                }, 45); // Typing speed per character
+                return () => clearTimeout(timeout);
+            } else {
+                // Completed typing current sentence -> pause so user can read
+                const pauseTimeout = setTimeout(() => {
+                    setMode("DELETING");
+                }, 2200);
+                return () => clearTimeout(pauseTimeout);
+            }
+        }
+
+        if (mode === "DELETING") {
+            if (charIndex > 0) {
+                const timeout = setTimeout(() => {
+                    setCharIndex((prev) => prev - 1);
+                }, 20); // Faster delete speed
+                return () => clearTimeout(timeout);
+            } else {
+                // Finished deleting -> move to next sentence and start typing
+                setPhraseIndex((prev) => (prev + 1) % phrases.length);
+                setMode("TYPING");
+            }
+        }
+    }, [charIndex, mode, phraseIndex, phrases]);
+
+    const currentPhrase = phrases[phraseIndex];
+    const displayedText = currentPhrase.text.slice(0, charIndex);
+
+    return (
+        <div className="min-h-[140px] sm:min-h-[180px] lg:min-h-[220px] flex items-center justify-center lg:justify-start">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tight font-poppins leading-[1.08]">
+                <span
+                    className={
+                        currentPhrase.isGradient
+                            ? "bg-gradient-to-r from-[#E63946] via-[#FF6B6B] to-[#FFB703] bg-clip-text text-transparent"
+                            : "text-white"
+                    }
+                >
+                    {displayedText}
+                </span>
+                <span
+                    className={`inline-block w-1.5 sm:w-2 h-8 sm:h-12 ml-2 align-middle animate-pulse ${
+                        currentPhrase.isGradient ? "bg-amber-400" : "bg-red-500"
+                    }`}
+                />
+            </h1>
+        </div>
+    );
+}
+
+export default function LandingPage() {
+    const [userCount, setUserCount] = useState('...');
+    const [isDemoOpen, setIsDemoOpen] = useState(false);
+    const [hasPaid, setHasPaid] = useState(false);
+    const [demoStep, setDemoStep] = useState(0); // 0: QR, 1: SCAN, 2: PROFILE, 3: ACTIONS
+
+    useEffect(() => {
         const profilesRef = ref(db, 'profiles');
         const unsubUsers = onValue(profilesRef, (snapshot) => {
             const data = snapshot.val();
@@ -48,24 +99,7 @@ export default function LandingPage() {
                 setUserCount('0');
             }
         });
-
-        // Fetch Products
-        const prodRef = ref(db, 'config/products');
-        const unsubProducts = onValue(prodRef, (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-                setProducts(list);
-            } else {
-                setProducts(defaultProducts);
-            }
-            setLoading(false);
-        });
-
-        return () => {
-            unsubUsers();
-            unsubProducts();
-        };
+        return () => unsubUsers();
     }, []);
 
     useEffect(() => {
@@ -91,475 +125,291 @@ export default function LandingPage() {
         });
         return () => unsubscribe();
     }, []);
-const primaryHref = hasPaid ? '/dashboard' : '/login';
 
-    const fadeInUp = {
-        initial: { opacity: 0, y: 30 },
-        whileInView: { opacity: 1, y: 0 },
-        viewport: { once: true },
-        transition: { duration: 0.8, ease: "easeOut" }
-    };
+    // Auto-advance interactive demo steps
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setDemoStep((prev) => (prev + 1) % 4);
+        }, 3500);
+        return () => clearInterval(interval);
+    }, []);
 
-    const staggerContainer = {
-        initial: {},
-        whileInView: {},
-        viewport: { once: true },
-        transition: { staggerChildren: 0.1 }
-    };
+    const primaryHref = hasPaid ? '/dashboard' : '/login';
 
     return (
-        <div className="relative overflow-hidden bg-[#05080F] text-slate-100 font-sans">
+        <div className="relative overflow-hidden bg-[#040812] text-slate-100 font-sans selection:bg-primary/30">
+            {/* Background Ambient Glows */}
+            <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+                <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px]" />
+                <div className="absolute top-1/3 right-10 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[160px]" />
+                <div className="absolute bottom-1/4 left-10 w-[600px] h-[600px] bg-gold/5 rounded-full blur-[150px]" />
+            </div>
 
-            {/* ============ HERO — CINEMATIC FIRST SCREEN ============ */}
-            <section className="relative min-h-[100svh] flex flex-col items-center overflow-hidden pt-10 pb-2 lg:pt-14 lg:pb-4" aria-label="RESQR — your emergency information when it matters most">
-                {/* Ambient cinematic lighting */}
-                <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                    <div className="absolute -top-[12%] -left-[8%] w-[55vw] h-[55vw] bg-primary/8 rounded-full blur-[120px]" />
-                    <div className="absolute top-[18%] -right-[12%] w-[48vw] h-[48vw] bg-gold/6 rounded-full blur-[130px]" />
-                    <div className="absolute bottom-[-6%] left-[28%] w-[60vw] h-[34vh] bg-secondary/12 rounded-full blur-[150px]" />
-                    {HERO_PARTICLES.map((p, i) => (
-                        <span
-                            key={i}
-                            className="festive-particle"
-                            style={{ top: p.top, left: p.left, width: p.size, height: p.size, animationDelay: p.delay }}
-                        />
-                    ))}
-                </div>
-
-                {/* ===== Ganesha idol photo background (public/ganesha-idol.png = user's 'ganesh idol.png') ===== */}
-                <img src="/ganesha-idol.png" alt="" aria-hidden="true" className="hero-ganesha-bg" loading="eager" />
-                <div className="hero-ganesha-scrim" aria-hidden="true" />
-                <span style={{ display: 'none' }} aria-hidden="true" />
-                {/* ===== /devotional atmosphere ===== */}
-
-                <div className="w-full max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-14 items-center relative z-10">
-                    {/* Left column */}
-                    <div className="text-center lg:text-left">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/25 bg-primary/10 text-primary font-bold text-[11px] uppercase tracking-[0.18em]">
-                            <Zap size={13} className="fill-primary" />
-                            Emergency-First QR Identity
-                        </span>
-
-                        <h1 className="mt-6 text-4xl sm:text-5xl md:text-6xl font-extrabold leading-[1.05]">
-                            Your emergency information.
-                            <span className="block mt-1 text-gradient-red">Available when it matters most.</span>
-                        </h1>
-
-                        <p className="mt-6 text-base sm:text-lg text-slate-400 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                            RESQR keeps your most important medical details, emergency contacts and safety
-                            information in one secure profile — instantly reachable with a single QR scan.
-                        </p>
-
-                        <div className="mt-8 flex flex-col sm:flex-row items-center gap-4 sm:justify-center lg:justify-start">
-                            <Link to={primaryHref} className="btn-app-primary" style={{ minWidth: 230 }}>
-                                <HeartHandshake size={20} />
-                                {hasPaid ? 'VIEW DASHBOARD' : 'CREATE YOUR RESQR'}
-                            </Link>
-                            <Link to="/login" className="btn-app-outline" style={{ minWidth: 150 }}>
-                                LOGIN
-                            </Link>
+            {/* ================= HERO SECTION ================= */}
+            <section className="relative pt-16 pb-24 lg:pt-24 lg:pb-32 z-10 px-6 max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+                    
+                    {/* Left Column: Headline & Value Proposition */}
+                    <div className="lg:col-span-7 space-y-8 text-center lg:text-left">
+                        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 font-extrabold text-xs uppercase tracking-[0.2em] shadow-lg shadow-red-500/10 backdrop-blur-md">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                            EMERGENCY HEALTH-TECH INFRASTRUCTURE
                         </div>
 
-                        <a
-                            href="#how-it-works"
-                            className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors"
-                        >
-                            How RESQR works
-                            <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
-                        </a>
+                        <TypewriterHeroHeadline />
+
+                        <p className="text-slate-400 text-lg sm:text-xl font-medium leading-relaxed max-w-2xl mx-auto lg:mx-0">
+                            RESQR is designed to help connect people with critical emergency information and contacts when every second matters.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+                            <Link 
+                                to={primaryHref} 
+                                className="w-full sm:w-auto h-16 px-8 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-2xl shadow-primary/30 flex items-center justify-center gap-3 transition-all hover:scale-[1.02]"
+                            >
+                                <HeartHandshake size={18} /> GET YOUR RESQR
+                            </Link>
+                            <a 
+                                href="#how-it-works" 
+                                className="w-full sm:w-auto h-16 px-8 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl font-black italic uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all"
+                            >
+                                HOW RESQR WORKS <ArrowRight size={16} />
+                            </a>
+                        </div>
+
+                        {/* Social Trust Metrics */}
+                        <div className="pt-6 border-t border-white/5 flex items-center justify-center lg:justify-start gap-6 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                            <div className="flex items-center gap-2">
+                                <Shield className="text-emerald-400" size={16} /> 256-Bit Encrypted Profile
+                            </div>
+                            <div className="hidden sm:block text-slate-700">•</div>
+                            <div className="flex items-center gap-2">
+                                <Zap className="text-amber-400" size={16} /> Instant 108 GPS Relay
+                            </div>
+                        </div>
                     </div>
 
-{/* Right column — phone prototype of what a rescuer sees */}
-                    <div className="relative flex justify-center animate-in slide-in-from-bottom-3 duration-1000">
-                        <div className="relative w-[300px] sm:w-[330px] mx-auto">
-                            {/* Glow behind phone */}
-                            <div className="absolute inset-0 -z-10 scale-125 bg-gradient-to-br from-primary/10 via-transparent to-gold/10 blur-[60px] rounded-[60px]" />
-
-                            {/* Phone frame */}
-                            <div className="relative rounded-[44px] border-[4px] border-[#1a2333] bg-[#0A101D] shadow-2xl shadow-black/60 overflow-hidden">
-                                <div className="h-5 bg-[#05080F] rounded-bl-[14px] rounded-br-[14px] mx-auto w-24" />
-                                <div className="px-5 py-5 space-y-3 text-left">
-                                    {/* App header */}
-                                    <div className="flex items-center gap-2">
-                                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-6 w-auto object-contain" />
-                                        <span className="ml-auto inline-flex items-center gap-1 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Verified
-                                        </span>
-                                    </div>
-
-                                    {/* Blood group — most critical */}
-                                    <div className="rounded-2xl bg-[#E63946] text-white px-4 py-3 shadow-lg shadow-primary/20">
-                                        <p className="text-[9px] uppercase tracking-[0.3em] opacity-80">Critical Vital · Blood Group</p>
-                                        <p className="text-4xl font-black italic leading-none">B+</p>
-                                    </div>
-
-                                    {/* Identity card */}
-                                    <div className="rounded-2xl bg-[#11192A] border border-white/10 px-4 py-3">
-                                        <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400">Identity</p>
-                                        <p className="text-base font-bold text-white">Aarav Sharma · 28 Yrs</p>
-                                        <div className="mt-1.5 flex items-center gap-1.5 text-[9px] font-bold text-slate-400 uppercase">
-                                            <Droplet size={11} className="text-primary" /> Allergies: Peanuts
-                                        </div>
-                                    </div>
-
-                                    {/* Emergency contact */}
-                                    <div className="rounded-2xl bg-[#11192A] border border-emerald-500/20 px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400">
-                                                <PhoneCall size={15} />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[9px] uppercase tracking-[0.25em] text-slate-400">Emergency Contact</p>
-                                                <p className="text-xs font-bold text-white truncate">Meera Sharma · 98860***21</p>
-                                            </div>
-                                            <span className="text-[9px] font-black text-emerald-400 uppercase">Call</span>
-                                        </div>
-                                    </div>
-
-                                    {/* QR being scanned */}
-                                    <div className="relative rounded-2xl bg-white/5 border border-dashed border-white/15 overflow-hidden">
-                                        <div className="flex items-center justify-center py-4">
-                                            <QrCode size={72} className="text-white opacity-25" />
-                                        </div>
-                                        {/* Scanning line */}
-                                        <div className="absolute left-3 right-3 h-[3px] bg-primary rounded-full shadow-[0_0_10px_rgba(230,57,70,0.9)]" style={{ animation: 'scan-sweep 2.4s ease-in-out infinite' }} />
-                                        <p className="absolute bottom-1 inset-x-0 text-center text-[8px] uppercase tracking-[0.2em] text-slate-400">Accessing emergency profile…</p>
-                                    </div>
-                                </div>
+                    {/* Right Column: Interactive Demonstration HUD */}
+                    <div className="lg:col-span-5 relative">
+                        <div className="bg-[#0C1322] border border-white/10 rounded-[40px] p-6 sm:p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary via-gold to-emerald-400" />
+                            
+                            {/* Step Switcher Cues */}
+                            <div className="flex items-center justify-between gap-1 mb-6 bg-[#050812] p-1.5 rounded-2xl border border-white/5">
+                                {[
+                                    { step: 0, label: '01. QR Tag' },
+                                    { step: 1, label: '02. Scan' },
+                                    { step: 2, label: '03. Profile' },
+                                    { step: 3, label: '04. Actions' }
+                                ].map((item) => (
+                                    <button
+                                        key={item.step}
+                                        type="button"
+                                        onClick={() => setDemoStep(item.step)}
+                                        className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${demoStep === item.step ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
                             </div>
 
-                            {/* Floating alert bubble */}
-                            <div className="absolute -top-4 -right-6 rounded-2xl bg-[#11192A] border border-primary/30 px-3 py-2 text-[9px] font-black uppercase tracking-widest text-primary shadow-xl shadow-primary/20" style={{ animation: 'float-soft 4s ease-in-out infinite' }}>
-                                <Shield size={12} className="inline mr-1" /> Rescue signal ready
+                            {/* Demo State 0: QR Code */}
+                            {demoStep === 0 && (
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6 space-y-4">
+                                    <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl border-4 border-slate-950">
+                                        <QrCode size={160} className="text-slate-950" />
+                                    </div>
+                                    <p className="text-xl font-black italic uppercase text-white font-poppins">PRATHEEK MADUPU</p>
+                                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">PERSONAL RESQR EMERGENCY TAG</p>
+                                </motion.div>
+                            )}
+
+                            {/* Demo State 1: Scanning Visual */}
+                            {demoStep === 1 && (
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8 space-y-6">
+                                    <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 animate-pulse">
+                                        <ScanLine size={40} />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xl font-black italic uppercase font-poppins text-white">Scanning RESQR Tag...</h4>
+                                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">Satellite GPS Location Locked</p>
+                                    </div>
+                                    <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden max-w-xs mx-auto">
+                                        <div className="h-full bg-emerald-400 w-3/4 animate-pulse rounded-full" />
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* Demo State 2: Responder Profile HUD */}
+                            {demoStep === 2 && (
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
+                                    <div className="bg-primary p-4 rounded-2xl flex items-center justify-between text-white">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest opacity-80">CRITICAL VITAL</p>
+                                            <p className="text-3xl font-black italic font-poppins">B+ POSITIVE</p>
+                                        </div>
+                                        <Droplet size={32} />
+                                    </div>
+
+                                    <div className="bg-[#050812] p-4 rounded-2xl border border-white/5 space-y-2">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Medical History</p>
+                                        <p className="text-xs font-bold text-white">Type-1 Diabetes • Penicillin Allergy</p>
+                                    </div>
+
+                                    <div className="bg-[#050812] p-4 rounded-2xl border border-white/5 space-y-1">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Guardian Contact</p>
+                                        <p className="text-xs font-bold text-emerald-400 font-mono">Meera Sharma (Spouse) • 98860***21</p>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* Demo State 3: Emergency Actions */}
+                            {demoStep === 3 && (
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-3">
+                                    <div className="h-12 bg-primary text-white rounded-xl font-black italic uppercase text-xs flex items-center justify-center gap-2 shadow-lg">
+                                        <PhoneCall size={16} /> CONNECT CALL TO FAMILY
+                                    </div>
+                                    <div className="h-12 bg-emerald-600 text-white rounded-xl font-black italic uppercase text-xs flex items-center justify-center gap-2 shadow-lg">
+                                        <Navigation size={16} /> SEND LOCATION TO FAMILY
+                                    </div>
+                                    <div className="h-12 bg-white text-black rounded-xl font-black italic uppercase text-xs flex items-center justify-center gap-2 shadow-lg">
+                                        <Siren size={16} className="text-primary" /> CALL 108 AMBULANCE
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            <div className="mt-6 pt-4 border-t border-white/5 text-center">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">
+                                    LIVE INTERACTIVE RESQR RESPONSE SIMULATION
+                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-{/* ============ VINAYAKA CHAVITHI CAMPAIGN ============ */}
-            <div className="max-w-4xl mx-auto px-4 mt-2">
+            {/* Campaign Festive Banner */}
+            <div className="max-w-6xl mx-auto px-6 mb-16">
                 <FestiveBanner mode="hero" />
             </div>
 
-            {/* ============ TRUST — BECAUSE EMERGENCIES DON'T WAIT ============ */}
-            <section className="pt-0 pb-10 sm:pb-12 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Why RESQR matters">
-                <DevotionalBackground
-                    intensity="low"
-                    showGanesha={false}
-                    showMandala={false}
-                    showDiya={false}
-                    showParticles={true}
-                    className="section-devotional"
-                />
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="text-center max-w-2xl mx-auto">
-                        <span className="inline-flex items-center px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-slate-300 font-bold text-[10px] uppercase tracking-[0.2em]">
-                            <Activity size={12} className="mr-1.5" /> Why RESQR matters
+            {/* ================= 6-STEP VISUAL JOURNEY ================= */}
+            <section id="how-it-works" className="py-24 bg-[#080D1A] border-y border-white/5 relative">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
+                        <span className="px-4 py-1.5 rounded-full border border-gold/30 bg-gold/10 text-gold font-black text-[10px] uppercase tracking-[0.25em]">
+                            VISUAL EMERGENCY JOURNEY
                         </span>
-                        <h2 className="mt-6 text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                            Because <span className="text-gradient-red">emergencies</span> don't wait.
+                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                            How <span className="bg-gradient-to-r from-gold-light via-gold to-gold-dark bg-clip-text text-transparent">RESQR</span> Protects You
                         </h2>
-                        <p className="mt-5 text-base sm:text-lg text-slate-400 leading-relaxed">
-                            In a stressful moment, recalling critical details is hard. RESQR makes sure the
-                            information that can save time — and lives — is a single scan away.
+                        <p className="text-slate-400 text-sm font-medium">
+                            A seamless 6-step lifecycle ensuring your identity is reachable during any emergency.
                         </p>
                     </div>
 
-                    <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {[
-                            {
-                                icon: <AlertCircle size={26} className="text-primary" />,
-                                title: 'Hard to remember',
-                                desc: 'Blood group, allergies, medications and contacts are difficult to recall accurately under pressure.',
-                                tone: 'border-primary/25 bg-primary/8 text-primary',
-                            },
-                            {
-                                icon: <Users size={26} className="text-gold" />,
-                                title: 'Responders need answers',
-                                desc: 'Family members and first responders need reliable information quickly to act with confidence.',
-                                tone: 'border-gold/25 bg-gold/8 text-gold',
-                            },
-                            {
-                                icon: <Shield size={26} className="text-emerald-500" />,
-                                title: 'RESQR brings it together',
-                                desc: 'One secure emergency profile with your vital information — ready whenever it is needed.',
-                                tone: 'border-emerald-500/25 bg-emerald-500/8 text-emerald-500',
-                            },
-                        ].map((item, i) => (
-                            <div
-                                key={i}
-                                className="app-card app-card-hover p-7 animate-in slide-in-from-bottom-3 duration-700"
-                                style={{ animationDelay: `${i * 0.12}s` }}
-                            >
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${item.tone}`}>
-                                    {item.icon}
-                                </div>
-                                <h3 className="mt-5 text-lg font-bold">{item.title}</h3>
-                                <p className="mt-2 text-sm text-slate-400 leading-relaxed">{item.desc}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-{/* ============ HOW RESQR WORKS — 3 CINEMATIC STEPS ============ */}
-            <section id="how-it-works" className="pt-8 sm:pt-10 pb-16 sm:pb-20 bg-[#05080F] border-t border-white/5 relative overflow-hidden" aria-label="How RESQR works">
-                <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                    <div className="absolute top-1/4 left-0 w-[40vw] h-[40vh] bg-primary/5 rounded-full blur-[110px]" />
-                    <div className="absolute bottom-1/4 right-0 w-[40vw] h-[40vh] bg-gold/5 rounded-full blur-[110px]" />
-                </div>
-
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="text-center max-w-2xl mx-auto">
-                        <span className="inline-flex items-center px-4 py-1.5 rounded-full border border-primary/25 bg-primary/10 text-primary font-bold text-[10px] uppercase tracking-[0.2em]">
-                            <ScanLine size={12} className="mr-1.5" /> How it works
-                        </span>
-                        <h2 className="mt-6 text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                            Protected in <span className="text-gradient-red">three simple steps.</span>
-                        </h2>
-                        <p className="mt-5 text-base sm:text-lg text-slate-400 max-w-xl mx-auto leading-relaxed">
-                            No complicated setup. Just the important details, organised and ready.
-                        </p>
-                    </div>
-
-                    <motion.div
-                        variants={staggerContainer}
-                        initial="initial"
-                        whileInView="whileInView"
-                        viewport={{ once: true }}
-                        className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8"
-                    >
-                        {[
-                            {
-                                step: '01', title: 'Create', icon: <User size={26} className="text-primary" />,
-                                desc: 'Create your emergency profile — personal details, medical info and emergency contacts.',
-                            },
-                            {
-                                step: '02', title: 'Generate', icon: <QrCode size={26} className="text-gold" />,
-                                desc: 'Generate your personal RESQR emergency QR — digital, printable and always yours.',
-                            },
-                            {
-                                step: '03', title: 'Scan', icon: <Smartphone size={26} className="text-emerald-500" />,
-                                desc: 'In an emergency, anyone can scan the QR to reach your emergency profile instantly.',
-                            },
-                        ].map((item, idx) => (
-                            <motion.div
-                                key={idx}
-                                variants={fadeInUp}
-                                whileHover={{ y: -6 }}
-                                className="app-card app-card-hover p-8 relative overflow-hidden group"
-                            >
-                                <span className="absolute top-4 right-5 text-5xl font-black text-white/5 group-hover:text-primary/25 transition-colors" aria-hidden="true">
-                                    {item.step}
+                            { num: '01', title: 'REGISTER', desc: 'Set up your encrypted profile with emergency contacts, blood type, and medical details.', icon: User, color: 'text-blue-400' },
+                            { num: '02', title: 'GET YOUR RESQR', desc: 'Receive your scannable digital emergency tag and custom vanity link instantly.', icon: QrCode, color: 'text-gold' },
+                            { num: '03', title: 'KEEP IT WITH YOU', desc: 'Carry your digital tag in your phone wallet, stick it on your helmet, or wear physical gear.', icon: Smartphone, color: 'text-purple-400' },
+                            { num: '04', title: 'SCAN IN AN EMERGENCY', desc: 'When every second counts, any bystander or paramedic scans the QR tag instantly.', icon: ScanLine, color: 'text-emerald-400' },
+                            { num: '05', title: 'CONNECT THE RIGHT PEOPLE', desc: 'Satellites log location and dispatch immediate WhatsApp SOS alerts to your family.', icon: PhoneCall, color: 'text-amber-400' },
+                            { num: '06', title: 'GET APPROPRIATE HELP', desc: 'First responders read verified vitals and locate the nearest trauma center without delay.', icon: Siren, color: 'text-primary' },
+                        ].map((step) => (
+                            <div key={step.num} className="bg-[#0F172A] border border-white/5 p-8 rounded-[32px] relative overflow-hidden group hover:border-primary/30 transition-all hover:-translate-y-1">
+                                <span className="absolute top-4 right-6 text-5xl font-black text-white/5 group-hover:text-primary/10 transition-colors font-poppins">
+                                    {step.num}
                                 </span>
-                                <div className="w-16 h-16 rounded-2xl bg-[#0A101D] border border-white/10 flex items-center justify-center">
-                                    {item.icon}
-                                </div>
-                                <h3 className="mt-5 text-2xl font-black italic uppercase tracking-tight group-hover:text-primary transition-colors">
-                                    {item.title}
+                                <step.icon className={`${step.color} mb-6`} size={32} />
+                                <h3 className="text-xl font-black italic uppercase font-poppins text-white mb-3">
+                                    {step.num}. {step.title}
                                 </h3>
-                                <p className="mt-3 text-sm text-slate-400 leading-relaxed">{item.desc}</p>
-                                <div className="mt-6 flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                    Step {item.step}
-                                    <ChevronRight size={14} className="text-primary group-hover:translate-x-1 transition-transform" />
-                                </div>
-                            </motion.div>
+                                <p className="text-slate-400 text-xs font-medium leading-relaxed">
+                                    {step.desc}
+                                </p>
+                            </div>
                         ))}
-                    </motion.div>
-
-                    <div className="mt-10 text-center">
-                        <Link to={primaryHref} className="btn-app-primary" style={{ minWidth: 260 }}>
-                            <Sparkles size={18} /> CREATE YOUR RESQR
-                        </Link>
                     </div>
                 </div>
             </section>
-{/* ============ BE PREPARED — BENEFITS ============ */}
-            <section className="py-20 bg-[#060A13] border-t border-white/5 relative overflow-hidden" aria-label="Be prepared before you need it">
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
-                        <div className="text-center lg:text-left">
-                            <span className="inline-flex items-center px-4 py-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-500 font-bold text-[10px] uppercase tracking-[0.2em]">
-                                <CheckCircle2 size={12} className="mr-1.5" /> Be ready
-                            </span>
-                            <h2 className="mt-6 text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                                Be prepared <span className="text-gradient-red">before</span> you need it.
-                            </h2>
-                            <p className="mt-5 text-base sm:text-lg text-slate-400 leading-relaxed">
-                                A few minutes today can make all the difference in a critical moment.
-                            </p>
 
-                            <ul className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-                                {[
-                                    'Emergency information in one place',
-                                    'Easy access for anyone who scans',
-                                    'Emergency contacts always listed',
-                                    'Medical information organised',
-                                    'QR-based instant access',
-                                    'Simple profile management',
-                                ].map((benefit) => (
-                                    <li key={benefit} className="flex items-center gap-3 rounded-2xl bg-[#0C1322] border border-white/8 px-4 py-3">
-                                        <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
-                                        <span className="text-sm font-semibold text-slate-200 flex-1">{benefit}</span>
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <div className="mt-8">
-                                <Link to={primaryHref} className="btn-app-primary" style={{ minWidth: 240 }}>
-                                    <HeartHandshake size={18} /> CREATE MY RESQR
-                                </Link>
-                            </div>
-                        </div>
-
-                        {/* Benefits visual — checklist card that mirrors the app */}
-                        <motion.div
-                            variants={fadeInUp}
-                            initial="initial"
-                            whileInView="whileInView"
-                            viewport={{ once: true }}
-                            className="app-card p-8 relative overflow-hidden group mx-auto w-full max-w-md"
-                        >
-                            <div className="pointer-events-none absolute -right-10 -bottom-10 opacity-10" aria-hidden="true">
-                                <Heart size={180} className="text-primary" />
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-2xl bg-primary/15 flex items-center justify-center text-primary">
-                                    <Shield size={22} />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400 font-bold">Emergency Profile</p>
-                                    <h3 className="text-lg font-bold">What a scan reveals</h3>
-                                </div>
-                            </div>
-                            <div className="mt-6 space-y-2.5">
-                                {[
-                                    { label: 'Blood Group', value: 'B+', tone: 'text-primary' },
-                                    { label: 'Allergies', value: 'Peanuts · Penicillin', tone: 'text-amber-500' },
-                                    { label: 'Medical Conditions', value: 'Type-1 Diabetes', tone: 'text-sky-500' },
-                                    { label: 'Emergency Contact', value: 'Meera Sharma · +91 98*** **21', tone: 'text-emerald-500' },
-                                    { label: 'Insurance', value: 'Active Policy · Cashless', tone: 'text-gold' },
-                                ].map((row, i) => (
-                                    <div key={i} className="flex items-center justify-between py-2.5 px-4 rounded-2xl bg-[#0A101D] border border-white/8">
-                                        <span className="text-xs font-semibold text-slate-400">{row.label}</span>
-                                        <span className={`text-sm font-extrabold ${row.tone}`}>{row.value}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="mt-6 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                                <Lock size={12} className="text-emerald-500" /> Shown only to someone scanning your RESQR
-                            </div>
-                        </motion.div>
-                    </div>
-                </div>
-            </section>
-{/* ============ FAMILY — PROTECT THE PEOPLE WHO MATTER MOST ============ */}
-            <section className="py-20 relative overflow-hidden border-t border-white/5" aria-label="Protect the people who matter most">
-                <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                    <div className="absolute -left-10 top-1/3 w-[50vw] h-[50vh] bg-primary/6 rounded-full blur-[110px]" />
-                    <div className="absolute -right-10 bottom-1/4 w-[46vw] h-[46vh] bg-gold/6 rounded-full blur-[110px]" />
-                </div>
-
-                <div className="max-w-5xl mx-auto px-4 relative">
-                    <div className="festive-banner relative overflow-hidden rounded-[28px] p-8 sm:p-12 text-center">
-                        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-                            <div className="flex items-center justify-end gap-4 absolute top-4 right-4 opacity-70">
-                                <span className="diya" />
-                                <Sparkles size={20} className="text-gold" />
-                            </div>
-                        </div>
-
-                        <span className="inline-flex items-center px-4 py-1.5 rounded-full border border-gold/30 bg-gold/10 text-gold font-bold text-[10px] uppercase tracking-[0.2em]">
-                            For families &amp; loved ones
+            {/* ================= SOLUTIONS FOR EVERYONE ================= */}
+            <section className="py-24 bg-[#040812] relative">
+                <div className="max-w-7xl mx-auto px-6">
+                    <div className="text-center max-w-3xl mx-auto space-y-4 mb-16">
+                        <span className="px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-black text-[10px] uppercase tracking-[0.25em]">
+                            VERSATILE ECOSYSTEM
                         </span>
-                        <h2 className="mt-6 text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                            Protect the people <span className="text-gradient-gold">who matter most.</span>
+                        <h2 className="text-3xl sm:text-4xl md:text-5xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                            Solutions Designed For <span className="text-primary italic">Every Need</span>
                         </h2>
-                        <p className="mt-5 text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
-                            When something goes wrong, families often struggle to recall medical history and
-                            emergency numbers. With RESQR, the information your loved ones need is organised,
-                            secure and reachable in seconds — so they can act with clarity, not confusion.
-                        </p>
-                        <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
-                            <Link to={primaryHref} className="btn-app-gold" style={{ minWidth: 240 }}>
-                                <HeartHandshake size={18} /> Create Your Profile
-                            </Link>
-                            <Link to="/login" className="btn-app-outline" style={{ minWidth: 160 }}>
-                                Login
-                            </Link>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-[#0C1322] border border-white/5 p-8 rounded-3xl space-y-4 hover:border-primary/40 transition-all">
+                            <Users className="text-primary" size={32} />
+                            <h3 className="text-xl font-black italic uppercase font-poppins text-white">Families & Citizens</h3>
+                            <p className="text-xs text-slate-400 leading-relaxed font-medium">Protect parents, children, senior citizens, and pets with instant emergency profiles.</p>
+                            <Link to="/solutions/families" className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1">Learn More <ChevronRight size={12} /></Link>
+                        </div>
+
+                        <div className="bg-[#0C1322] border border-white/5 p-8 rounded-3xl space-y-4 hover:border-emerald-400/40 transition-all">
+                            <Stethoscope className="text-emerald-400" size={32} />
+                            <h3 className="text-xl font-black italic uppercase font-poppins text-white">Doctors & Clinics</h3>
+                            <p className="text-xs text-slate-400 leading-relaxed font-medium">Streamline emergency medical history access during trauma admissions.</p>
+                            <Link to="/solutions/doctors" className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1">Learn More <ChevronRight size={12} /></Link>
+                        </div>
+
+                        <div className="bg-[#0C1322] border border-white/5 p-8 rounded-3xl space-y-4 hover:border-blue-400/40 transition-all">
+                            <Building2 className="text-blue-400" size={32} />
+                            <h3 className="text-xl font-black italic uppercase font-poppins text-white">Hospitals</h3>
+                            <p className="text-xs text-slate-400 leading-relaxed font-medium">Enterprise dashboard for ER trauma care and instant emergency verification.</p>
+                            <Link to="/solutions/hospitals" className="text-[10px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-1">Learn More <ChevronRight size={12} /></Link>
+                        </div>
+
+                        <div className="bg-[#0C1322] border border-white/5 p-8 rounded-3xl space-y-4 hover:border-amber-400/40 transition-all">
+                            <Siren className="text-amber-400" size={32} />
+                            <h3 className="text-xl font-black italic uppercase font-poppins text-white">First Responders</h3>
+                            <p className="text-xs text-slate-400 leading-relaxed font-medium">Dedicated paramedic scanner HUD to connect call family and relay coordinates.</p>
+                            <Link to="/solutions/first-responders" className="text-[10px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1">Learn More <ChevronRight size={12} /></Link>
                         </div>
                     </div>
                 </div>
             </section>
-{/* ============ FINAL CTA ============ */}
-            <section className="py-20 bg-[#05080F] border-t border-white/5 relative overflow-hidden text-center" aria-label="Create your RESQR emergency profile">
-                <div className="max-w-3xl mx-auto px-4">
-                    <img
-                        src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                        alt="RESQR"
-                        className="h-12 w-auto mx-auto mb-8 object-contain"
-                    />
-                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                        Ready when you are.
-                        <span className="block text-gradient-red">Create your RESQR emergency profile today.</span>
+
+            {/* ================= FINAL CALL TO ACTION ================= */}
+            <section className="py-24 bg-gradient-to-b from-[#080D1A] to-[#040812] border-t border-white/5 text-center relative overflow-hidden">
+                <div className="max-w-4xl mx-auto px-6 space-y-8 relative z-10">
+                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-12 w-auto mx-auto object-contain" />
+                    <h2 className="text-4xl sm:text-5xl md:text-6xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                        Ready when you are. <br />
+                        <span className="text-primary italic">Create your RESQR identity today.</span>
                     </h2>
-                    <p className="mt-6 text-base sm:text-lg text-slate-400 max-w-xl mx-auto leading-relaxed">
-                        Join the growing community of proactive individuals who trust RESQR to bridge the gap
-                        in emergency communication.
+                    <p className="text-slate-400 text-base max-w-xl mx-auto font-medium">
+                        Join thousands of proactive citizens who rely on RESQR to keep emergency information scannable and ready.
                     </p>
-                    <div className="mt-9 flex flex-col sm:flex-row items-center gap-4">
-                        <Link to={primaryHref} className="btn-app-primary" style={{ minWidth: 260 }}>
-                            <HeartHandshake size={20} /> {hasPaid ? 'VIEW DASHBOARD' : 'CREATE MY RESQR'}
-                        </Link>
-                        <Link to="/login" className="btn-app-outline" style={{ minWidth: 170 }}>
-                            Login
-                        </Link>
-                    </div>
-                    <div className="mt-10 inline-flex items-center gap-3 rounded-full bg-[#0C1322] border border-white/10 px-5 py-2.5 text-xs font-bold text-slate-300 uppercase tracking-[0.15em]">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        {userCount} profiles active worldwide
-                    </div>
-                </div>
 
-                <div className="max-w-4xl mx-auto px-4 mt-16">
-                    <PromotedAd />
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                        <Link to={primaryHref} className="w-full sm:w-auto h-16 px-10 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-2xl shadow-primary/30 flex items-center justify-center gap-3">
+                            <HeartHandshake size={18} /> GET YOUR RESQR
+                        </Link>
+                        <Link to="/login" className="w-full sm:w-auto h-16 px-8 bg-white/5 text-white border border-white/10 rounded-2xl font-black italic uppercase tracking-widest text-xs flex items-center justify-center">
+                            AUTHENTICATE LOGIN
+                        </Link>
+                    </div>
+
+                    <div className="pt-8">
+                        <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#0C1322] border border-white/10 text-xs font-bold text-slate-300 uppercase tracking-widest">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            {userCount} Active Identity Nodes Created
+                        </span>
+                    </div>
                 </div>
             </section>
-
-            {/* ============ DEMO MODAL (kept from original) ============ */}
-            <Modal
-                isOpen={isDemoOpen}
-                onClose={() => setIsDemoOpen(false)}
-                title="RESQR - HOW IT WORKS"
-            >
-                <div className="aspect-video w-full bg-slate-950 rounded-[30px] overflow-hidden relative group border border-white/10 shadow-2xl">
-                    <img
-                        src="https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?q=80&w=1200&auto=format&fit=crop"
-                        alt="Emergency Demo"
-                        className="w-full h-full object-cover opacity-40 group-hover:scale-105 transition-transform duration-700"
-                        loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-slate-950/40 flex items-center justify-center">
-                        <div className="text-center text-white">
-                            <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse shadow-2xl shadow-primary/50 cursor-pointer hover:scale-110 transition-transform">
-                                <Play size={44} className="fill-white ml-2" />
-                            </div>
-                            <h3 className="text-2xl font-black uppercase italic tracking-tighter font-poppins">Watch the Demo Video</h3>
-                            <p className="font-bold text-[10px] uppercase tracking-[0.4em] opacity-50 mt-2">Connecting to Emergency Stream...</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-10 space-y-6 text-slate-400 font-medium leading-relaxed">
-                    <p className="text-lg">In this demo, you'll see how a first responder scans a RESQR tag on a patient's helmet and instantly accesses their medical history and emergency contacts.</p>
-                    <div className="flex flex-wrap gap-3">
-                        {['Real-time scan alerts', 'Medical diagnostics', 'GPS location relay', 'Encrypted Privacy'].map((f) => (
-                            <span key={f} className="inline-flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-widest text-white">
-                                <CheckCircle2 size={14} className="text-emerald-500" /> {f}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            </Modal>
         </div>
     );
 }

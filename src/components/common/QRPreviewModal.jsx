@@ -95,7 +95,7 @@ export default function QRPreviewModal({
                                     </div>
 
                                     {/* QR Canvas */}
-                                    <div className="bg-white p-5 rounded-3xl inline-block shadow-2xl mb-6 border-4 border-slate-950 relative">
+                                    <div className="bg-white p-5 rounded-3xl inline-block shadow-2xl mb-4 border-4 border-slate-950 relative">
                                         <QRCodeCanvas 
                                             value={previewUrl}
                                             size={200}
@@ -108,6 +108,12 @@ export default function QRPreviewModal({
                                                 excavate: true,
                                             }}
                                         />
+                                    </div>
+
+                                    {/* Registered User Name displayed dynamically under QR */}
+                                    <div className="bg-white/10 px-4 py-2 rounded-xl mb-4 border border-white/10">
+                                        <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">REGISTERED PROFILE</p>
+                                        <p className="text-lg font-black italic uppercase text-white font-poppins">{name || "RESQR HOLDER"}</p>
                                     </div>
 
                                     {/* Patient Metadata Banner */}

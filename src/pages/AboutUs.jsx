@@ -96,9 +96,6 @@ export default function AboutUs() {
                         <h2 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter leading-none font-poppins">
                             Don't leave your <span className="text-primary">Safety</span> to chance.
                         </h2>
-                        <p className="text-white/60 text-xl font-medium max-w-2xl mx-auto">
-                            Join over 50,000 users who trust RESQR to speak for them when they can't.
-                        </p>
                         <div className="pt-6">
                             <Button size="lg" onClick={handleCtaClick} className="px-12 py-5 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl shadow-primary/30 active:scale-95 transition-transform">
                                 GET PROTECTED <ArrowRight size={18} className="ml-3" />

@@ -83,7 +83,7 @@ export default function MyQR() {
         const out = document.createElement('canvas');
         const ctx = out.getContext('2d');
         const CANVAS_W = 1200;
-        const CANVAS_H = 1500;
+        const CANVAS_H = 1600;
         out.width = CANVAS_W;
         out.height = CANVAS_H;
 
@@ -99,25 +99,32 @@ export default function MyQR() {
             logo.onerror = () => reject(new Error('Failed to load logo for tag export'));
         });
 
-        const logoW = 500;
-        const logoH = (logo.height / logo.width) * logoW || 150;
+        const logoW = 450;
+        const logoH = (logo.height / logo.width) * logoW || 130;
         ctx.filter = 'brightness(0)';
-        ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 80, logoW, logoH);
+        ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 70, logoW, logoH);
         ctx.filter = 'none';
 
-        ctx.drawImage(canvas, (CANVAS_W - 800) / 2, logoH + 200, 800, 800);
+        // QR Code Matrix
+        ctx.drawImage(canvas, (CANVAS_W - 720) / 2, logoH + 130, 720, 720);
 
-        ctx.fillStyle = '#111111';
-        ctx.font = 'italic 900 90px sans-serif';
+        // Dynamic Registered User Name at Bottom of QR Code
+        const userNameText = (resolved.name || activeProfile?.name || 'REGISTERED HOLDER').toUpperCase();
+        ctx.fillStyle = '#0F172A';
+        ctx.font = 'italic 900 64px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, CANVAS_H - 120);
+        ctx.fillText(userNameText, CANVAS_W / 2, logoH + 130 + 720 + 80);
 
-        ctx.font = 'bold 36px sans-serif';
+        ctx.fillStyle = '#E63946';
+        ctx.font = 'italic 900 44px sans-serif';
+        ctx.fillText('EMERGENCY QR', CANVAS_W / 2, logoH + 130 + 720 + 150);
+
+        ctx.font = 'bold 30px sans-serif';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText('POWERED BY RESQR.CO.IN', CANVAS_W / 2, CANVAS_H - 50);
+        ctx.fillText('POWERED BY RESQR.CO.IN', CANVAS_W / 2, CANVAS_H - 60);
 
         return out.toDataURL('image/png', 1.0);
-    }, []);
+    }, [resolved.name, activeProfile]);
 
     const tagFileName = `RESQR_${(username || activeProfile?.id || 'TAG').split('_').pop()}`.toUpperCase();
 
@@ -311,7 +318,7 @@ export default function MyQR() {
                                 alt="RESQR"
                                 className="h-12 w-auto mb-8 object-contain brightness-0"
                             />
-                            <div className="bg-white p-4 rounded-[26px] shadow-2xl relative mb-6 cursor-pointer hover:scale-[1.03] transition-transform">
+                            <div className="bg-white p-4 rounded-[26px] shadow-2xl relative mb-4 cursor-pointer hover:scale-[1.03] transition-transform">
                                 <QRCodeCanvas
                                     id="my-qr-canvas"
                                     value={qrValue || 'https://resqr.co.in'}
@@ -326,7 +333,11 @@ export default function MyQR() {
                                     }}
                                 />
                             </div>
-                            <p className="text-xl font-black text-black uppercase tracking-tighter italic font-poppins">SCAN IN EMERGENCY</p>
+                            {/* Dynamic Registered User Name at Bottom of QR Code */}
+                            <p className="text-xl font-black text-black uppercase tracking-tight italic font-poppins text-center mb-1">
+                                {resolved.name || activeProfile?.name || 'REGISTERED HOLDER'}
+                            </p>
+                            <p className="text-[10px] font-black text-primary uppercase tracking-widest italic font-poppins">EMERGENCY QR TAG</p>
                             <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">POWERED BY RESQR.CO.IN</p>
                         </div>
 
