@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeCanvas } from 'qrcode.react';
 import { X, Eye, ShieldAlert, Phone, HeartPulse, ShieldCheck, Download, ExternalLink, Activity, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
+import RESQRQRCodeCard from './RESQRQRCodeCard';
 
 export default function QRPreviewModal({ 
     isOpen, 
@@ -78,58 +79,28 @@ export default function QRPreviewModal({
                     {/* Content Section */}
                     <div className="p-8 max-h-[70vh] overflow-y-auto space-y-6">
                         {viewMode === 'tag' ? (
-                            <div className="flex flex-col items-center">
-                                {/* Simulated Physical QR Card */}
-                                <div className="w-full max-w-sm bg-gradient-to-b from-slate-900 to-slate-950 p-8 rounded-[36px] border-2 border-primary/30 shadow-2xl relative overflow-hidden text-center group">
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
-                                    
-                                    <div className="flex flex-col items-center mb-6 pb-4 border-b border-white/10">
-                                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-10 w-auto object-contain mb-3" />
-                                        <div className="flex items-center justify-between w-full">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-                                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white italic">RESQR MEDICAL TAG</span>
-                                            </div>
-                                            <span className="text-[9px] font-mono text-slate-400">{medicalId}</span>
-                                        </div>
-                                    </div>
+                            <div className="flex flex-col items-center space-y-6">
+                                {/* Official Physical QR Card */}
+                                <RESQRQRCodeCard 
+                                    qrValue={previewUrl}
+                                    userName={name || "RESQR HOLDER"}
+                                    size={200}
+                                    showBorder={true}
+                                />
 
-                                    {/* QR Canvas */}
-                                    <div className="bg-white p-5 rounded-3xl inline-block shadow-2xl mb-4 border-4 border-slate-950 relative">
-                                        <QRCodeCanvas 
-                                            value={previewUrl}
-                                            size={200}
-                                            level="H"
-                                            includeMargin={false}
-                                            imageSettings={{
-                                                src: `${import.meta.env.BASE_URL}resqr_icon.png`,
-                                                height: 40,
-                                                width: 40,
-                                                excavate: true,
-                                            }}
-                                        />
+                                {/* Patient Metadata Banner */}
+                                <div className="w-full max-w-sm space-y-3 text-left bg-slate-950/80 p-5 rounded-2xl border border-white/5">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Patient Name</span>
+                                        <span className="text-sm font-black italic text-white uppercase">{name}</span>
                                     </div>
-
-                                    {/* Registered User Name displayed dynamically under QR */}
-                                    <div className="bg-white/10 px-4 py-2 rounded-xl mb-4 border border-white/10">
-                                        <p className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-400">REGISTERED PROFILE</p>
-                                        <p className="text-lg font-black italic uppercase text-white font-poppins">{name || "RESQR HOLDER"}</p>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Blood Group</span>
+                                        <span className="text-xs font-black italic text-primary px-3 py-1 bg-primary/20 rounded-full border border-primary/30">{bloodGroup}</span>
                                     </div>
-
-                                    {/* Patient Metadata Banner */}
-                                    <div className="space-y-3 text-left bg-slate-950/80 p-5 rounded-2xl border border-white/5">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Patient Name</span>
-                                            <span className="text-sm font-black italic text-white uppercase">{name}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Blood Group</span>
-                                            <span className="text-xs font-black italic text-primary px-3 py-1 bg-primary/20 rounded-full border border-primary/30">{bloodGroup}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Emergency SOS Contact</span>
-                                            <span className="text-xs font-mono font-bold text-slate-300">{phone}</span>
-                                        </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Emergency SOS Contact</span>
+                                        <span className="text-xs font-mono font-bold text-slate-300">{phone}</span>
                                     </div>
                                 </div>
                             </div>

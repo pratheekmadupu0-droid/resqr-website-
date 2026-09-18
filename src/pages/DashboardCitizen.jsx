@@ -17,7 +17,7 @@ import toast from 'react-hot-toast';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
-import DevotionalBackground from '../components/DevotionalBackground';
+import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -264,7 +264,7 @@ export default function DashboardCitizen() {
 
             ctx.fillStyle = '#E63946';
             ctx.font = 'italic 900 44px sans-serif';
-            ctx.fillText('EMERGENCY QR', CANVAS_W / 2, logoH + 130 + 720 + 150);
+            ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, logoH + 130 + 720 + 150);
 
             // Footer Site Name
             ctx.font = 'bold 30px sans-serif';
@@ -604,14 +604,15 @@ export default function DashboardCitizen() {
 
                     <div className="space-y-6">
                         <div className="bg-[#11192A] rounded-[50px] border border-white/5 overflow-hidden flex flex-col shadow-2xl">
-                            <div className="bg-white p-12 flex flex-col items-center relative group">
-                                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-14 w-auto mb-10 object-contain brightness-0" />
-                                <div className="bg-white p-4 rounded-[25px] shadow-2xl relative mb-10 cursor-pointer hover:scale-105 transition-transform" onClick={handleDownload}>
-                                    <QRCodeCanvas id={`qr-${activeProfile?.id}`} value={qrValue} size={180} level="H" includeMargin={false} imageSettings={{ src: `${import.meta.env.BASE_URL}resqr_icon.png`, height: 40, width: 40, excavate: true }} />
-                                </div>
-                                <p className="text-xl font-black text-black uppercase tracking-tighter mb-4 italic">SCAN IN EMERGENCY</p>
-                                <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">POWERED BY RESQR.CO.IN</p>
-                            </div>
+                            <RESQRQRCodeCard
+                                canvasId={`qr-${activeProfile?.id}`}
+                                qrValue={qrValue}
+                                userName={editData?.name || activeProfile?.name || activeProfile?.data?.name || 'REGISTERED HOLDER'}
+                                size={190}
+                                showBorder={false}
+                                className="rounded-t-[50px] rounded-b-none cursor-pointer"
+                                onClick={handleDownload}
+                            />
                             <div className="bg-[#050B18] p-8 flex flex-col items-center text-center">
                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-6 font-poppins leading-relaxed">Personalized Link: <span className="text-emerald-400 lowercase">resqr.co.in/{username || '...'}</span></p>
                                 <div className="flex flex-col gap-3 w-full">

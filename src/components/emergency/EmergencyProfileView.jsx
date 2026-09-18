@@ -280,6 +280,7 @@ return (
                         <span className="em-chip">Call Emergency Contact</span>
                         <span className="em-chip">Share Location</span>
                         <span className="em-chip">Call Ambulance 108</span>
+                        <span className="em-chip">Call Police 100</span>
                         <span className="em-chip">Nearest Hospital</span>
                     </div>
                 </section>
@@ -299,6 +300,11 @@ return (
                         <span className="block text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500 mt-1.5">Dial 108 · First responders</span>
                     </span>
                 </button>
+
+                <a href="tel:100" className="w-full h-16 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl flex items-center justify-center gap-4 font-black italic uppercase tracking-wider text-sm shadow-xl shadow-blue-600/20 transition-all">
+                    <Shield size={22} fill="currentColor" />
+                    Call Police — 100
+                </a>
 
                 <button type="button" onClick={onNearestHospital} className="em-action-ghost">
                     <Navigation size={20} className="text-red-500" />

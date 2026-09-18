@@ -347,7 +347,7 @@ export default function QRScanPage() {
 
                         {/* Recovery Actions */}
                         <div className="grid grid-cols-1 gap-5">
-                            {/* 5. Call to 108 */}
+                            {/* 5. Call to 108 Ambulance */}
                             <button 
                                 onClick={() => window.location.href = `tel:108`}
                                 className="w-full h-28 bg-white text-black rounded-[40px] flex items-center justify-center gap-8 shadow-2xl active:scale-95 transition-all"
@@ -355,7 +355,19 @@ export default function QRScanPage() {
                                 <Siren size={40} className="text-red-600 animate-pulse" />
                                 <div className="text-left">
                                     <p className="text-3xl font-black italic uppercase leading-none font-poppins">Call 108</p>
-                                    <p className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-2">First Responders</p>
+                                    <p className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-2">Ambulance Emergency</p>
+                                </div>
+                            </button>
+
+                            {/* Police Emergency 100 */}
+                            <button 
+                                onClick={() => window.location.href = `tel:100`}
+                                className="w-full h-24 bg-blue-600 text-white rounded-[36px] flex items-center justify-center gap-6 shadow-2xl shadow-blue-600/30 active:scale-95 transition-all"
+                            >
+                                <ShieldAlert size={36} fill="white" />
+                                <div className="text-left">
+                                    <p className="text-2xl font-black italic uppercase leading-none font-poppins">Call Police — 100</p>
+                                    <p className="text-[11px] font-bold text-blue-200 uppercase tracking-[0.25em] mt-1.5">Law Enforcement Relay</p>
                                 </div>
                             </button>
 

@@ -9,9 +9,7 @@ import {
 import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
 import { ref, onValue, get } from 'firebase/database';
-import PromotedAd from '../components/PromotedAd';
-import FestiveBanner from '../components/FestiveBanner';
-import DevotionalBackground from '../components/DevotionalBackground';
+import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 import { Modal } from '../components/ui/Modal';
 
 function TypewriterHeroHeadline() {
@@ -218,12 +216,14 @@ export default function LandingPage() {
 
                             {/* Demo State 0: QR Code */}
                             {demoStep === 0 && (
-                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-6 space-y-4">
-                                    <div className="bg-white p-6 rounded-3xl inline-block shadow-2xl border-4 border-slate-950">
-                                        <QrCode size={160} className="text-slate-950" />
-                                    </div>
-                                    <p className="text-xl font-black italic uppercase text-white font-poppins">PRATHEEK MADUPU</p>
-                                    <p className="text-[10px] text-primary font-black uppercase tracking-widest">PERSONAL RESQR EMERGENCY TAG</p>
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="py-2">
+                                    <RESQRQRCodeCard
+                                        qrValue="https://resqr.co.in/e/demo"
+                                        userName="ANIL SHARMA"
+                                        size={140}
+                                        showBorder={false}
+                                        className="shadow-xl"
+                                    />
                                 </motion.div>
                             )}
 
@@ -245,23 +245,23 @@ export default function LandingPage() {
 
                             {/* Demo State 2: Responder Profile HUD */}
                             {demoStep === 2 && (
-                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
-                                    <div className="bg-primary p-4 rounded-2xl flex items-center justify-between text-white">
-                                        <div>
-                                            <p className="text-[9px] font-black uppercase tracking-widest opacity-80">CRITICAL VITAL</p>
-                                            <p className="text-3xl font-black italic font-poppins">B+ POSITIVE</p>
-                                        </div>
-                                        <Droplet size={32} />
-                                    </div>
-
-                                    <div className="bg-[#050812] p-4 rounded-2xl border border-white/5 space-y-2">
-                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Medical History</p>
-                                        <p className="text-xs font-bold text-white">Type-1 Diabetes • Penicillin Allergy</p>
+                                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4 text-left">
+                                    <div className="bg-[#050812] p-5 rounded-2xl border border-white/5 space-y-2">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Verified Identity Node</p>
+                                        <p className="text-lg font-black italic uppercase text-white font-poppins">ANIL SHARMA</p>
+                                        <span className="inline-flex items-center gap-1.5 text-[9px] font-bold text-emerald-400 uppercase tracking-widest bg-emerald-500/10 px-2.5 py-0.5 rounded-full">
+                                            <ShieldCheck size={12} /> Active Emergency Protection
+                                        </span>
                                     </div>
 
                                     <div className="bg-[#050812] p-4 rounded-2xl border border-white/5 space-y-1">
-                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Guardian Contact</p>
-                                        <p className="text-xs font-bold text-emerald-400 font-mono">Meera Sharma (Spouse) • 98860***21</p>
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Authorized Emergency Contact</p>
+                                        <p className="text-xs font-bold text-emerald-400 font-mono">Primary Guardian • 98860***21</p>
+                                    </div>
+
+                                    <div className="bg-[#050812] p-4 rounded-2xl border border-white/5 space-y-1">
+                                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Emergency Services Relay</p>
+                                        <p className="text-xs font-bold text-slate-300">Ambulance (108) • Police (100) • Trauma Locator</p>
                                     </div>
                                 </motion.div>
                             )}
@@ -278,6 +278,9 @@ export default function LandingPage() {
                                     <div className="h-12 bg-white text-black rounded-xl font-black italic uppercase text-xs flex items-center justify-center gap-2 shadow-lg">
                                         <Siren size={16} className="text-primary" /> CALL 108 AMBULANCE
                                     </div>
+                                    <div className="h-12 bg-blue-600 text-white rounded-xl font-black italic uppercase text-xs flex items-center justify-center gap-2 shadow-lg">
+                                        <ShieldAlert size={16} /> CALL POLICE — 100
+                                    </div>
                                 </motion.div>
                             )}
 
@@ -290,11 +293,6 @@ export default function LandingPage() {
                     </div>
                 </div>
             </section>
-
-            {/* Campaign Festive Banner */}
-            <div className="max-w-6xl mx-auto px-6 mb-16">
-                <FestiveBanner mode="hero" />
-            </div>
 
             {/* ================= 6-STEP VISUAL JOURNEY ================= */}
             <section id="how-it-works" className="py-24 bg-[#080D1A] border-y border-white/5 relative">

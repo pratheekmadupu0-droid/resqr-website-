@@ -15,7 +15,6 @@ import { extractFeatures } from '../lib/cvHelper';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import { calculateAge } from '../lib/dateUtils';
-import DevotionalBackground from '../components/DevotionalBackground';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -416,17 +415,6 @@ export default function CreateIdentity() {
 
     return (
         <div className="min-h-screen bg-[#040812] flex items-center justify-center p-6 font-manrope selection:bg-primary/30 relative overflow-hidden">
-            {/* ===== Devotional atmosphere (restrained, low intensity) ===== */}
-            <DevotionalBackground
-                intensity="low"
-                showGanesha={true}
-                showMandala={false}
-                showDiya={true}
-                showParticles={true}
-                className="create-identity-devotional"
-            />
-            {/* ===== /devotional atmosphere ===== */}
-
             <div className="w-full max-w-5xl py-12 relative z-10">
                 {/* Header branding */}
                 <div className="text-center mb-12">

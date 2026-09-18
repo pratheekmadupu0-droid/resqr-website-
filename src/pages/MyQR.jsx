@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import AppLoading from '../components/ui/AppLoading';
-import DevotionalBackground from '../components/DevotionalBackground';
+import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 
 /**
  * MyQR — "MY RESQR" identity console.
@@ -117,7 +117,7 @@ export default function MyQR() {
 
         ctx.fillStyle = '#E63946';
         ctx.font = 'italic 900 44px sans-serif';
-        ctx.fillText('EMERGENCY QR', CANVAS_W / 2, logoH + 130 + 720 + 150);
+        ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, logoH + 130 + 720 + 150);
 
         ctx.font = 'bold 30px sans-serif';
         ctx.fillStyle = '#94a3b8';
@@ -237,9 +237,8 @@ export default function MyQR() {
     if (profiles.length === 0) {
         return (
             <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white p-6 font-manrope relative overflow-hidden">
-                <DevotionalBackground intensity="low" showGanesha={false} showMandala={false} showDiya showParticles />
                 <div className="text-center max-w-md space-y-6 relative z-10">
-                    <QrCode size={48} className="text-gold mx-auto" />
+                    <QrCode size={48} className="text-primary mx-auto" />
                     <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">No Identity Node Yet</h2>
                     <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
                         Create your first emergency identity to generate a scannable RESQR tag.
@@ -253,16 +252,7 @@ export default function MyQR() {
     }
 
     return (
-        <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-gold/30 relative overflow-hidden">
-            <DevotionalBackground
-                intensity="low"
-                showGanesha={false}
-                showMandala={false}
-                showDiya
-                showParticles
-                className="myqr-devotional"
-            />
-
+        <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30 relative overflow-hidden">
             <div className="max-w-6xl mx-auto px-5 sm:px-6 py-20 lg:py-28 space-y-10 relative z-10">
                 {/* ===== header ===== */}
                 <header className="space-y-4">
@@ -311,35 +301,14 @@ export default function MyQR() {
                         transition={{ duration: 0.5 }}
                         className="bg-[#11192A] rounded-[44px] border border-white/5 overflow-hidden shadow-card-premium"
                     >
-                        <div className="bg-white p-10 flex flex-col items-center relative">
-                            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-gold-dark via-gold-light to-gold-dark" />
-                            <img
-                                src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                                alt="RESQR"
-                                className="h-12 w-auto mb-8 object-contain brightness-0"
-                            />
-                            <div className="bg-white p-4 rounded-[26px] shadow-2xl relative mb-4 cursor-pointer hover:scale-[1.03] transition-transform">
-                                <QRCodeCanvas
-                                    id="my-qr-canvas"
-                                    value={qrValue || 'https://resqr.co.in'}
-                                    size={210}
-                                    level="H"
-                                    includeMargin={false}
-                                    imageSettings={{
-                                        src: `${import.meta.env.BASE_URL}resqr_icon.png`,
-                                        height: 46,
-                                        width: 46,
-                                        excavate: true
-                                    }}
-                                />
-                            </div>
-                            {/* Dynamic Registered User Name at Bottom of QR Code */}
-                            <p className="text-xl font-black text-black uppercase tracking-tight italic font-poppins text-center mb-1">
-                                {resolved.name || activeProfile?.name || 'REGISTERED HOLDER'}
-                            </p>
-                            <p className="text-[10px] font-black text-primary uppercase tracking-widest italic font-poppins">EMERGENCY QR TAG</p>
-                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-2">POWERED BY RESQR.CO.IN</p>
-                        </div>
+                        <RESQRQRCodeCard
+                            canvasId="my-qr-canvas"
+                            qrValue={qrValue || 'https://resqr.co.in'}
+                            userName={resolved.name || activeProfile?.name || 'REGISTERED HOLDER'}
+                            size={210}
+                            showBorder={false}
+                            className="rounded-t-[44px] rounded-b-none"
+                        />
 
                         <div className="bg-[#050B18] p-7 space-y-5">
                             <div className="flex items-center justify-between gap-3">
