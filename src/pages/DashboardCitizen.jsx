@@ -102,12 +102,6 @@ export default function DashboardCitizen() {
                 
                 setProfiles(profilesData);
                 setLoading(false);
-                
-                // New profiles are usable immediately — physical tag products
-                // remain a separate, optional purchase via the Store.
-                if (!snapshot.exists()) {
-                    navigate('/login');
-                }
             });
         };
         if (auth.currentUser) init();
@@ -283,6 +277,25 @@ export default function DashboardCitizen() {
     if (loading) return <AppLoading message="Synchronizing your emergency profile..." />;
     if (!auth.currentUser) return <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white"><Button onClick={() => navigate('/login')}>RE-AUTHENTICATE</Button></div>;
 
+    if (profiles.length === 0 || !activeProfile) {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white flex items-center justify-center p-6 font-manrope">
+                <div className="max-w-md w-full bg-[#11192A] border border-white/10 rounded-[36px] p-10 text-center space-y-6 shadow-2xl">
+                    <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mx-auto border border-primary/20">
+                        <QrCode size={32} />
+                    </div>
+                    <h2 className="text-2xl font-black italic uppercase font-poppins">No Active RESQR Identity</h2>
+                    <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                        You have not generated an emergency profile yet. Generate your secure medical tag to activate your emergency dashboard.
+                    </p>
+                    <Button onClick={() => navigate('/create-identity')} className="w-full py-4 bg-primary text-white rounded-2xl font-black italic uppercase tracking-wider text-xs">
+                        Create Emergency Identity
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
     const qrValue = username 
         ? `${window.location.origin}/${username}` 
         : `${window.location.origin}/qr/${activeProfile?.id}`;
@@ -299,17 +312,6 @@ export default function DashboardCitizen() {
 
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-primary/30 relative overflow-hidden">
-            {/* ===== Devotional atmosphere (restrained — particles + diyas only, no Ganesha behind content) ===== */}
-            <DevotionalBackground
-                intensity="low"
-                showGanesha={false}
-                showMandala={false}
-                showDiya={true}
-                showParticles={true}
-                className="dashboard-devotional"
-            />
-            {/* ===== /devotional atmosphere ===== */}
-
             <div className="max-w-7xl mx-auto px-6 py-20 lg:py-32 space-y-12 relative z-10">
                 
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-8">
