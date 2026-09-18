@@ -6,9 +6,9 @@ import { QRCodeCanvas } from 'qrcode.react';
  *
  * The official unified RESQR Emergency QR Card component for every registered user.
  * Structure:
- * 1. Official RESQR Logo
- * 2. High-contrast QR Code (with excavate logo center)
- * 3. Registered User Full Name (strictly from DB/auth, dynamic for all users)
+ * 1. Official RESQR Brand Logo
+ * 2. High-contrast QR Code with official ResQR Logo in the center
+ * 3. Registered User Full Name (strictly dynamic from DB/auth)
  * 4. SCAN IN EMERGENCY
  * 5. POWERED BY RESQR.CO.IN
  */
@@ -29,6 +29,11 @@ const RESQRQRCodeCard = forwardRef(function RESQRQRCodeCard(
         ? String(userName).trim().toUpperCase()
         : 'REGISTERED USER';
 
+    // Proportional logo dimensions for the center of the QR code
+    // Aspect ratio of resqr_qr_logo is 1095 / 432 ≈ 2.53
+    const logoHeight = Math.max(32, Math.round(size * 0.19));
+    const logoWidth = Math.round(logoHeight * 2.53);
+
     return (
         <div
             ref={ref}
@@ -41,14 +46,14 @@ const RESQRQRCodeCard = forwardRef(function RESQRQRCodeCard(
             {/* 1. Official RESQR Brand Logo */}
             <div className="mb-6 flex items-center justify-center w-full">
                 <img
-                    src={`${import.meta.env.BASE_URL}resqr_logo.png`}
+                    src={`${import.meta.env.BASE_URL}resqr_qr_logo.png`}
                     alt="RESQR"
-                    className="h-10 sm:h-12 w-auto object-contain brightness-0"
+                    className="h-10 sm:h-12 w-auto object-contain"
                     loading="eager"
                 />
             </div>
 
-            {/* 2. QR Code Matrix */}
+            {/* 2. QR Code Matrix with Official Logo embedded inside the QR */}
             <div className="bg-white p-3.5 rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-slate-100 mb-6 relative">
                 <QRCodeCanvas
                     id={canvasId}
@@ -57,9 +62,9 @@ const RESQRQRCodeCard = forwardRef(function RESQRQRCodeCard(
                     level="H"
                     includeMargin={false}
                     imageSettings={{
-                        src: `${import.meta.env.BASE_URL}resqr_icon.png`,
-                        height: Math.round(size * 0.22),
-                        width: Math.round(size * 0.22),
+                        src: `${import.meta.env.BASE_URL}resqr_qr_logo.png`,
+                        height: logoHeight,
+                        width: logoWidth,
                         excavate: true
                     }}
                 />
