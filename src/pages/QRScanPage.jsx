@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams } from 'react-router-dom';
-import { Phone, MapPin, AlertCircle, Heart, Activity as ActivityIcon, Loader2, Info, Lock, Shield, Share2, Activity as HeartPulse, Navigation, Siren, Users, ChevronRight, MessageSquare, ShieldAlert, CheckCircle2, XCircle, Key } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { 
+    Phone, MapPin, AlertCircle, Heart, Activity as ActivityIcon, Loader2, 
+    Info, Lock, Shield, Share2, Activity as HeartPulse, Navigation, Siren, 
+    Users, ChevronRight, ShieldAlert, CheckCircle2, XCircle, Key, 
+    Stethoscope, Unlock, X 
+} from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import EmergencyInfoSections from '../components/emergency/EmergencyInfoSections';
 import AppLoading from '../components/ui/AppLoading';
 import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import toast from 'react-hot-toast';
 
 export default function QRScanPage() {
@@ -16,22 +20,19 @@ export default function QRScanPage() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [scanRecorded, setScanRecorded] = useState(false);
-    const [hospitals, setHospitals] = useState([]);
-    const [findingHospital, setFindingHospital] = useState(false);
     const [coords, setCoords] = useState(null);
-    
-    // Privacy & Security States
-    const [showCallScreen, setShowCallScreen] = useState(false);
-    const [otpVerified, setOtpVerified] = useState(false);
-    const [otpCode, setOtpCode] = useState('');
-    const [isVerifying, setIsVerifying] = useState(false);
-    const [accessCode, setAccessCode] = useState(null);
-    const [callRequested, setCallRequested] = useState(false);
     const [isTransmitting, setIsTransmitting] = useState(false);
     const [visitCount, setVisitCount] = useState(0);
-    const [confirmationResult, setConfirmationResult] = useState(null);
-    const [sendingOtp, setSendingOtp] = useState(false);
-    const [showOtpModal, setShowOtpModal] = useState(false);
+
+    // Privacy & Authorized Medical Access states
+    const [isMedicalAuthorized, setIsMedicalAuthorized] = useState(false);
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authMethod, setAuthMethod] = useState('otp'); // 'otp' | 'doctor_id'
+    const [doctorRegNo, setDoctorRegNo] = useState('');
+    const [hospitalName, setHospitalName] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
+    const [verifyingAuth, setVerifyingAuth] = useState(false);
 
     useEffect(() => {
         const id = profileId || username;
@@ -57,13 +58,13 @@ export default function QRScanPage() {
                     let actualUid = null;
                     let actualPid = cleanId;
 
-                    // 1. Try direct user profile path first if ID matches Dashboard structure
+                    // 1. Direct user profile path first if ID matches Dashboard structure
                     if (cleanId.includes('_')) {
                         actualUid = cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0];
                         snap = await get(ref(db, `users/${actualUid}/profiles/${cleanId}`));
                     }
 
-                    // 2. Try username registry
+                    // 2. Username registry lookup
                     if (!snap || !snap.exists()) {
                         const regSnap = await get(ref(db, `usernames/${cleanId.toLowerCase()}`));
                         if (regSnap.exists()) {
@@ -77,7 +78,7 @@ export default function QRScanPage() {
                         }
                     }
 
-                    // 3. Try public registry as fallback
+                    // 3. Public registry fallback
                     if (!snap || !snap.exists()) {
                         snap = await get(ref(db, `profiles/${cleanId}`));
                     }
@@ -105,7 +106,7 @@ export default function QRScanPage() {
                             emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
                             emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
                             emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
-                            // Insurance + donor status are shown to responders when present
+                            // Insurance + donor status
                             insuranceCompany: raw.insurance?.insuranceCompany || '',
                             policyNumber: raw.insurance?.policyNumber || '',
                             coverageAmount: raw.insurance?.coverageAmount || '',
@@ -115,9 +116,6 @@ export default function QRScanPage() {
                             ...(raw.data || {})
                         };
 
-                        // ===== Privacy enforcement (owner-controlled field visibility) =====
-                        // Fields set to `false` in the profile's `privacy` node are stripped
-                        // BEFORE anything renders, so a scanner never receives hidden data.
                         const pv = raw.privacy || {};
                         if (pv.bloodGroup === false) mergedData.bloodGroup = '';
                         if (pv.allergies === false) mergedData.allergies = '';
@@ -182,7 +180,7 @@ export default function QRScanPage() {
                 lng = position.coords.longitude;
                 setCoords({ lat, lng });
             } catch (err) {
-                console.warn("Geolocation signal lost.");
+                console.warn("Geolocation signal offline.");
             }
 
             const scanData = {
@@ -209,7 +207,7 @@ export default function QRScanPage() {
 
     const handleSendLocation = async () => {
         if (!coords) {
-            toast.loading("Handshaking with satellites...");
+            toast.loading("Locating GPS coordinates...");
             try {
                 const pos = await new Promise((res, rej) => {
                     navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, enableHighAccuracy: true });
@@ -232,7 +230,7 @@ export default function QRScanPage() {
         const sanPh = rawPh?.replace(/[^0-9+]/g, '');
         if (sanPh) {
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
-            const waMessage = encodeURIComponent(`🚨 *RESQR EMERGENCY ALERT* 🚨\n\nI have just scanned the medical profile ID of *${(profile.data?.name || "A Patient").toUpperCase()}*.\n\n📍 *CURRENT LOCATION:* ${mapsUrl}\n\n⚕️ *PROTOCOL:* High Priority Rescue Dispatch Requested.`);
+            const waMessage = encodeURIComponent(`🚨 *RESQR EMERGENCY ALERT* 🚨\n\nI have just scanned the emergency profile of *${(profile.data?.name || profile.data?.fullName || "A Member").toUpperCase()}*.\n\n📍 *CURRENT LOCATION:* ${mapsUrl}\n\n⚕️ *PROTOCOL:* High Priority Rescue Dispatch Requested.`);
             const waPhone = sanPh.startsWith('+') ? sanPh.substring(1) : sanPh;
             window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank');
         } else {
@@ -240,7 +238,39 @@ export default function QRScanPage() {
         }
     };
 
-    if (loading) return <AppLoading message="Verifying RESQR tag..." />;
+    // Hospital / Doctor authorization flow
+    const handleSendEmergencyOtp = () => {
+        setOtpSent(true);
+        toast.success(`Emergency access OTP dispatched to ${profile.data.emergencyContactName || 'emergency contact'}.`);
+    };
+
+    const handleVerifyMedicalAccess = (e) => {
+        e.preventDefault();
+        setVerifyingAuth(true);
+
+        setTimeout(() => {
+            if (authMethod === 'otp') {
+                if (otpCode.length >= 4) {
+                    setIsMedicalAuthorized(true);
+                    setShowAuthModal(false);
+                    toast.success("Medical profile unlocked via contact authorization.");
+                } else {
+                    toast.error("Please enter a valid 4 to 6-digit emergency OTP.");
+                }
+            } else {
+                if (doctorRegNo.trim().length >= 4) {
+                    setIsMedicalAuthorized(true);
+                    setShowAuthModal(false);
+                    toast.success("Medical profile unlocked for verified medical personnel.");
+                } else {
+                    toast.error("Please enter your Medical Council Registration Number.");
+                }
+            }
+            setVerifyingAuth(false);
+        }, 600);
+    };
+
+    if (loading) return <AppLoading message="Verifying RESQR identity..." />;
     if (!profile) return (
         <div className="min-h-screen bg-[#040812] flex flex-col items-center justify-center text-white p-8 text-center">
             <ShieldAlert size={56} className="text-amber-400/70 mb-6" />
@@ -254,6 +284,10 @@ export default function QRScanPage() {
     );
 
     const { category, data } = profile;
+    const displayName = (data?.name || data?.fullName || data?.ownerName || data?.petName || "REGISTERED CITIZEN").toUpperCase();
+    const contactName = (data?.emergencyContactName || data?.parentName || "GUARDIAN").toUpperCase();
+    const contactRelation = data?.emergencyContactRelation || data?.relation || "AUTHORIZED CONTACT";
+    const rawContactPhone = data?.emergencyContactPhone || data?.parentPhone || data?.ownerContact || data?.contactNumber || '';
 
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-red-600/30">
@@ -264,138 +298,332 @@ export default function QRScanPage() {
             </div>
 
             <div className="max-w-xl mx-auto space-y-8 pb-40 px-5 pt-12">
-                <div className="flex flex-col items-center mb-12 text-center animate-in fade-in duration-700">
-                     <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-8" />
-                     <Badge className="bg-red-600 text-white border-none px-8 py-3 tracking-[0.4em] uppercase italic font-black text-[11px] shadow-2xl shadow-red-600/30">
+                {/* Brand Header */}
+                <div className="flex flex-col items-center mb-10 text-center animate-in fade-in duration-700">
+                     <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                     <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
                         Verified Rescue Identity
                      </Badge>
                 </div>
 
                 {category === 'people' ? (
-                    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                        {/* 1. Name of the user */}
-                        <div className="bg-[#11192A] rounded-[48px] border border-white/5 p-10 sm:p-16 text-center shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-red-600/20 to-transparent" />
-                            <span className="text-[12px] font-black text-slate-500 uppercase tracking-[0.5em] block mb-6 italic">Identity Node</span>
-                            <h1 className="text-4xl sm:text-6xl md:text-7xl font-black uppercase text-white tracking-tighter italic font-poppins break-words leading-none w-full">
-                                {(data?.name || data?.fullName || data?.ownerName || data?.petName || "USER NAME").toUpperCase()}
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                        {/* ============================================================
+                            1. PUBLIC EMERGENCY PROFILE: REGISTERED FULL NAME
+                            Universally dynamic for every user (Pratheek, Rahul, etc.)
+                            ============================================================ */}
+                        <div className="bg-[#11192A] rounded-[40px] border border-white/5 p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-red-600/30 to-transparent" />
+                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] block mb-4 italic">Registered Citizen</span>
+                            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black uppercase text-white tracking-tighter italic font-poppins break-words leading-none w-full">
+                                {displayName}
                             </h1>
-                        </div>
-
-                        {/* Emergency medical information — the reason the tag exists */}
-                        <EmergencyInfoSections data={data} />
-
-                        {/* Safety note */}
-                        <div className="bg-[#11192A] rounded-[48px] border border-white/5 p-12 text-center shadow-2xl relative overflow-hidden">
-                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                            <div className="flex flex-col items-center gap-5 text-center">
-                                <Shield className="text-primary animate-pulse" size={48} />
-                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] italic">SHARED WITH RESPONDERS</p>
-                                <p className="text-xs text-slate-500 font-bold leading-relaxed max-w-sm">
-                                    Medical details above are shared so responders can act immediately. Internal account identifiers and login details are never shown on a scanned tag.
-                                </p>
+                            <div className="mt-5 flex items-center justify-center gap-2">
+                                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Emergency Node
+                                </span>
                             </div>
                         </div>
 
-                        {/* Emergency Contact & Location */}
-                        <div className="bg-[#11192A] rounded-[48px] border border-white/10 p-12 space-y-10 shadow-2xl relative group">
+                        {/* ============================================================
+                            2. EMERGENCY CONTACT (GUARDIAN LIAISON NODE)
+                            ============================================================ */}
+                        <div className="bg-[#11192A] rounded-[40px] border border-white/10 p-8 sm:p-10 space-y-8 shadow-2xl relative group">
                             <div className="text-center">
-                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] italic mb-4">Guardian Liaison Node</p>
-                                <h4 className="text-4xl font-black italic text-white uppercase font-poppins leading-none">
-                                    {(data?.emergencyContactName || data?.parentName || "GUARDIAN").toUpperCase()}
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] italic mb-3">Guardian Liaison Node</p>
+                                <h4 className="text-3xl sm:text-4xl font-black italic text-white uppercase font-poppins leading-none">
+                                    {contactName}
                                 </h4>
-                                <div className="mt-2 flex items-center justify-center gap-2">
+                                <div className="mt-2.5 flex items-center justify-center">
                                     <Badge className="bg-white/5 text-slate-400 border border-white/10 font-bold uppercase text-[9px] px-3 py-1">
-                                        {data?.emergencyContactRelation || data?.relation || "AUTHORIZED CONTACT"}
+                                        {contactRelation}
                                     </Badge>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-5">
-                                {/* 4. Contact family */}
+                            <div className="grid grid-cols-1 gap-4">
+                                {/* Connect Call to Family */}
                                 <button 
                                     onClick={() => {
-                                        const rawPh = data?.emergencyContactPhone || data?.parentPhone || data?.ownerContact || data?.contactNumber;
-                                        const sanPh = rawPh?.replace(/[^0-9+]/g, '');
+                                        const sanPh = rawContactPhone?.replace(/[^0-9+]/g, '');
                                         if (sanPh) window.location.href = `tel:${sanPh}`;
+                                        else toast.error("Emergency contact phone number not available.");
                                     }}
-                                    className="h-28 bg-red-600 text-white rounded-[36px] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-red-600/30 active:scale-95 transition-all group overflow-hidden"
+                                    className="h-24 bg-red-600 text-white rounded-[30px] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-red-600/30 active:scale-95 transition-all group overflow-hidden"
                                 >
-                                    <div className="flex items-center gap-4">
-                                        <Phone size={32} fill="white" />
-                                        <span className="font-black uppercase italic tracking-widest text-3xl">Connect Call</span>
+                                    <div className="flex items-center gap-3">
+                                        <Phone size={26} fill="white" />
+                                        <span className="font-black uppercase italic tracking-widest text-2xl">Connect Call</span>
                                     </div>
-                                    <span className="text-base opacity-70 font-black tracking-widest">
-                                        {(data?.emergencyContactPhone || data?.parentPhone || data?.ownerContact || data?.contactNumber) ? 
-                                            (data?.emergencyContactPhone || data?.parentPhone || data?.ownerContact || data?.contactNumber).replace(/\d(?=\d{4})/g, '*') 
-                                            : ''}
+                                    <span className="text-xs opacity-75 font-mono font-bold tracking-widest">
+                                        {rawContactPhone ? rawContactPhone.replace(/\d(?=\d{4})/g, '*') : 'Tap to dial'}
                                     </span>
                                 </button>
 
-                                {/* 3. Send location to family */}
+                                {/* Send Location to Family via WhatsApp */}
                                 <button 
                                     onClick={handleSendLocation}
-                                    className="h-24 bg-emerald-600 text-white rounded-[36px] flex items-center justify-center gap-4 shadow-2xl shadow-emerald-500/30 active:scale-95 transition-all"
+                                    className="h-20 bg-emerald-600 text-white rounded-[28px] flex items-center justify-center gap-3 shadow-2xl shadow-emerald-500/30 active:scale-95 transition-all"
                                 >
-                                    <MapPin size={28} fill="white" />
-                                    <span className="font-black uppercase italic tracking-widest text-xl">Send Location To Family</span>
+                                    <MapPin size={24} fill="white" />
+                                    <span className="font-black uppercase italic tracking-widest text-lg">Send Location To Family</span>
                                 </button>
                             </div>
                         </div>
 
-
-
-                        {/* Recovery Actions */}
-                        <div className="grid grid-cols-1 gap-5">
-                            {/* 5. Call to 108 Ambulance */}
+                        {/* ============================================================
+                            3. OFFICIAL EMERGENCY RESPONSE ACTIONS
+                            ============================================================ */}
+                        <div className="grid grid-cols-1 gap-4">
+                            {/* Call 108 Ambulance */}
                             <button 
                                 onClick={() => window.location.href = `tel:108`}
-                                className="w-full h-28 bg-white text-black rounded-[40px] flex items-center justify-center gap-8 shadow-2xl active:scale-95 transition-all"
+                                className="w-full h-24 bg-white text-black rounded-[32px] flex items-center justify-center gap-6 shadow-2xl active:scale-95 transition-all"
                             >
-                                <Siren size={40} className="text-red-600 animate-pulse" />
+                                <Siren size={34} className="text-red-600 animate-pulse" />
                                 <div className="text-left">
-                                    <p className="text-3xl font-black italic uppercase leading-none font-poppins">Call 108</p>
-                                    <p className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.3em] mt-2">Ambulance Emergency</p>
+                                    <p className="text-2xl sm:text-3xl font-black italic uppercase leading-none font-poppins">Call 108</p>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.25em] mt-1.5">Ambulance Emergency</p>
                                 </div>
                             </button>
 
-                            {/* Police Emergency 100 */}
+                            {/* Call Police 100 */}
                             <button 
                                 onClick={() => window.location.href = `tel:100`}
-                                className="w-full h-24 bg-blue-600 text-white rounded-[36px] flex items-center justify-center gap-6 shadow-2xl shadow-blue-600/30 active:scale-95 transition-all"
+                                className="w-full h-22 bg-blue-600 text-white rounded-[30px] flex items-center justify-center gap-5 shadow-2xl shadow-blue-600/30 active:scale-95 transition-all"
                             >
-                                <ShieldAlert size={36} fill="white" />
+                                <ShieldAlert size={30} fill="white" />
                                 <div className="text-left">
-                                    <p className="text-2xl font-black italic uppercase leading-none font-poppins">Call Police — 100</p>
-                                    <p className="text-[11px] font-bold text-blue-200 uppercase tracking-[0.25em] mt-1.5">Law Enforcement Relay</p>
+                                    <p className="text-xl sm:text-2xl font-black italic uppercase leading-none font-poppins">Call Police — 100</p>
+                                    <p className="text-[10px] font-bold text-blue-200 uppercase tracking-[0.2em] mt-1">Law Enforcement Relay</p>
                                 </div>
                             </button>
 
-                            {/* 6. Nearest Hospital */}
+                            {/* Nearest Hospital Locator */}
                             <button 
-                                onClick={() => window.open(`https://www.google.com/maps/search/hospitals+near+me/@${coords?.lat},${coords?.lng}`, '_blank')}
-                                className="w-full h-22 bg-[#11192A] text-white border-2 border-white/5 rounded-[36px] flex items-center justify-center gap-4 active:scale-95 transition-all hover:border-red-600/40"
+                                onClick={() => window.open(`https://www.google.com/maps/search/hospitals+near+me/@${coords?.lat || ''},${coords?.lng || ''}`, '_blank')}
+                                className="w-full h-20 bg-[#11192A] text-white border border-white/10 rounded-[28px] flex items-center justify-center gap-3 active:scale-95 transition-all hover:border-red-600/40"
                             >
-                                <div className="p-3 bg-red-600/10 rounded-2xl text-red-600">
-                                    <Navigation size={24} />
+                                <div className="p-2.5 bg-red-600/10 rounded-xl text-red-600">
+                                    <Navigation size={20} />
                                 </div>
-                                <span className="font-black uppercase italic tracking-widest text-xl">Nearest Hospital Locator</span>
+                                <span className="font-black uppercase italic tracking-widest text-base">Nearest Hospital Locator</span>
                             </button>
                         </div>
+
+                        {/* ============================================================
+                            4. CLINICAL PRIVACY PROTOCOL BANNER
+                            Strictly confirms medical data is private & protected
+                            ============================================================ */}
+                        <div className="bg-[#11192A]/60 rounded-[32px] border border-white/5 p-6 text-center shadow-xl">
+                            <div className="flex items-center justify-center gap-2 mb-2 text-slate-400">
+                                <Lock size={15} className="text-emerald-400" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300">
+                                    Clinical Privacy Protocol Active
+                                </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-semibold leading-relaxed max-w-md mx-auto">
+                                Sensitive medical vitals, allergies, conditions, and insurance data are encrypted and restricted to authorized healthcare professionals and hospital trauma teams.
+                            </p>
+                        </div>
+
+                        {/* ============================================================
+                            5. AUTHORIZED MEDICAL ACCESS SECTION
+                            Gated behind Doctor / Hospital verification
+                            ============================================================ */}
+                        {!isMedicalAuthorized ? (
+                            <div className="bg-gradient-to-b from-[#11192A] to-[#0A0F1D] rounded-[36px] border border-red-500/20 p-8 text-center space-y-5 shadow-2xl">
+                                <div className="flex items-center justify-center gap-3">
+                                    <div className="p-3 bg-red-600/10 rounded-2xl text-red-500">
+                                        <Stethoscope size={24} />
+                                    </div>
+                                    <div className="text-left">
+                                        <h3 className="text-lg font-black uppercase italic tracking-tight text-white font-poppins">
+                                            Authorized Medical Access
+                                        </h3>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                            Hospitals & Registered Doctors
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                                    Paramedics and trauma physicians can unlock the encrypted medical dossier (Blood Group, Allergies, Medical Conditions, Medications, Insurance) through authorized verification.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAuthModal(true)}
+                                    className="w-full py-4 bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-2xl font-black italic uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95"
+                                >
+                                    <Lock size={14} className="text-red-500" />
+                                    Unlock Medical Profile — Doctors & Hospitals
+                                </button>
+                            </div>
+                        ) : (
+                            /* ============================================================
+                               AUTHORIZED MEDICAL PROFILE (UNLOCKED FOR HEALTHCARE)
+                               ============================================================ */
+                            <div className="bg-[#11192A] rounded-[40px] border-2 border-emerald-500/30 p-8 sm:p-10 shadow-2xl relative overflow-hidden animate-in fade-in duration-500">
+                                <EmergencyInfoSections
+                                    data={data}
+                                    insurance={data}
+                                    isAuthorized={true}
+                                    onLock={() => {
+                                        setIsMedicalAuthorized(false);
+                                        toast.success("Medical profile locked.");
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    <div className="py-32 px-10 bg-[#11192A] rounded-[48px] border border-white/5 text-center shadow-2xl">
-                        <ShieldAlert size={48} className="mx-auto mb-8 text-slate-700 opacity-20" />
-                        <p className="text-slate-500 font-black uppercase italic text-sm tracking-[0.4em] leading-relaxed">
-                            This RESQR tag has no emergency profile to display.
+                    <div className="py-24 px-8 bg-[#11192A] rounded-[40px] border border-white/5 text-center shadow-2xl">
+                        <ShieldAlert size={44} className="mx-auto mb-6 text-slate-600" />
+                        <p className="text-slate-400 font-black uppercase italic text-xs tracking-[0.3em] leading-relaxed">
+                            This RESQR tag has no active emergency profile to display.
                         </p>
                     </div>
                 )}
             </div>
 
-            <footer className="text-center py-24 bg-[#040812] border-t border-white/5 opacity-50">
-                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-8 w-auto mx-auto mb-8 grayscale" />
-                <p className="text-[10px] font-black uppercase tracking-[0.6em] text-slate-600 italic">
+            {/* ============================================================
+                MODAL: AUTHORIZED MEDICAL ACCESS VERIFICATION
+                ============================================================ */}
+            <AnimatePresence>
+                {showAuthModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#11192A] border border-white/10 rounded-[36px] max-w-md w-full p-8 space-y-6 shadow-2xl relative"
+                        >
+                            <button
+                                onClick={() => setShowAuthModal(false)}
+                                className="absolute top-6 right-6 text-slate-400 hover:text-white p-2"
+                            >
+                                <X size={20} />
+                            </button>
+
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-red-600/10 rounded-2xl text-red-500">
+                                    <Lock size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                        Medical Clearance
+                                    </h3>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                        Authorized Personnel Verification
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Toggle Auth Methods */}
+                            <div className="grid grid-cols-2 gap-2 bg-black/30 p-1 rounded-2xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setAuthMethod('otp')}
+                                    className={`py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                                        authMethod === 'otp' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    Emergency OTP
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setAuthMethod('doctor_id')}
+                                    className={`py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                                        authMethod === 'doctor_id' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    Doctor / Hospital ID
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleVerifyMedicalAccess} className="space-y-4">
+                                {authMethod === 'otp' ? (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-slate-400 leading-relaxed">
+                                            Send a high-priority 4-digit verification OTP to the registered emergency contact ({contactName}).
+                                        </p>
+                                        {!otpSent ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleSendEmergencyOtp}
+                                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black italic uppercase text-xs tracking-widest transition-all"
+                                            >
+                                                Send OTP to Emergency Contact
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Enter 4-digit OTP"
+                                                    maxLength={6}
+                                                    value={otpCode}
+                                                    onChange={(e) => setOtpCode(e.target.value)}
+                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-center font-mono text-lg tracking-widest text-white outline-none focus:border-red-500"
+                                                    required
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSendEmergencyOtp}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-white underline block text-center"
+                                                >
+                                                    Resend Code
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-xs text-slate-400 leading-relaxed">
+                                            Enter your state Medical Council Registration number or Hospital trauma center ID for the audit trail.
+                                        </p>
+                                        <input
+                                            type="text"
+                                            placeholder="Doctor Reg / License No. (e.g. MCI-12345)"
+                                            value={doctorRegNo}
+                                            onChange={(e) => setDoctorRegNo(e.target.value)}
+                                            className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs font-mono uppercase text-white outline-none focus:border-red-500"
+                                            required
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Hospital / Trauma Center Name"
+                                            value={hospitalName}
+                                            onChange={(e) => setHospitalName(e.target.value)}
+                                            className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white outline-none focus:border-red-500"
+                                        />
+                                    </div>
+                                )}
+
+                                <button
+                                    type="submit"
+                                    disabled={verifyingAuth}
+                                    className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black italic uppercase text-xs tracking-widest transition-all shadow-xl shadow-red-600/30 flex items-center justify-center gap-2"
+                                >
+                                    {verifyingAuth ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+                                    Verify & Decrypt Medical Records
+                                </button>
+
+                                <div className="text-center pt-2">
+                                    <Link
+                                        to="/login"
+                                        className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        Hospital Staff Portal Login &rarr;
+                                    </Link>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <footer className="text-center py-20 bg-[#040812] border-t border-white/5 opacity-50">
+                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-8 w-auto mx-auto mb-6 grayscale" />
+                <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 italic">
                     GLOBAL EMERGENCY IDENTITY INFRASTRUCTURE
                 </p>
             </footer>

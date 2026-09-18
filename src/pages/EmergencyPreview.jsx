@@ -47,6 +47,7 @@ export default function EmergencyPreview() {
     const [loading, setLoading] = useState(true);
     const [state, setState] = useState('loading'); // loading | ready | empty | signed-out
     const [profile, setProfile] = useState(null);
+    const [viewLevel, setViewLevel] = useState('public'); // 'public' | 'authorized'
 
     const load = useCallback(async () => {
         setState('loading');
@@ -155,8 +156,34 @@ return (
                         Emergency Profile <span className="text-gradient-red">Preview</span>
                     </h1>
                     <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.25em] text-slate-500 max-w-xl mx-auto leading-relaxed">
-                        This is exactly what a responder sees after scanning your RESQR tag.
+                        Verify how your emergency profile appears to public bystanders versus authorized medical personnel.
                     </p>
+
+                    {/* View Level Tabs */}
+                    <div className="inline-flex p-1.5 rounded-2xl bg-white/5 border border-white/10 max-w-md mx-auto w-full">
+                        <button
+                            type="button"
+                            onClick={() => setViewLevel('public')}
+                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                viewLevel === 'public'
+                                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/25'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            Public Emergency View
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewLevel('authorized')}
+                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                viewLevel === 'authorized'
+                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            Authorized Medical View
+                        </button>
+                    </div>
                 </div>
 
                 {/* ===== The profile, exactly as scanners see it ===== */}
@@ -165,6 +192,7 @@ return (
                     insurance={profile?.insurance}
                     address={profile?.address}
                     mode="preview"
+                    viewLevel={viewLevel}
                 />
 
                 {/* ===== CTA ===== */}
