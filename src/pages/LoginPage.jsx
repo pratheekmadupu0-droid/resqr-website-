@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Shield, User, ShieldCheck, Mail, Lock, Phone, ArrowLeft, ArrowRight, Check,
-    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo, Eye, ChevronDown, ChevronUp
+    Upload, CreditCard, Key, AlertTriangle, Building, FileText, CheckSquare, Plus, Trash2, Camera, Download, HelpCircle, BadgeInfo, Eye, ChevronDown, ChevronUp, Sparkles
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -17,6 +17,7 @@ import QRPreviewModal from '../components/common/QRPreviewModal';
 import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
 import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
+import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -58,6 +59,7 @@ export default function LoginPage() {
 
     // Citizen Registration Wizard States
     const [citizenStep, setCitizenStep] = useState(1);
+    const [biometricEnrollment, setBiometricEnrollment] = useState(null);
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
     const [citizenName, setCitizenName] = useState('');
     const [citizenEmail, setCitizenEmail] = useState('');
@@ -265,22 +267,7 @@ export default function LoginPage() {
             const uid = currentUser.uid;
             const profileId = `c_${uid}`;
 
-            let descriptors = null;
-            let scannerType = 'qr';
-            if (citizenProfilePhoto) {
-                const t = toast.loading("Analyzing Facial Node...");
-                try {
-                    // Ensure OpenCV engine is loaded before extracting features (lazy load)
-                    if (window.loadOpenCV) await window.loadOpenCV();
-                    const features = await extractFeatures(citizenProfilePhoto);
-                    descriptors = features.descriptors;
-                    scannerType = 'facial';
-                    toast.success("Facial Node Mapped", { id: t });
-                } catch (e) {
-                    console.warn("Facial mapping skipped or failed:", e);
-                    toast.dismiss(t);
-                }
-            }
+            let scannerType = biometricEnrollment ? 'facial' : 'qr';
 
             const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
                 ? emergencyContacts[0] 
@@ -291,8 +278,8 @@ export default function LoginPage() {
                 role: 'citizen',
                 username: chosenUsername.toLowerCase(),
                 profilePhoto: citizenProfilePhoto,
-                scannerType: 'qr',
-                biometricEnrolled: false,
+                scannerType: scannerType,
+                biometricEnrolled: Boolean(biometricEnrollment),
                 name: citizenName,
                 phone: phoneNumber,
                 email: citizenEmail,
@@ -369,6 +356,11 @@ export default function LoginPage() {
             };
             updates[`profiles/${profileId}`] = profileData;
             updates[`usernames/${chosenUsername.toLowerCase()}`] = `${uid}/profiles/${profileId}`;
+
+            if (biometricEnrollment) {
+                updates[`biometricProfiles/${profileId}`] = biometricEnrollment;
+                updates[`users/${uid}/biometricProfiles/${profileId}`] = biometricEnrollment;
+            }
 
             await update(ref(db), updates);
             localStorage.setItem('resqr_active_slug', profileId);
@@ -1127,33 +1119,40 @@ export default function LoginPage() {
                                     <div>
                                         <Badge className="bg-primary/20 text-primary border-none px-4 py-1 font-black italic tracking-widest text-[9px] mb-2">CITIZEN IDENTITY PROTOCOL</Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">
-                                            Step {citizenStep} of 4: {
+                                            Step {citizenStep} of 5: {
                                                 citizenStep === 1 ? 'Personal Details' :
                                                 citizenStep === 2 ? 'Medical Passport' :
-                                                citizenStep === 3 ? 'Insurance Cover' : 'Pricing & Tags'
+                                                citizenStep === 3 ? 'Biometric Face Verification' :
+                                                citizenStep === 4 ? 'Insurance Cover' : 'Pricing & Tags'
                                             }
                                         </h2>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">{citizenStep * 25}% Completed</span>
+                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((citizenStep / 5) * 100)}% Completed</span>
                                 </div>
 
                                 {/* Step 1: Personal Details */}
                                 {citizenStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         <div className="flex flex-col md:flex-row gap-8 items-center border-b border-white/5 pb-8 mb-6">
-                                            <div className="relative group">
-                                                {citizenProfilePhoto ? (
-                                                    <img src={citizenProfilePhoto} alt="Citizen Preview" className="w-28 h-28 object-cover rounded-3xl border-2 border-primary shadow-lg" />
-                                                ) : (
-                                                    <div className="w-28 h-28 bg-slate-950 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-slate-500 group-hover:border-primary/50 transition-colors">
-                                                        <Camera size={24} />
-                                                        <span className="text-[8px] font-black uppercase mt-1 tracking-widest">Photo</span>
-                                                    </div>
-                                                )}
-                                                <label className="absolute -bottom-2 -right-2 bg-primary hover:bg-primary-dark p-2 rounded-xl text-white cursor-pointer shadow-lg">
-                                                    <Upload size={14} />
-                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
-                                                </label>
+                                            <div className="flex flex-col items-center">
+                                                <div className="relative group">
+                                                    {citizenProfilePhoto ? (
+                                                        <img src={citizenProfilePhoto} alt="Citizen Preview" className="w-28 h-28 object-cover rounded-3xl border-2 border-primary shadow-lg" />
+                                                    ) : (
+                                                        <div className="w-28 h-28 bg-slate-950 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-slate-500 group-hover:border-primary/50 transition-colors">
+                                                            <Camera size={24} />
+                                                            <span className="text-[8px] font-black uppercase mt-1 tracking-widest">Photo</span>
+                                                        </div>
+                                                    )}
+                                                    <label className="absolute -bottom-2 -right-2 bg-primary hover:bg-primary-dark p-2 rounded-xl text-white cursor-pointer shadow-lg">
+                                                        <Upload size={14} />
+                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
+                                                    </label>
+                                                </div>
+                                                <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+                                                    <ShieldCheck size={12} className="text-primary" />
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Face Scan on Step 3</span>
+                                                </div>
                                             </div>
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="e.g. John Doe" value={citizenName} onChange={(e) => setCitizenName(e.target.value)} required />
@@ -1356,14 +1355,36 @@ export default function LoginPage() {
                                                 }
                                                 setCitizenStep(3);
                                             }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Continue to Insurance <ArrowRight size={16} className="ml-2" />
+                                                Proceed to Face Verification <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 3: Insurance Details */}
+                                {/* Step 3: Biometric Face Verification */}
                                 {citizenStep === 3 && (
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        <FaceEnrollmentWizard
+                                            onComplete={(bioProfile) => {
+                                                setBiometricEnrollment(bioProfile);
+                                                toast.success("Facial biometric profile enrolled successfully!");
+                                                setCitizenStep(4);
+                                            }}
+                                            onCancel={() => setCitizenStep(2)}
+                                        />
+                                        <div className="flex justify-between items-center pt-4">
+                                            <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                <ArrowLeft size={16} className="mr-2" /> Back
+                                            </Button>
+                                            <Button onClick={() => setCitizenStep(4)} variant="outline" className="py-4 px-6 rounded-2xl font-black italic uppercase text-[11px] border-white/10 text-slate-400 hover:text-white">
+                                                Skip Biometrics &rarr;
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 4: Insurance Details */}
+                                {citizenStep === 4 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         {/* Yes / No Toggle for Insurance */}
                                         <div className="space-y-3">
@@ -1464,18 +1485,18 @@ export default function LoginPage() {
                                         )}
 
                                         <div className="pt-8 flex justify-between">
-                                            <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                            <Button onClick={() => setCitizenStep(3)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button onClick={() => setCitizenStep(4)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                            <Button onClick={() => setCitizenStep(5)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
                                                 Choose Tag Package <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 4: Package & Razorpay Payment */}
-                                {citizenStep === 4 && (
+                                {/* Step 5: Package & Razorpay Payment */}
+                                {citizenStep === 5 && (
                                     <div className="space-y-8 animate-in fade-in duration-300">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             {/* Digital QR */}
@@ -1534,7 +1555,7 @@ export default function LoginPage() {
                                                 <span>₹{selectedPackage === 'digital' ? '99.00' : '149.00'}</span>
                                             </div>
                                                    <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                            <Button onClick={() => setCitizenStep(3)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                            <Button onClick={() => setCitizenStep(4)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
 

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     User, Dog, Briefcase, Car, Plus, QrCode, Download, Edit3, 
     Trash2, Clock, Loader2, Shield, Eye, Lock, RefreshCw, X, ExternalLink,
-    Activity, ShieldCheck, CheckCircle2, ChevronRight, AlertCircle, Phone, MapPin, AtSign
+    Activity, ShieldCheck, CheckCircle2, ChevronRight, AlertCircle, Phone, MapPin, AtSign, Camera
 } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -18,6 +18,7 @@ import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -27,8 +28,9 @@ export default function DashboardCitizen() {
     const [isEditing, setIsEditing] = useState(false);
     const [selectedProfileId, setSelectedProfileId] = useState(null);
     const [username, setUsername] = useState('');
-    const [editTab, setEditTab] = useState('personal'); // 'personal', 'medical', 'insurance'
+    const [editTab, setEditTab] = useState('personal'); // 'personal', 'medical', 'insurance', 'biometrics'
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
+    const [isFaceEnrollModalOpen, setIsFaceEnrollModalOpen] = useState(false);
 
     const activeProfile = profiles.find(p => p.id === selectedProfileId) || profiles[0];
 
@@ -274,6 +276,29 @@ export default function DashboardCitizen() {
         } catch (err) { toast.error('Download failed'); }
     };
 
+    const handleBiometricEnrollmentComplete = async (bioProfile) => {
+        try {
+            const uid = auth.currentUser?.uid;
+            if (!activeProfile?.id) throw new Error("No active profile selected.");
+            const profileId = activeProfile.id;
+            const updates = {};
+            updates[`biometricProfiles/${profileId}`] = bioProfile;
+            if (uid) {
+                updates[`users/${uid}/biometricProfiles/${profileId}`] = bioProfile;
+                updates[`users/${uid}/profiles/${profileId}/biometricEnrolled`] = true;
+                updates[`users/${uid}/profiles/${profileId}/scannerType`] = 'facial';
+            }
+            updates[`profiles/${profileId}/biometricEnrolled`] = true;
+            updates[`profiles/${profileId}/scannerType`] = 'facial';
+            await update(ref(db), updates);
+            toast.success("3-Angle Biometric Face ID enrolled and activated!");
+            setIsFaceEnrollModalOpen(false);
+        } catch (err) {
+            console.error("Biometric save error:", err);
+            toast.error("Failed to save biometric profile: " + err.message);
+        }
+    };
+
     if (loading) return <AppLoading message="Synchronizing your emergency profile..." />;
     if (!auth.currentUser) return <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white"><Button onClick={() => navigate('/login')}>RE-AUTHENTICATE</Button></div>;
 
@@ -331,10 +356,36 @@ export default function DashboardCitizen() {
                     </div>
                 </header>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6 cursor-pointer hover:border-indigo-500/30 transition-all group/stat" onClick={() => document.getElementById('recent-scans')?.scrollIntoView({ behavior: 'smooth' })}><div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 group-hover/stat:bg-indigo-500/20 transition-all"><QrCode size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Scans</p><p className="text-4xl font-black italic uppercase tracking-tight font-poppins text-white">{activeProfile?.scans ? Object.keys(activeProfile.scans).length : 0}</p></div></div>
                     <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6"><div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20"><User size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Health Status</p><p className="text-4xl font-black italic uppercase tracking-tighter font-poppins text-emerald-400">Verified</p></div></div>
                     <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6"><div className="w-14 h-14 bg-[#E63946]/10 rounded-2xl flex items-center justify-center border border-red-500/20"><ShieldCheck size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Safety Index</p><p className="text-4xl font-black italic uppercase tracking-tighter font-poppins text-white">High</p></div></div>
+                    <div 
+                        onClick={() => setIsFaceEnrollModalOpen(true)}
+                        className={`bg-[#11192A] p-8 rounded-3xl border transition-all cursor-pointer group flex items-center gap-6 ${
+                            activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial' 
+                                ? 'border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/5' 
+                                : 'border-primary/40 hover:border-primary hover:bg-primary/5 shadow-lg shadow-primary/10'
+                        }`}
+                    >
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border transition-all ${
+                            activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial'
+                                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:scale-105'
+                                : 'bg-primary/10 border-primary/20 text-primary group-hover:scale-105'
+                        }`}>
+                            <Camera size={24} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Biometric Face</p>
+                            <p className="text-2xl font-black italic uppercase tracking-tight font-poppins text-white">
+                                {activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial' ? (
+                                    <span className="text-emerald-400 text-xl">Active</span>
+                                ) : (
+                                    <span className="text-primary text-xl flex items-center gap-1">Scan Face &rarr;</span>
+                                )}
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -369,6 +420,13 @@ export default function DashboardCitizen() {
                                             className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${editTab === 'insurance' ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                                         >
                                             Insurance Node
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setEditTab('biometrics')}
+                                            className={`flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${editTab === 'biometrics' ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                                        >
+                                            Face ID
                                         </button>
                                     </div>
 
@@ -517,6 +575,38 @@ export default function DashboardCitizen() {
                                                     className="w-5 h-5 rounded accent-primary bg-slate-900 border-white/10" 
                                                 />
                                                 <label htmlFor="cashlessFac" className="text-xs font-black uppercase tracking-widest text-slate-300 cursor-pointer">Cashless Facility Active</label>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Biometric Face ID Tab */}
+                                    {editTab === 'biometrics' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="p-8 bg-[#050B18] rounded-3xl border border-white/5 space-y-6">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div>
+                                                        <h4 className="text-xl font-black uppercase italic tracking-tight font-poppins text-white">
+                                                            3-Angle Biometric Facial Security
+                                                        </h4>
+                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
+                                                            128-Dimensional Neural Embedding for Trauma Hospital Access
+                                                        </p>
+                                                    </div>
+                                                    <Badge className={activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}>
+                                                        {activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial' ? 'ACTIVE ENROLLED' : 'NOT CONFIGURED'}
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                                                    When enrolled, emergency doctors at certified hospitals can verify your identity using Front, Left, and Right facial sweeps even if your phone or ID is unavailable.
+                                                </p>
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => setIsFaceEnrollModalOpen(true)}
+                                                    className="w-full py-5 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-wider text-xs shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                                                >
+                                                    <Camera size={18} />
+                                                    {activeProfile?.biometricEnrolled || activeProfile?.scannerType === 'facial' ? 'Re-Scan / Update 3-Angle Face ID' : 'Launch 3-Angle Face Enrollment Wizard'}
+                                                </Button>
                                             </div>
                                         </div>
                                     )}
@@ -751,6 +841,32 @@ export default function DashboardCitizen() {
                     toast.success(`Physical tag order confirmed! Reference: ${paymentInfo.razorpay_payment_id}`);
                 }}
             />
+
+            {/* Biometric Face Enrollment Modal */}
+            {isFaceEnrollModalOpen && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <div className="w-full max-w-2xl bg-medical-card border border-white/10 rounded-[40px] p-8 shadow-2xl relative">
+                        <button
+                            onClick={() => setIsFaceEnrollModalOpen(false)}
+                            className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+                        <div className="mb-6">
+                            <Badge className="bg-primary/20 text-primary border-none px-3 py-1 font-black italic tracking-widest text-[9px]">
+                                BIOMETRIC PROFILE ENROLLMENT
+                            </Badge>
+                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-white mt-1">
+                                {activeProfile?.name || 'Citizen'} — Face ID Setup
+                            </h3>
+                        </div>
+                        <FaceEnrollmentWizard
+                            onComplete={handleBiometricEnrollmentComplete}
+                            onCancel={() => setIsFaceEnrollModalOpen(false)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -618,19 +618,25 @@ export default function CreateIdentity() {
                                         )}
 
                                         <div className="flex flex-col md:flex-row gap-8 items-center border-b border-white/5 pb-8 mb-6">
-                                            <div className="relative group">
-                                                {citizenProfilePhoto ? (
-                                                    <img src={citizenProfilePhoto} alt="Preview" className="w-28 h-28 object-cover rounded-3xl border-2 border-primary shadow-lg" />
-                                                ) : (
-                                                    <div className="w-28 h-28 bg-slate-950 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-slate-500 group-hover:border-primary/50 transition-colors">
-                                                        <Camera size={24} />
-                                                        <span className="text-[8px] font-black uppercase mt-1 tracking-widest">Photo</span>
-                                                    </div>
-                                                )}
-                                                <label className="absolute -bottom-2 -right-2 bg-primary hover:bg-primary/90 p-2 rounded-xl text-white cursor-pointer shadow-lg">
-                                                    <Upload size={14} />
-                                                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
-                                                </label>
+                                            <div className="flex flex-col items-center">
+                                                <div className="relative group">
+                                                    {citizenProfilePhoto ? (
+                                                        <img src={citizenProfilePhoto} alt="Preview" className="w-28 h-28 object-cover rounded-3xl border-2 border-primary shadow-lg" />
+                                                    ) : (
+                                                        <div className="w-28 h-28 bg-slate-950 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center text-slate-500 group-hover:border-primary/50 transition-colors">
+                                                            <Camera size={24} />
+                                                            <span className="text-[8px] font-black uppercase mt-1 tracking-widest">Photo</span>
+                                                        </div>
+                                                    )}
+                                                    <label className="absolute -bottom-2 -right-2 bg-primary hover:bg-primary/90 p-2 rounded-xl text-white cursor-pointer shadow-lg">
+                                                        <Upload size={14} />
+                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
+                                                    </label>
+                                                </div>
+                                                <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+                                                    <ShieldCheck size={12} className="text-primary" />
+                                                    <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Face Scan on Step 3</span>
+                                                </div>
                                             </div>
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="e.g. Jane Doe" value={citizenName} onChange={(e) => setCitizenName(e.target.value)} required />
