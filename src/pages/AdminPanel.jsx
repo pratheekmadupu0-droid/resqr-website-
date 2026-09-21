@@ -1697,48 +1697,48 @@ export default function AdminPanel() {
                                                         )}
                                                     </td>
                                                     <td className="px-8 py-8 text-right">
-                                                        <div className="flex items-center justify-end gap-3">
+                                                        <div className="flex items-center justify-end gap-2.5">
                                                             <button
-                                                                className="p-3 text-slate-400 hover:text-blue-400 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-blue-500/20"
+                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 text-blue-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                 onClick={() => setSelectedUserForAuthModal(user)}
                                                                 title="Inspect Firebase Auth & Google Account"
                                                             >
-                                                                <ShieldCheck size={18} />
+                                                                <ShieldCheck size={18} className="text-blue-400" />
                                                             </button>
                                                             {profile && (
                                                                 <Link
                                                                     to={`/e/${profile.id}`}
                                                                     target="_blank"
                                                                     rel="noopener noreferrer"
-                                                                    className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                     title="View QR Profile"
                                                                 >
-                                                                    <ExternalLink size={18} />
+                                                                    <ExternalLink size={18} className="text-primary" />
                                                                 </Link>
                                                             )}
                                                             {profile ? (
                                                                 <button
-                                                                    className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                     onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
                                                                     title="Edit Medical Profile"
                                                                 >
-                                                                    <Edit3 size={18} />
+                                                                    <Edit3 size={18} className="text-emerald-400" />
                                                                 </button>
                                                             ) : (
                                                                 <button
-                                                                    className="p-3 text-slate-400 hover:text-green-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-green-500/20"
+                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                     onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
                                                                     title="Generate Medical Profile"
                                                                 >
-                                                                    <Plus size={18} />
+                                                                    <Plus size={18} className="text-emerald-400" />
                                                                 </button>
                                                             )}
                                                             <button
-                                                                className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                 onClick={() => deleteItem(`users/${user.id}`)}
                                                                 title="Delete User"
                                                             >
-                                                                <Trash2 size={18} />
+                                                                <Trash2 size={18} className="text-rose-400" />
                                                             </button>
                                                         </div>
                                                     </td>
@@ -1835,20 +1835,22 @@ export default function AdminPanel() {
                                                 </div>
                                             </td>
                                             <td className="px-10 py-8 text-right">
-                                                <div className="flex items-center justify-end gap-3">
+                                                <div className="flex items-center justify-end gap-2.5">
                                                     <Link
                                                         to={`/e/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 border border-white/5 rounded-xl hover:border-primary/20"
+                                                        className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                        title="View QR Profile"
                                                     >
-                                                        <ExternalLink size={20} />
+                                                        <ExternalLink size={18} className="text-primary" />
                                                     </Link>
                                                     <button
-                                                        className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 border border-white/5 rounded-xl hover:border-primary/20"
+                                                        className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                         onClick={() => deleteItem(`profiles/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}`)}
+                                                        title="Delete Vault"
                                                     >
-                                                        <Trash2 size={20} />
+                                                        <Trash2 size={18} className="text-rose-400" />
                                                     </button>
                                                 </div>
                                             </td>
@@ -2184,11 +2186,11 @@ export default function AdminPanel() {
                                                 </td>
                                                 <td className="px-10 py-8 text-right">
                                                     <button
-                                                        className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                        className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm ml-auto"
                                                         onClick={() => deleteItem(`contacts/${contact.id}`)}
                                                         title="Delete Log"
                                                     >
-                                                        <Trash2 size={18} />
+                                                        <Trash2 size={18} className="text-rose-400" />
                                                     </button>
                                                 </td>
                                             </tr>
