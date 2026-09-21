@@ -9,8 +9,8 @@ export const ADMIN_EMAILS = [
 ];
 
 /**
- * Ensures user login is recorded and synchronized in Firebase Realtime Database
- * so they are immediately visible in the Admin Panel.
+ * Ensures user login and Firebase authentication details are synchronized in Firebase RTDB
+ * so the Google Account, Google ID, and login timestamps are visible in the Admin Panel.
  *
  * @param {import('firebase/auth').User} user Firebase auth user object
  * @param {Object} extraData Additional attributes (e.g. role, name, status)
@@ -25,7 +25,15 @@ export async function syncUserOnLogin(user, extraData = {}) {
         const userSnap = await get(userRef);
         const existing = userSnap.exists() ? userSnap.val() : {};
 
-        const userEmail = (user.email || existing.email || extraData.email || '').trim().toLowerCase();
+        // Extract Google provider info if present
+        const googleProvider = (user.providerData || []).find(p => p.providerId === 'google.com');
+        const googleId = googleProvider?.uid || extraData.googleId || existing.googleId || null;
+        const googleEmail = googleProvider?.email || (user.email && user.email.includes('@gmail.com') ? user.email : (existing.googleEmail || null));
+        const googleDisplayName = googleProvider?.displayName || null;
+        const googlePhotoURL = googleProvider?.photoURL || null;
+
+        const authProvider = googleProvider ? 'google.com' : (user.providerData?.[0]?.providerId || existing.authProvider || 'firebase');
+        const userEmail = (user.email || googleEmail || existing.email || extraData.email || '').trim().toLowerCase();
         
         const isAdmin = (userEmail && ADMIN_EMAILS.some(e => e.toLowerCase() === userEmail)) ||
                         existing.role === 'admin' ||
@@ -37,18 +45,34 @@ export async function syncUserOnLogin(user, extraData = {}) {
         const updatedData = {
             ...existing,
             uid: uid,
-            name: user.displayName || existing.name || extraData.name || (userEmail ? userEmail.split('@')[0] : 'Member'),
-            email: user.email || existing.email || extraData.email || '',
-            photo: user.photoURL || existing.photo || extraData.photo || '',
+            name: user.displayName || googleDisplayName || existing.name || extraData.name || (userEmail ? userEmail.split('@')[0] : 'Member'),
+            email: user.email || googleEmail || existing.email || extraData.email || '',
+            photo: user.photoURL || googlePhotoURL || existing.photo || extraData.photo || '',
             phone: user.phoneNumber || existing.phone || extraData.phone || '',
             role: determinedRole,
             status: existing.status || (isAdmin ? 'approved' : (extraData.status || 'approved')),
             lastLogin: now,
-            createdAt: existing.createdAt || extraData.createdAt || now,
-            authProvider: user.providerData?.[0]?.providerId || existing.authProvider || 'firebase'
+            createdAt: existing.createdAt || extraData.createdAt || user.metadata?.creationTime || now,
+            authProvider: authProvider,
+            // Detailed Firebase Authentication & Google Account parameters
+            googleId: googleId,
+            googleEmail: googleEmail,
+            googleDisplayName: googleDisplayName,
+            isGoogleAuth: !!googleProvider || !!googleId || (userEmail.endsWith('@gmail.com')),
+            emailVerified: typeof user.emailVerified === 'boolean' ? user.emailVerified : (existing.emailVerified ?? false),
+            authCreationTime: user.metadata?.creationTime || existing.authCreationTime || now,
+            authLastSignInTime: user.metadata?.lastSignInTime || existing.authLastSignInTime || now,
+            providers: (user.providerData && user.providerData.length > 0)
+                ? user.providerData.map(p => ({
+                    providerId: p.providerId,
+                    uid: p.uid,
+                    email: p.email || '',
+                    displayName: p.displayName || ''
+                }))
+                : (existing.providers || null)
         };
 
-        // Merge any non-overriding extraData fields (without clobbering essential auth fields)
+        // Merge any non-overriding extraData fields
         Object.entries(extraData).forEach(([key, val]) => {
             if (val !== undefined && val !== null && !['uid', 'lastLogin'].includes(key)) {
                 updatedData[key] = val;

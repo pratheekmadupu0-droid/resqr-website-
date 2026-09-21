@@ -5,7 +5,8 @@ import {
     Plus, Trash2, Edit3, Image as ImageIcon, Megaphone, Mail,
     Package, Settings, LayoutDashboard, LogOut, ChevronRight, ExternalLink, Bell,
     Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
-    QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle
+    QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle,
+    ShieldCheck, Key, Copy
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -78,6 +79,7 @@ export default function AdminPanel() {
     const [enteredOTP, setEnteredOTP] = useState('');
     const [tempUserData, setTempUserData] = useState(null);
     const [selectedUserForProfile, setSelectedUserForProfile] = useState(null);
+    const [selectedUserForAuthModal, setSelectedUserForAuthModal] = useState(null);
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingAd, setEditingAd] = useState(null);
     const [loginFilter, setLoginFilter] = useState('all'); // 'all', 'recent', 'inactive', 'never'
@@ -199,6 +201,9 @@ export default function AdminPanel() {
         const matchesSearch = (
             (u.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (u.googleEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (u.googleId?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (u.uid?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.id?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.role?.toLowerCase() || "").includes(searchTerm.toLowerCase())
         );
@@ -1479,17 +1484,18 @@ export default function AdminPanel() {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
                                     <tr>
-                                        <th className="px-10 py-6 text-slate-400">Tactical User</th>
-                                        <th className="px-10 py-6 text-slate-400">Role & Status</th>
-                                        <th className="px-10 py-6 text-slate-400">Firebase Login Telemetry</th>
-                                        <th className="px-10 py-6 text-slate-400">Vault Condition</th>
-                                        <th className="px-10 py-6 text-right text-slate-400">Operations</th>
+                                        <th className="px-8 py-6 text-slate-400">Tactical User</th>
+                                        <th className="px-6 py-6 text-slate-400">Role & Status</th>
+                                        <th className="px-6 py-6 text-slate-400">Firebase Auth & Google ID</th>
+                                        <th className="px-6 py-6 text-slate-400">Firebase Login Telemetry</th>
+                                        <th className="px-6 py-6 text-slate-400">Vault Condition</th>
+                                        <th className="px-8 py-6 text-right text-slate-400">Operations</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {filteredUsers.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="px-10 py-12 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+                                            <td colSpan="6" className="px-10 py-12 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
                                                 No users found matching "{searchTerm || loginFilter}".
                                             </td>
                                         </tr>
@@ -1497,9 +1503,10 @@ export default function AdminPanel() {
                                         filteredUsers.map(user => {
                                             const profile = getProfileForAuthUser(user);
                                             const tele = getLoginTelemetry(user.lastLogin);
+                                            const isGoogle = user.isGoogleAuth || !!user.googleId || (user.authProvider === 'google.com') || (user.email && user.email.includes('@gmail.com'));
                                             return (
                                                 <tr key={user.id} className="hover:bg-white/5 transition-all group">
-                                                    <td className="px-10 py-8">
+                                                    <td className="px-8 py-8">
                                                         <div className="flex items-center gap-4">
                                                             <div className="relative shrink-0">
                                                                 {user.photo ? (
@@ -1518,7 +1525,7 @@ export default function AdminPanel() {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    <td className="px-10 py-8">
+                                                    <td className="px-6 py-8">
                                                         <div className="flex flex-col gap-1.5 items-start">
                                                             <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-3 py-0.5 font-black italic text-[9px]`}>
                                                                 {user.role?.toUpperCase() || 'CITIZEN'}
@@ -1531,7 +1538,52 @@ export default function AdminPanel() {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-10 py-8">
+                                                    <td className="px-6 py-8">
+                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                            {isGoogle ? (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black tracking-wider">
+                                                                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24">
+                                                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                                                        </svg>
+                                                                        <span>GOOGLE CONNECTED</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col text-[10px] font-mono leading-tight">
+                                                                        <span className="text-slate-300 font-bold truncate max-w-[190px]" title={user.googleEmail || user.email}>
+                                                                            {user.googleEmail || user.email}
+                                                                        </span>
+                                                                        <div className="flex items-center gap-1 text-[9px] text-slate-500 mt-0.5">
+                                                                            <span className="text-slate-600">ID:</span>
+                                                                            <span className="text-blue-400 font-bold font-mono truncate max-w-[140px]" title={user.googleId || user.uid}>
+                                                                                {user.googleId ? (user.googleId.length > 15 ? user.googleId.slice(0, 14) + '...' : user.googleId) : (user.uid?.slice(0, 12) + '...')}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-400 text-[9px] font-black tracking-wider">
+                                                                        <Key size={10} />
+                                                                        <span>FIREBASE AUTH</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col text-[10px] font-mono leading-tight">
+                                                                        <span className="text-slate-400 truncate max-w-[190px]">{user.email || 'No Email'}</span>
+                                                                        <span className="text-[9px] text-slate-600 truncate max-w-[140px]">UID: {user.uid?.slice(0, 10) || user.id?.slice(0, 10)}...</span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            <button
+                                                                onClick={() => setSelectedUserForAuthModal(user)}
+                                                                className="text-[9px] font-black uppercase text-primary/80 hover:text-primary transition-colors flex items-center gap-1 tracking-widest italic mt-0.5 cursor-pointer"
+                                                            >
+                                                                <ShieldCheck size={11} /> View Details
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-8">
                                                         <div className="flex flex-col gap-1.5 items-start">
                                                             <Badge className={`${tele.badgeClass} px-3 py-1 font-black italic text-[8px] border flex items-center gap-1.5`}>
                                                                 <span className={`w-1.5 h-1.5 rounded-full ${tele.dotClass}`} />
@@ -1547,7 +1599,7 @@ export default function AdminPanel() {
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-10 py-8">
+                                                    <td className="px-6 py-8">
                                                         {profile ? (
                                                             <div className="flex flex-col gap-2">
                                                                 <div className="flex items-center gap-3">
@@ -1560,8 +1612,15 @@ export default function AdminPanel() {
                                                             <Badge className="bg-slate-800 text-slate-500 border-none font-black italic px-4 py-1 text-[8px] opacity-40 uppercase tracking-widest">No Node Initialized</Badge>
                                                         )}
                                                     </td>
-                                                    <td className="px-10 py-8 text-right">
+                                                    <td className="px-8 py-8 text-right">
                                                         <div className="flex items-center justify-end gap-3">
+                                                            <button
+                                                                className="p-3 text-slate-400 hover:text-blue-400 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-blue-500/20"
+                                                                onClick={() => setSelectedUserForAuthModal(user)}
+                                                                title="Inspect Firebase Auth & Google Account"
+                                                            >
+                                                                <ShieldCheck size={18} />
+                                                            </button>
                                                             {profile && (
                                                                 <Link
                                                                     to={`/e/${profile.id}`}
@@ -2912,6 +2971,192 @@ export default function AdminPanel() {
                                 </Button>
                             </div>
                         )}
+                    </Card>
+                </div>
+            )}
+            {selectedUserForAuthModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-2xl bg-medical-card border-white/10 p-8 md:p-10 rounded-[40px] shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-y-auto max-h-[90vh] relative">
+                        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+                        
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-4 mb-8">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                    {selectedUserForAuthModal.photo ? (
+                                        <img src={selectedUserForAuthModal.photo} alt={selectedUserForAuthModal.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <ShieldCheck size={28} className="text-blue-400" />
+                                    )}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                            {selectedUserForAuthModal.name || 'Member'}
+                                        </h2>
+                                        <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[9px] font-black italic">
+                                            {selectedUserForAuthModal.role?.toUpperCase() || 'CITIZEN'}
+                                        </Badge>
+                                    </div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">
+                                        Firebase Authentication & Google Identity Intelligence
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setSelectedUserForAuthModal(null)}
+                                className="p-2.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-white/5 hover:border-white/20 transition-all cursor-pointer"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Content Cards */}
+                        <div className="space-y-6">
+                            {/* Google Account Block */}
+                            <div className="p-6 rounded-3xl bg-slate-950 border border-blue-500/20 relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                        </svg>
+                                        <span className="text-xs font-black uppercase tracking-widest text-blue-400 italic">
+                                            Google Identity Provider
+                                        </span>
+                                    </div>
+                                    <Badge className={`${selectedUserForAuthModal.isGoogleAuth || selectedUserForAuthModal.googleId || selectedUserForAuthModal.email?.includes('@gmail.com') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'} text-[8px] font-black italic`}>
+                                        {selectedUserForAuthModal.isGoogleAuth || selectedUserForAuthModal.googleId || selectedUserForAuthModal.email?.includes('@gmail.com') ? 'LINKED GOOGLE ACCOUNT' : 'STANDARD AUTH'}
+                                    </Badge>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Registered Google Email</span>
+                                        <span className="text-xs font-mono font-bold text-white break-all select-all">
+                                            {selectedUserForAuthModal.googleEmail || selectedUserForAuthModal.email || 'None'}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Google OAuth Account ID</span>
+                                            {selectedUserForAuthModal.googleId && (
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(selectedUserForAuthModal.googleId);
+                                                        toast.success("Google ID copied to clipboard!");
+                                                    }}
+                                                    className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                                    title="Copy Google ID"
+                                                >
+                                                    <Copy size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <span className="text-xs font-mono font-black text-blue-400 break-all select-all">
+                                            {selectedUserForAuthModal.googleId || (selectedUserForAuthModal.isGoogleAuth ? selectedUserForAuthModal.uid : (selectedUserForAuthModal.email?.includes('@gmail.com') ? selectedUserForAuthModal.uid : 'Not Available (Standard Auth)'))}
+                                        </span>
+                                    </div>
+
+                                    {selectedUserForAuthModal.googleDisplayName && (
+                                        <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 md:col-span-2">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Google Profile Name</span>
+                                            <span className="text-xs font-bold text-slate-200">
+                                                {selectedUserForAuthModal.googleDisplayName}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Firebase Authentication Parameters */}
+                            <div className="p-6 rounded-3xl bg-slate-950 border border-white/5 space-y-4">
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-400 italic flex items-center gap-2">
+                                    <Shield size={14} className="text-primary" /> Firebase Authentication Vault Parameters
+                                </span>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Firebase Auth UID</span>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedUserForAuthModal.uid || selectedUserForAuthModal.id);
+                                                    toast.success("Firebase UID copied!");
+                                                }}
+                                                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                                title="Copy UID"
+                                            >
+                                                <Copy size={12} />
+                                            </button>
+                                        </div>
+                                        <span className="text-xs font-mono font-bold text-primary break-all select-all">
+                                            {selectedUserForAuthModal.uid || selectedUserForAuthModal.id}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Email Verification</span>
+                                        <Badge className={`${selectedUserForAuthModal.emailVerified ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'} text-[9px] font-black italic`}>
+                                            {selectedUserForAuthModal.emailVerified ? 'VERIFIED IN FIREBASE' : 'UNVERIFIED / PENDING'}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Firebase Account Created</span>
+                                        <span className="text-xs font-mono font-bold text-slate-300">
+                                            {selectedUserForAuthModal.authCreationTime ? new Date(selectedUserForAuthModal.authCreationTime).toLocaleString() : (selectedUserForAuthModal.createdAt ? new Date(selectedUserForAuthModal.createdAt).toLocaleString() : 'N/A')}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Firebase Last Sign-In</span>
+                                        <span className="text-xs font-mono font-bold text-slate-300">
+                                            {selectedUserForAuthModal.authLastSignInTime ? new Date(selectedUserForAuthModal.authLastSignInTime).toLocaleString() : (selectedUserForAuthModal.lastLogin && selectedUserForAuthModal.lastLogin !== 'Never' ? new Date(selectedUserForAuthModal.lastLogin).toLocaleString() : 'Never')}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 md:col-span-2">
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">RTDB Telemetry Sync</span>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs font-mono text-slate-400">
+                                                Last Active Recorded: <strong className="text-white">{selectedUserForAuthModal.lastLogin && selectedUserForAuthModal.lastLogin !== 'Never' ? new Date(selectedUserForAuthModal.lastLogin).toLocaleString() : 'Never'}</strong>
+                                            </span>
+                                            <Badge className={`${getLoginTelemetry(selectedUserForAuthModal.lastLogin).badgeClass} text-[8px] font-black italic`}>
+                                                {getLoginTelemetry(selectedUserForAuthModal.lastLogin).label.toUpperCase()}
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    {selectedUserForAuthModal.providers && Array.isArray(selectedUserForAuthModal.providers) && selectedUserForAuthModal.providers.length > 0 && (
+                                        <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 md:col-span-2">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-2">Connected Auth Providers</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedUserForAuthModal.providers.map((p, idx) => (
+                                                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-white/10 text-[10px] font-mono">
+                                                        <span className="text-primary font-bold">{p.providerId}</span>
+                                                        <span className="text-slate-500">|</span>
+                                                        <span className="text-slate-300 font-bold truncate max-w-[200px]">{p.uid}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex justify-end">
+                            <Button
+                                onClick={() => setSelectedUserForAuthModal(null)}
+                                className="h-14 px-8 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black italic uppercase tracking-widest text-[10px]"
+                            >
+                                Close Inspector
+                            </Button>
+                        </div>
                     </Card>
                 </div>
             )}
