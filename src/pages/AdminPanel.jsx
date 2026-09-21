@@ -90,6 +90,8 @@ export default function AdminPanel() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [editingGoogleId, setEditingGoogleId] = useState(false);
     const [newGoogleIdInput, setNewGoogleIdInput] = useState('');
+    const [medicalAudits, setMedicalAudits] = useState([]);
+    const [auditResultFilter, setAuditResultFilter] = useState('ALL');
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -332,6 +334,14 @@ export default function AdminPanel() {
             setContacts([]);
         });
 
+        const medicalAuditsRef = ref(db, 'medicalAuditTrail');
+        const unsubAudits = onValue(medicalAuditsRef, (snapshot) => {
+            setMedicalAudits(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB medicalAuditTrail read warning:", error);
+            setMedicalAudits([]);
+        });
+
         return () => {
             unsubscribeAuth();
             unsubUsers();
@@ -339,6 +349,7 @@ export default function AdminPanel() {
             unsubProducts();
             unsubAds();
             unsubContacts();
+            unsubAudits();
         };
     }, [navigate]);
 
@@ -1239,6 +1250,7 @@ export default function AdminPanel() {
                         { id: 'profiles', label: 'Medical Profiles', icon: <Activity size={20} /> },
                         { id: 'medical_scan', label: 'Secure QR Scanner', icon: <QrCode size={20} /> },
                         { id: 'facial_scan', label: 'Facial Scan Node', icon: <Camera size={20} /> },
+                        { id: 'biometrics', label: 'Biometric Audits', icon: <ShieldCheck size={20} /> },
                         { id: 'verification', label: 'Onboarding Audits', icon: <AlertTriangle size={20} /> },
                         { id: 'contacts', label: 'Support Inbox', icon: <Mail size={20} /> },
                         { id: 'notif_group', label: 'Notifications', group: true },
@@ -1282,9 +1294,10 @@ export default function AdminPanel() {
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
                                     activeTab === 'medical_scan' ? 'Secure Medical QR Scanner' :
                                         activeTab === 'facial_scan' ? 'Biometric Facial Scan Node' :
-                                            activeTab === 'verification' ? 'Onboarding Audits' :
-                                                activeTab === 'contacts' ? 'Secure Transmissions Support Inbox' :
-                                                    activeTab + ' Panel'}
+                                            activeTab === 'biometrics' ? 'Biometric Medical Access Audits' :
+                                                activeTab === 'verification' ? 'Onboarding Audits' :
+                                                    activeTab === 'contacts' ? 'Secure Transmissions Support Inbox' :
+                                                        activeTab + ' Panel'}
                         </h1>
                         <p className="text-slate-400">Manage your system from a single interface.</p>
                     </div>
@@ -2870,6 +2883,223 @@ export default function AdminPanel() {
                                 </AnimatePresence>
                             </Card>
                         </div>
+                    </div>
+                )}
+
+                {activeTab === 'biometrics' && (
+                    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-5 duration-700">
+                        {/* Summary Metrics */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <Card className="bg-medical-card border border-white/5 p-6 rounded-[28px] relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 italic">Total Access Probes</p>
+                                        <h3 className="text-3xl font-black italic tracking-tighter text-white mt-1">{medicalAudits.length}</h3>
+                                        <p className="text-[9px] text-slate-500 font-bold mt-1">Medical session requests</p>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-primary">
+                                        <Activity size={22} />
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card className="bg-medical-card border border-white/5 p-6 rounded-[28px] relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 italic">Verified Matches</p>
+                                        <h3 className="text-3xl font-black italic tracking-tighter text-emerald-400 mt-1">
+                                            {medicalAudits.filter(a => a.result === 'VERIFIED').length}
+                                        </h3>
+                                        <p className="text-[9px] text-emerald-500/70 font-bold mt-1">
+                                            {medicalAudits.length > 0 
+                                                ? Math.round((medicalAudits.filter(a => a.result === 'VERIFIED').length / medicalAudits.length) * 100) 
+                                                : 0}% success rate
+                                        </p>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                        <CheckCircle2 size={22} />
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card className="bg-medical-card border border-white/5 p-6 rounded-[28px] relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 italic">Passive Trauma Scans</p>
+                                        <h3 className="text-3xl font-black italic tracking-tighter text-amber-400 mt-1">
+                                            {medicalAudits.filter(a => a.unconsciousMode).length}
+                                        </h3>
+                                        <p className="text-[9px] text-amber-500/70 font-bold mt-1">Unconscious patient pathway</p>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                        <HeartPulse size={22} />
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card className="bg-medical-card border border-white/5 p-6 rounded-[28px] relative overflow-hidden">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 italic">Clinical Overrides</p>
+                                        <h3 className="text-3xl font-black italic tracking-tighter text-cyan-400 mt-1">
+                                            {medicalAudits.filter(a => a.result === 'AUTHORIZED_OVERRIDE').length}
+                                        </h3>
+                                        <p className="text-[9px] text-cyan-500/70 font-bold mt-1">Emergency doctor authorizations</p>
+                                    </div>
+                                    <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                                        <ShieldAlert size={22} />
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Audit Log Table */}
+                        <Card className="bg-medical-card border border-white/5 overflow-hidden rounded-[36px] shadow-2xl relative">
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent" />
+                            
+                            <div className="p-8 border-b border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                                <div>
+                                    <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins flex items-center gap-3">
+                                        <ShieldCheck className="text-primary" size={24} />
+                                        Hospital Biometric Access Audit Trail
+                                    </h2>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1.5 italic">
+                                        Tamper-evident verification logs with biometric thresholds & doctor credentials
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {['ALL', 'VERIFIED', 'FAILED', 'INCONCLUSIVE', 'AUTHORIZED_OVERRIDE'].map((status) => (
+                                        <button
+                                            key={status}
+                                            onClick={() => setAuditResultFilter(status)}
+                                            className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase italic tracking-widest transition-all ${
+                                                auditResultFilter === status
+                                                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                                    : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+                                            }`}
+                                        >
+                                            {status.replace('_', ' ')}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
+                                        <tr>
+                                            <th className="px-8 py-5 text-slate-400">Timestamp</th>
+                                            <th className="px-8 py-5 text-slate-400">Patient / QR Reference</th>
+                                            <th className="px-8 py-5 text-slate-400">Medical Facility & Doctor</th>
+                                            <th className="px-8 py-5 text-slate-400">Verification Mode</th>
+                                            <th className="px-8 py-5 text-slate-400">Outcome</th>
+                                            <th className="px-8 py-5 text-slate-400 text-right">Metric / Distance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5 font-mono text-xs">
+                                        {medicalAudits
+                                            .filter(a => {
+                                                if (auditResultFilter !== 'ALL' && a.result !== auditResultFilter) return false;
+                                                if (searchTerm) {
+                                                    const term = searchTerm.toLowerCase();
+                                                    return (
+                                                        (a.patientId || '').toLowerCase().includes(term) ||
+                                                        (a.doctorId || '').toLowerCase().includes(term) ||
+                                                        (a.hospitalName || '').toLowerCase().includes(term)
+                                                    );
+                                                }
+                                                return true;
+                                            })
+                                            .reverse()
+                                            .map((audit, idx) => {
+                                                const outcomeColors = {
+                                                    VERIFIED: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+                                                    FAILED: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+                                                    INCONCLUSIVE: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+                                                    AUTHORIZED_OVERRIDE: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                                                };
+
+                                                const formattedTime = audit.timestamp 
+                                                    ? new Date(audit.timestamp).toLocaleString('en-IN', {
+                                                        day: '2-digit', month: 'short', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit', second: '2-digit'
+                                                    })
+                                                    : 'Recent';
+
+                                                return (
+                                                    <tr key={audit.id || idx} className="hover:bg-white/5 transition-all">
+                                                        <td className="px-8 py-5 text-[11px] text-slate-400 whitespace-nowrap">
+                                                            <div className="flex items-center gap-2">
+                                                                <Clock size={12} className="text-slate-500" />
+                                                                <span>{formattedTime}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <div className="font-sans">
+                                                                <span className="font-bold text-white tracking-wide text-xs">{audit.patientId || 'UNKNOWN'}</span>
+                                                                {audit.qrId && audit.qrId !== audit.patientId && (
+                                                                    <div className="text-[10px] text-slate-500 font-mono">QR: {audit.qrId}</div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <div className="font-sans">
+                                                                <span className="font-bold text-slate-200 text-xs">{audit.hospitalName || 'Trauma Center'}</span>
+                                                                <div className="text-[10px] text-slate-500 font-mono">MD: {audit.doctorId || 'N/A'}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <div className="font-sans">
+                                                                {audit.unconsciousMode ? (
+                                                                    <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30 text-[9px] uppercase tracking-widest font-black italic">
+                                                                        Passive (Unconscious)
+                                                                    </Badge>
+                                                                ) : audit.result === 'AUTHORIZED_OVERRIDE' ? (
+                                                                    <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 text-[9px] uppercase tracking-widest font-black italic">
+                                                                        Clinical Override
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[9px] uppercase tracking-widest font-black italic">
+                                                                        Active (Conscious)
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-5">
+                                                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase italic tracking-widest border inline-flex items-center gap-1.5 ${outcomeColors[audit.result] || 'bg-slate-800 text-slate-300'}`}>
+                                                                {audit.result === 'VERIFIED' && <CheckCircle2 size={11} />}
+                                                                {audit.result === 'FAILED' && <AlertTriangle size={11} />}
+                                                                {audit.result === 'AUTHORIZED_OVERRIDE' && <ShieldAlert size={11} />}
+                                                                {audit.result?.replace('_', ' ') || 'UNKNOWN'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-5 text-right font-mono text-[11px]">
+                                                            {audit.minDistance != null ? (
+                                                                <span className={audit.minDistance <= 0.45 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                                                                    {Number(audit.minDistance).toFixed(3)} <span className="text-[9px] text-slate-500 font-normal">(≤0.45)</span>
+                                                                </span>
+                                                            ) : audit.result === 'AUTHORIZED_OVERRIDE' ? (
+                                                                <span className="text-cyan-400 text-[10px] font-sans italic">Staff Override</span>
+                                                            ) : (
+                                                                <span className="text-slate-600">—</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+
+                                        {medicalAudits.length === 0 && (
+                                            <tr>
+                                                <td colSpan="6" className="px-8 py-14 text-center text-xs text-slate-500 italic font-sans font-bold">
+                                                    No hospital biometric verification events recorded yet.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
                     </div>
                 )}
             </main>

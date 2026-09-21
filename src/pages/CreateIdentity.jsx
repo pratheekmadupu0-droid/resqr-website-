@@ -15,6 +15,7 @@ import { extractFeatures } from '../lib/cvHelper';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import { calculateAge } from '../lib/dateUtils';
+import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -35,7 +36,8 @@ export default function CreateIdentity() {
 
     // Flow states
     const [selectedType, setSelectedType] = useState(null); // null, 'myself', 'family', 'child', 'friend'
-    const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical, 3: Payment
+    const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical, 3: Biometric Face, 4: Payment
+    const [biometricEnrollment, setBiometricEnrollment] = useState(null);
 
     // Form states
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
@@ -299,22 +301,7 @@ export default function CreateIdentity() {
             const uniqueKey = Math.random().toString(36).substr(2, 9);
             const profileId = `c_${uid}_${uniqueKey}`;
 
-            let descriptors = null;
-            let scannerType = 'qr';
-            if (citizenProfilePhoto) {
-                const t = toast.loading("Analyzing Facial Node...");
-                try {
-                    // Ensure OpenCV engine is loaded before extracting features (lazy load)
-                    if (window.loadOpenCV) await window.loadOpenCV();
-                    const features = await extractFeatures(citizenProfilePhoto);
-                    descriptors = features.descriptors;
-                    scannerType = 'facial';
-                    toast.success("Facial Node Mapped", { id: t });
-                } catch (e) {
-                    console.warn("Facial mapping skipped or failed:", e);
-                    toast.dismiss(t);
-                }
-            }
+            let scannerType = biometricEnrollment ? 'facial' : 'qr';
 
             const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
                 ? emergencyContacts[0] 
@@ -327,7 +314,7 @@ export default function CreateIdentity() {
                 username: chosenUsername.toLowerCase(),
                 profilePhoto: citizenProfilePhoto,
                 scannerType: scannerType,
-                descriptors: descriptors,
+                biometricEnrolled: Boolean(biometricEnrollment),
                 name: citizenName,
                 phone: phoneNumber,
                 email: citizenEmail,
@@ -385,6 +372,11 @@ export default function CreateIdentity() {
             updates[`users/${uid}/profiles/${profileId}`] = profileData;
             updates[`profiles/${profileId}`] = profileData;
             updates[`usernames/${chosenUsername.toLowerCase()}`] = `${uid}/profiles/${profileId}`;
+
+            if (biometricEnrollment) {
+                updates[`biometricProfiles/${profileId}`] = biometricEnrollment;
+                updates[`users/${uid}/biometricProfiles/${profileId}`] = biometricEnrollment;
+            }
 
             await update(ref(db), updates);
             toast.success("New Identity Vault Generated!");
@@ -579,10 +571,10 @@ export default function CreateIdentity() {
                                             {selectedType} IDENTITY NODE
                                         </Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                            Step {wizardStep} of 3: {wizardStep === 1 ? 'Personal Details' : wizardStep === 2 ? 'Medical Vault' : 'Secure Checkout'}
+                                            Step {wizardStep} of 4: {wizardStep === 1 ? 'Personal Details' : wizardStep === 2 ? 'Medical Vault' : wizardStep === 3 ? 'Biometric Face Verification' : 'Secure Checkout'}
                                         </h2>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((wizardStep / 3) * 100)}% Completed</span>
+                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((wizardStep / 4) * 100)}% Completed</span>
                                 </div>
 
                                 {/* Step 1: Personal Details */}
@@ -838,14 +830,35 @@ export default function CreateIdentity() {
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
                                             <Button onClick={handleStep2Submit} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Proceed to payment <ArrowRight size={16} className="ml-2" />
+                                                Proceed to Face Verification <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 3: Payment Checkout */}
+                                {/* Step 3: Biometric Face Verification */}
                                 {wizardStep === 3 && (
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        <FaceEnrollmentWizard
+                                            onComplete={(bioProfile) => {
+                                                setBiometricEnrollment(bioProfile);
+                                                setWizardStep(4);
+                                            }}
+                                            onCancel={() => setWizardStep(2)}
+                                        />
+                                        <div className="flex justify-between items-center pt-4">
+                                            <Button onClick={() => setWizardStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                <ArrowLeft size={16} className="mr-2" /> Back
+                                            </Button>
+                                            <Button onClick={() => setWizardStep(4)} variant="outline" className="py-4 px-6 rounded-2xl font-black italic uppercase text-[11px] border-white/10 text-slate-400 hover:text-white">
+                                                Skip Biometrics &rarr;
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 4: Payment Checkout */}
+                                {wizardStep === 4 && (
                                     <div className="space-y-8 animate-in fade-in duration-300">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             {/* Digital QR */}
@@ -893,7 +906,7 @@ export default function CreateIdentity() {
                                             </div>
                                             
                                             <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                                <Button onClick={() => setWizardStep(2)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                <Button onClick={() => setWizardStep(3)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                     <ArrowLeft size={16} className="mr-2" /> Back
                                                 </Button>
 

@@ -12,6 +12,8 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import toast from 'react-hot-toast';
 import { db, auth } from '../../lib/firebase';
 import { ref, update, get, set, push, onValue } from 'firebase/database';
+import HospitalFaceVerificationModal from '../biometrics/HospitalFaceVerificationModal';
+import { fetchAuthorizedMedicalProfile } from '../../lib/medicalApi';
 
 export default function HospitalDashboard({ data }) {
     const [stats, setStats] = useState({
@@ -29,6 +31,8 @@ export default function HospitalDashboard({ data }) {
     const [showScanner, setShowScanner] = useState(false);
     const [scannedPatient, setScannedPatient] = useState(null);
     const [scanLoading, setScanLoading] = useState(false);
+    const [showFaceVerification, setShowFaceVerification] = useState(false);
+    const [pendingPatientTarget, setPendingPatientTarget] = useState(null);
 
     // Queue / Lookup States
     const [searchQuery, setSearchQuery] = useState('');
@@ -105,28 +109,57 @@ export default function HospitalDashboard({ data }) {
             }
 
             // 1. Fetch from global node
-            let profileSnap = await get(ref(db, `profiles/${targetSlug}`));
-
-            // 2. Fetch from users sub-profile node if global failed
+            let actualUid = null;
             if (!profileSnap.exists()) {
-                const uid = targetSlug.includes('_') ? (targetSlug.startsWith('c_') ? targetSlug.replace('c_', '') : targetSlug.split('_')[0]) : targetSlug;
-                profileSnap = await get(ref(db, `users/${uid}/profiles/${targetSlug}`));
+                actualUid = targetSlug.includes('_') ? (targetSlug.startsWith('c_') ? targetSlug.replace('c_', '') : targetSlug.split('_')[0]) : targetSlug;
+                profileSnap = await get(ref(db, `users/${actualUid}/profiles/${targetSlug}`));
             }
 
             if (profileSnap.exists()) {
-                setScannedPatient({
-                    id: targetSlug,
-                    ...profileSnap.val()
+                const raw = profileSnap.val();
+                const pName = raw.name || raw.fullName || raw.data?.name || "PATIENT";
+
+                // Fetch biometric profile for patient
+                let bioSnap = await get(ref(db, `biometricProfiles/${targetSlug}`));
+                if (!bioSnap.exists() && actualUid) {
+                    bioSnap = await get(ref(db, `users/${actualUid}/biometricProfiles/${targetSlug}`));
+                }
+
+                setPendingPatientTarget({
+                    patientId: targetSlug,
+                    patientName: pName,
+                    biometricProfile: bioSnap.exists() ? bioSnap.val() : null,
+                    rawRecord: raw
                 });
-                toast.success("Emergency Medical Profile Decrypted!");
+                setShowFaceVerification(true);
             } else {
                 toast.error("Profile not found or vault access denied.");
             }
         } catch (error) {
             console.error("Patient fetch error:", error);
-            toast.error("Decryption failed: " + error.message);
+            toast.error("Lookup failed: " + error.message);
         } finally {
             setScanLoading(false);
+        }
+    };
+
+    const handleHospitalBiometricSuccess = async (matchDetails) => {
+        if (!pendingPatientTarget) return;
+        try {
+            const token = matchDetails.token;
+            const medicalData = await fetchAuthorizedMedicalProfile(pendingPatientTarget.patientId, token);
+            setScannedPatient({
+                id: pendingPatientTarget.patientId,
+                name: pendingPatientTarget.patientName,
+                ...pendingPatientTarget.rawRecord,
+                medical: medicalData,
+                insurance: medicalData.insurance || pendingPatientTarget.rawRecord.insurance
+            });
+            setShowFaceVerification(false);
+            setPendingPatientTarget(null);
+            toast.success("Emergency Medical Profile Decrypted via Biometric Authorization!");
+        } catch (e) {
+            toast.error("Decryption failed: " + e.message);
         }
     };
 
@@ -548,6 +581,37 @@ export default function HospitalDashboard({ data }) {
                     </div>
                 )}
 
+                {/* Biometric Face Verification Modal */}
+                <HospitalFaceVerificationModal
+                    isOpen={showFaceVerification}
+                    onClose={() => {
+                        setShowFaceVerification(false);
+                        setPendingPatientTarget(null);
+                    }}
+                    patientName={pendingPatientTarget?.patientName || "PATIENT"}
+                    patientId={pendingPatientTarget?.patientId}
+                    qrId={pendingPatientTarget?.patientId}
+                    biometricProfile={pendingPatientTarget?.biometricProfile}
+                    doctorInfo={{
+                        regNo: hospital.licenseNo || auth.currentUser?.uid || 'HOSPITAL_ER',
+                        hospitalName: hospital.hospitalName || 'Emergency Trauma Center'
+                    }}
+                    onVerificationSuccess={handleHospitalBiometricSuccess}
+                    onAlternateOverride={() => {
+                        if (pendingPatientTarget) {
+                            setScannedPatient({
+                                id: pendingPatientTarget.patientId,
+                                name: pendingPatientTarget.patientName,
+                                ...pendingPatientTarget.rawRecord,
+                                medical: pendingPatientTarget.rawRecord.medical || {},
+                                insurance: pendingPatientTarget.rawRecord.insurance || {}
+                            });
+                            setShowFaceVerification(false);
+                            setPendingPatientTarget(null);
+                            toast.success("Emergency Trauma Clinical Override Granted.");
+                        }
+                    }}
+                />
             </div>
         </div>
     );

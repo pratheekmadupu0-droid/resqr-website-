@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Phone, MapPin, AlertCircle, Heart, Activity as ActivityIcon, Info, Loader2, 
     Lock, Navigation, Building2, Shield, ChevronRight, ShieldAlert, CheckCircle2, 
-    Key, Siren, Droplet, HeartPulse, Pill, Scissors, CreditCard, X, Stethoscope, Unlock
+    Key, Siren, Droplet, HeartPulse, Pill, Scissors, CreditCard, X, Stethoscope, Unlock, Clock
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -11,7 +11,8 @@ import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import toast from 'react-hot-toast';
-import { calculateAge } from '../lib/dateUtils';
+import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
+import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit } from '../lib/medicalApi';
 
 export default function EmergencyPage() {
     const { id } = useParams();
@@ -20,33 +21,50 @@ export default function EmergencyPage() {
     const [coords, setCoords] = useState(null);
     const [isTransmitting, setIsTransmitting] = useState(false);
     
-    // Privacy & Authorized Medical Access states
-    const [isMedicalAuthorized, setIsMedicalAuthorized] = useState(false);
-    const [showAuthModal, setShowAuthModal] = useState(false);
-    const [authMethod, setAuthMethod] = useState('otp'); // 'otp' | 'doctor_id'
-    const [doctorRegNo, setDoctorRegNo] = useState('');
-    const [hospitalName, setHospitalName] = useState('');
-    const [otpCode, setOtpCode] = useState('');
-    const [otpSent, setOtpSent] = useState(false);
-    const [verifyingAuth, setVerifyingAuth] = useState(false);
-
-    const [user, setUser] = useState({
-        name: "IDENTITY NODE",
-        bloodGroup: "",
+    // Public Emergency Profile State (STRICTLY SANITIZED - ZERO MEDICAL DATA)
+    const [publicUser, setPublicUser] = useState({
+        name: "REGISTERED CITIZEN",
         emergencyContact: {
             name: "GUARDIAN",
             phone: "",
             relation: "AUTHORIZED CONTACT"
         },
-        allergies: "",
-        healthIssues: "",
-        currentMedication: "",
-        previousSurgeries: "",
-        emergencyNotes: "",
-        isOrganDonor: false,
-        insurance: {},
         payment_status: 'paid'
     });
+
+    // Authorized Healthcare / Medical Access States
+    const [isMedicalAuthorized, setIsMedicalAuthorized] = useState(false);
+    const [authorizedMedicalData, setAuthorizedMedicalData] = useState(null);
+    const [sessionExpiresAt, setSessionExpiresAt] = useState(null);
+    const [sessionRemainingSec, setSessionRemainingSec] = useState(0);
+
+    // Biometric & Alternate Verification States
+    const [showBiometricModal, setShowBiometricModal] = useState(false);
+    const [showAlternateModal, setShowAlternateModal] = useState(false);
+    const [biometricProfile, setBiometricProfile] = useState(null);
+    const [resolvedPatientId, setResolvedPatientId] = useState(id || '');
+
+    // Alternate Override Form
+    const [doctorRegNo, setDoctorRegNo] = useState('');
+    const [hospitalName, setHospitalName] = useState('');
+    const [overrideReason, setOverrideReason] = useState('UNCONSCIOUS_TRAUMA_OVERRIDE');
+    const [submittingOverride, setSubmittingOverride] = useState(false);
+
+    // Session Timer Countdown
+    useEffect(() => {
+        if (!sessionExpiresAt) return;
+        const interval = setInterval(() => {
+            const left = Math.max(0, Math.floor((sessionExpiresAt - Date.now()) / 1000));
+            setSessionRemainingSec(left);
+            if (left <= 0) {
+                setIsMedicalAuthorized(false);
+                setAuthorizedMedicalData(null);
+                setSessionExpiresAt(null);
+                toast.error("Medical access session expired. Clinical re-verification required.");
+            }
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [sessionExpiresAt]);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -81,68 +99,49 @@ export default function EmergencyPage() {
                     snap = await get(ref(db, resolvedPath));
                 }
 
+                setResolvedPatientId(actualPid);
+
                 if (snap.exists()) {
                     const raw = snap.val();
-                    
-                    const fallbackMedical = raw.medical || {};
                     const fallbackEmergency = raw.emergencyContacts?.[0] || {};
-                    
-                    const decoded = {
-                        name: raw.name || raw.fullName || '',
-                        phone: raw.phone || '',
-                        email: raw.email || '',
-                        dob: raw.dob || '',
-                        gender: raw.gender || '',
-                        
-                        bloodGroup: fallbackMedical.bloodGroup || raw.bloodGroup || '',
-                        healthIssues: fallbackMedical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || raw.medicalHistory || '',
-                        allergies: fallbackMedical.allergies || raw.allergies || '',
-                        currentMedication: fallbackMedical.currentMedication || raw.currentMedication || '',
-                        previousSurgeries: fallbackMedical.previousSurgeries || raw.previousSurgeries || raw.surgeries || '',
-                        emergencyNotes: fallbackMedical.emergencyNotes || raw.emergencyNotes || '',
-                        isOrganDonor: fallbackMedical.isOrganDonor || raw.isOrganDonor || false,
-                        insurance: raw.insurance || fallbackMedical.insurance || {},
-                        
-                        emergencyContactName: fallbackEmergency.name || raw.emergencyContactName || '',
-                        emergencyContactRelation: fallbackEmergency.relationship || fallbackEmergency.relation || raw.emergencyContactRelation || '',
-                        emergencyContactPhone: fallbackEmergency.phone || raw.emergencyContactPhone || '',
-                        
-                        ...(raw.data || {})
-                    };
-                    
-                    const userData = {
-                        name: (decoded.name || decoded.fullName || decoded.ownerName || decoded.petName || "USER NAME").toString().toUpperCase(),
-                        bloodGroup: decoded.bloodGroup || "",
-                        payment_status: decoded.payment_status || 'paid',
-                        healthIssues: decoded.healthIssues || "",
-                        allergies: decoded.allergies || "",
-                        currentMedication: decoded.currentMedication || "",
-                        previousSurgeries: decoded.previousSurgeries || "",
-                        emergencyNotes: decoded.emergencyNotes || "",
-                        isOrganDonor: Boolean(decoded.isOrganDonor),
-                        insurance: decoded.insurance || {},
-                        dob: decoded.dob || '',
-                        age: decoded.age || calculateAge(decoded.dob) || '',
-                        gender: decoded.gender || '',
+
+                    // SANITIZED PUBLIC EMERGENCY DATA ONLY
+                    // Section 3: Do NOT populate blood group, allergies, conditions, medications, insurance
+                    const publicData = {
+                        name: (raw.name || raw.fullName || raw.ownerName || "REGISTERED CITIZEN").toString().toUpperCase(),
+                        payment_status: raw.payment_status || 'paid',
                         emergencyContact: {
-                            name: decoded.emergencyContactName || "GUARDIAN",
-                            relation: decoded.emergencyContactRelation || "AUTHORIZED CONTACT",
-                            phone: decoded.emergencyContactPhone || ""
+                            name: raw.emergencyContactName || fallbackEmergency.name || "GUARDIAN",
+                            relation: raw.emergencyContactRelation || fallbackEmergency.relationship || fallbackEmergency.relation || "AUTHORIZED CONTACT",
+                            phone: raw.emergencyContactPhone || fallbackEmergency.phone || ""
                         }
                     };
-                    setUser(userData);
-                    recordScan(userData, actualUid, actualPid, resolvedPath);
+                    setPublicUser(publicData);
+                    recordScan(actualUid, actualPid);
+
+                    // Fetch biometric template metadata for hospital verification
+                    try {
+                        let bioSnap = await get(ref(db, `biometricProfiles/${actualPid}`));
+                        if (!bioSnap.exists() && actualUid) {
+                            bioSnap = await get(ref(db, `users/${actualUid}/biometricProfiles/${actualPid}`));
+                        }
+                        if (bioSnap.exists()) {
+                            setBiometricProfile(bioSnap.val());
+                        }
+                    } catch (err) {
+                        console.warn("Could not preload biometric profile:", err);
+                    }
                 }
             } catch (error) {
                 console.error("Profile Load Error:", error);
             } finally {
                 setLoading(false);
-             }
+            }
         };
         fetchProfile();
     }, [id]);
 
-    const recordScan = async (profileData, actualUid, actualPid, resolvedPath) => {
+    const recordScan = async (actualUid, actualPid) => {
         if (scanRecorded) return;
         setIsTransmitting(true);
         try {
@@ -150,7 +149,7 @@ export default function EmergencyPage() {
             let lng = null;
             try {
                 const position = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000 });
                 });
                 lat = position.coords.latitude;
                 lng = position.coords.longitude;
@@ -190,7 +189,7 @@ export default function EmergencyPage() {
                 triggerWhatsApp(loc);
             } catch (err) {
                 toast.dismiss();
-                toast.error("GPS Signal Offline.");
+                toast.error("GPS Signal Offline. Please enable device location.");
             }
         } else {
             triggerWhatsApp(coords);
@@ -198,58 +197,104 @@ export default function EmergencyPage() {
     };
 
     const triggerWhatsApp = (location) => {
-        const rawPh = user.emergencyContact.phone;
+        const rawPh = publicUser.emergencyContact.phone;
         const sanPh = rawPh?.replace(/[^0-9+]/g, '');
         if (sanPh) {
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
-            const waMessage = encodeURIComponent(`🚨 *RESQR EMERGENCY ALERT* 🚨\n\nI have just scanned the emergency identity of *${(user.name || "A Member").toUpperCase()}*.\n\n📍 *CURRENT LOCATION:* ${mapsUrl}\n\n⚕️ *PROTOCOL:* High Priority Rescue Dispatch Requested.`);
+            const waMessage = encodeURIComponent(`🚨 *RESQR EMERGENCY ALERT* 🚨\n\nI have just scanned the emergency identity of *${publicUser.name}*.\n\n📍 *CURRENT LOCATION:* ${mapsUrl}\n\n⚕️ *PROTOCOL:* High Priority Rescue Dispatch Requested.`);
             const waPhone = sanPh.startsWith('+') ? sanPh.substring(1) : sanPh;
             window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank');
         } else {
-            toast.error("Emergency contact number missing.");
+            toast.error("Emergency contact phone number not available.");
         }
     };
 
-    // Hospital / Doctor authorization flow
-    const handleSendEmergencyOtp = () => {
-        setOtpSent(true);
-        toast.success(`Emergency access OTP dispatched to ${user.emergencyContact.name || 'emergency contact'}.`);
+    // On Biometric Verification Success
+    const handleBiometricSuccess = async (matchDetails) => {
+        setShowBiometricModal(false);
+        try {
+            const token = matchDetails.token;
+            const medicalData = await fetchAuthorizedMedicalProfile(resolvedPatientId, token);
+            setAuthorizedMedicalData(medicalData);
+            setIsMedicalAuthorized(true);
+            setSessionExpiresAt(Date.now() + (matchDetails.expiresIn || 900) * 1000);
+            toast.success("Medical dossier unlocked with active 15-minute clinical session.");
+        } catch (err) {
+            toast.error(err.message || "Failed to retrieve authorized medical dossier.");
+        }
     };
 
-    const handleVerifyMedicalAccess = (e) => {
+    // Alternate Verification Clinical Override (Section 17 & 18)
+    const handleAlternateOverrideSubmit = async (e) => {
         e.preventDefault();
-        setVerifyingAuth(true);
+        if (!doctorRegNo.trim() || !hospitalName.trim()) {
+            toast.error("Please enter your Medical Council Registration number and Hospital name.");
+            return;
+        }
 
-        setTimeout(() => {
-            if (authMethod === 'otp') {
-                if (otpCode.length >= 4) {
-                    setIsMedicalAuthorized(true);
-                    setShowAuthModal(false);
-                    toast.success("Medical dossier unlocked via contact authorization.");
-                } else {
-                    toast.error("Please enter a valid 4 to 6-digit emergency OTP.");
-                }
-            } else {
-                if (doctorRegNo.trim().length >= 4) {
-                    setIsMedicalAuthorized(true);
-                    setShowAuthModal(false);
-                    toast.success("Medical dossier unlocked for verified doctor.");
-                } else {
-                    toast.error("Please enter your Medical Council Registration Number.");
-                }
+        setSubmittingOverride(true);
+        try {
+            // Log alternate clinical override to audit trail
+            await logMedicalAccessAudit({
+                hospitalId: hospitalName,
+                hospitalName: hospitalName,
+                doctorId: doctorRegNo,
+                patientId: resolvedPatientId,
+                qrId: id,
+                result: 'AUTHORIZED_OVERRIDE',
+                accessType: 'clinical_override',
+                reason: overrideReason
+            });
+
+            // Fetch medical record with override token
+            let targetUid = resolvedPatientId.includes('_') ? (resolvedPatientId.startsWith('c_') ? resolvedPatientId.replace('c_', '') : resolvedPatientId.split('_')[0]) : resolvedPatientId;
+            let snap = await get(ref(db, `users/${targetUid}/profiles/${resolvedPatientId}`));
+            if (!snap.exists()) {
+                snap = await get(ref(db, `profiles/${resolvedPatientId}`));
             }
-            setVerifyingAuth(false);
-        }, 600);
+
+            if (snap.exists()) {
+                const raw = snap.val();
+                const medical = raw.medical || {};
+                setAuthorizedMedicalData({
+                    name: raw.name || raw.fullName || publicUser.name,
+                    bloodGroup: medical.bloodGroup || raw.bloodGroup || '',
+                    allergies: medical.allergies || raw.allergies || '',
+                    medicalConditions: medical.medicalConditions || raw.medicalConditions || raw.healthIssues || raw.conditions || '',
+                    currentMedication: medical.currentMedication || raw.currentMedication || '',
+                    previousSurgeries: medical.previousSurgeries || raw.previousSurgeries || raw.surgeries || '',
+                    emergencyNotes: medical.emergencyNotes || raw.emergencyNotes || '',
+                    isOrganDonor: Boolean(medical.isOrganDonor ?? raw.isOrganDonor),
+                    insurance: raw.insurance || medical.insurance || {},
+                    medicalId: medical.medicalId || raw.medicalId || '',
+                    authorizedUntil: Date.now() + 15 * 60 * 1000
+                });
+                setIsMedicalAuthorized(true);
+                setSessionExpiresAt(Date.now() + 15 * 60 * 1000);
+                setShowAlternateModal(false);
+                toast.success("Emergency Trauma Clinical Override logged and approved.");
+            } else {
+                toast.error("Patient record could not be located.");
+            }
+        } catch (err) {
+            console.error("Clinical override error:", err);
+            toast.error("Clinical override verification failed.");
+        } finally {
+            setSubmittingOverride(false);
+        }
     };
 
-    if (loading) return <div className="min-h-screen bg-[#040812] flex items-center justify-center"><Loader2 className="text-red-600 animate-spin" size={48} /></div>;
-    if (user.payment_status === 'pending') return <div className="min-h-screen bg-[#040812] flex items-center justify-center text-white p-10 text-center"><Shield size={64} className="text-red-600 mb-6 opacity-30" /><h1 className="text-2xl font-black uppercase italic tracking-tighter">INACTIVE NODE</h1></div>;
-
-    const hasInsurance = user.insurance && (user.insurance.insuranceCompany || user.insurance.policyNumber);
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#040812] flex items-center justify-center">
+                <Loader2 className="text-red-600 animate-spin" size={48} />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-red-600/30">
-            {/* FRAUD PREVENTION BANNER */}
+            {/* FRAUD PREVENTION & TELEMETRY BANNER */}
             <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest sticky top-0 z-50 shadow-xl italic">
                 <ShieldAlert size={16} />
                 EMERGENCY SCAN SIGNAL DETECTED. LOCATION LOGGING ACTIVE.
@@ -258,22 +303,22 @@ export default function EmergencyPage() {
             <div className="max-w-xl mx-auto space-y-8 pb-40 px-5 pt-12">
                 {/* Brand Header */}
                 <div className="flex flex-col items-center mb-10 text-center animate-in fade-in duration-700">
-                     <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
-                     <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
+                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                    <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
                         Verified Rescue Identity
-                     </Badge>
+                    </Badge>
                 </div>
 
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
                     {/* ============================================================
-                        1. PUBLIC EMERGENCY PROFILE: REGISTERED FULL NAME
-                        Dynamically retrieved for every registered user
+                        1. PUBLIC EMERGENCY PROFILE: REGISTERED USER NAME
+                        (Section 3: ONLY User Name visible to bystanders)
                         ============================================================ */}
                     <div className="bg-[#11192A] rounded-[40px] border border-white/5 p-8 sm:p-12 text-center shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-red-600/30 to-transparent" />
                         <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] block mb-4 italic">Registered Citizen</span>
                         <h1 className="text-3xl sm:text-5xl md:text-6xl font-black uppercase text-white tracking-tighter italic font-poppins break-words leading-none w-full">
-                            {user?.name || "REGISTERED USER"}
+                            {publicUser?.name || "REGISTERED USER"}
                         </h1>
                         <div className="mt-5 flex items-center justify-center gap-2">
                             <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
@@ -289,11 +334,11 @@ export default function EmergencyPage() {
                         <div className="text-center">
                             <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] italic mb-3">Guardian Liaison Node</p>
                             <h4 className="text-3xl sm:text-4xl font-black italic text-white uppercase font-poppins leading-none">
-                                {(user?.emergencyContact?.name || "GUARDIAN").toUpperCase()}
+                                {(publicUser?.emergencyContact?.name || "GUARDIAN").toUpperCase()}
                             </h4>
                             <div className="mt-2.5 flex items-center justify-center">
                                 <Badge className="bg-white/5 text-slate-400 border border-white/10 font-bold uppercase text-[9px] px-3 py-1">
-                                    {user?.emergencyContact?.relation || "AUTHORIZED CONTACT"}
+                                    {publicUser?.emergencyContact?.relation || "AUTHORIZED CONTACT"}
                                 </Badge>
                             </div>
                         </div>
@@ -302,7 +347,7 @@ export default function EmergencyPage() {
                             {/* Call Emergency Contact */}
                             <button 
                                 onClick={() => {
-                                    const rawPh = user.emergencyContact.phone;
+                                    const rawPh = publicUser.emergencyContact.phone;
                                     const sanPh = rawPh?.replace(/[^0-9+]/g, '');
                                     if (sanPh) window.location.href = `tel:${sanPh}`;
                                     else toast.error("Emergency contact phone number not available.");
@@ -314,7 +359,7 @@ export default function EmergencyPage() {
                                     <span className="font-black uppercase italic tracking-widest text-2xl">Connect Call</span>
                                 </div>
                                 <span className="text-xs opacity-75 font-mono font-bold tracking-widest">
-                                    {user.emergencyContact.phone ? user.emergencyContact.phone.replace(/\d(?=\d{4})/g, '*') : 'Tap to dial'}
+                                    {publicUser.emergencyContact.phone ? publicUser.emergencyContact.phone.replace(/\d(?=\d{4})/g, '*') : 'Tap to dial'}
                                 </span>
                             </button>
 
@@ -331,6 +376,7 @@ export default function EmergencyPage() {
 
                     {/* ============================================================
                         3. OFFICIAL EMERGENCY RESPONSE ACTIONS
+                        (Section 3: Call 108 Ambulance, Police 100, Nearest Hospital)
                         ============================================================ */}
                     <div className="grid grid-cols-1 gap-4">
                         {/* Call 108 Ambulance */}
@@ -371,7 +417,7 @@ export default function EmergencyPage() {
 
                     {/* ============================================================
                         4. CLINICAL PRIVACY PROTOCOL BANNER
-                        Explicitly communicates privacy & separation
+                        Explicitly communicates separation of data
                         ============================================================ */}
                     <div className="bg-[#11192A]/60 rounded-[32px] border border-white/5 p-6 text-center shadow-xl">
                         <div className="flex items-center justify-center gap-2 mb-2 text-slate-400">
@@ -387,7 +433,7 @@ export default function EmergencyPage() {
 
                     {/* ============================================================
                         5. AUTHORIZED MEDICAL ACCESS SECTION
-                        Accessible only by Doctors / Hospitals
+                        Accessible only by Doctors / Hospitals via Face Verification
                         ============================================================ */}
                     {!isMedicalAuthorized ? (
                         <div className="bg-gradient-to-b from-[#11192A] to-[#0A0F1D] rounded-[36px] border border-red-500/20 p-8 text-center space-y-5 shadow-2xl">
@@ -405,20 +451,20 @@ export default function EmergencyPage() {
                                 </div>
                             </div>
                             <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                                Paramedics and trauma physicians can unlock the encrypted medical dossier (Blood Group, Allergies, Medical Conditions, Medications, Insurance) through authorized verification.
+                                Emergency trauma doctors and ICU centers can unlock the encrypted medical dossier (Blood Group, Allergies, Medical Conditions, Medications, Insurance) via biometric face verification.
                             </p>
                             <button
                                 type="button"
-                                onClick={() => setShowAuthModal(true)}
+                                onClick={() => setShowBiometricModal(true)}
                                 className="w-full py-4 bg-white/10 hover:bg-white/15 text-white border border-white/15 rounded-2xl font-black italic uppercase text-xs tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95"
                             >
                                 <Lock size={14} className="text-red-500" />
-                                Unlock Medical Profile — Doctors & Hospitals
+                                Initiate Patient Face Verification
                             </button>
                         </div>
                     ) : (
                         /* ============================================================
-                           AUTHORIZED MEDICAL DOSSIER (UNLOCKED FOR HEALTHCARE)
+                           AUTHORIZED MEDICAL DOSSIER (UNLOCKED AFTER BIOMETRIC VERIFICATION)
                            ============================================================ */
                         <div className="bg-[#11192A] rounded-[40px] border-2 border-emerald-500/30 p-8 sm:p-10 space-y-8 shadow-2xl relative overflow-hidden animate-in fade-in duration-500">
                             <div className="flex items-center justify-between border-b border-white/10 pb-5 flex-wrap gap-4">
@@ -427,9 +473,16 @@ export default function EmergencyPage() {
                                         <Unlock size={22} />
                                     </div>
                                     <div>
-                                        <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest mb-1">
-                                            Authorized Healthcare Access
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest mb-1">
+                                                Authorized Healthcare Access
+                                            </Badge>
+                                            {sessionRemainingSec > 0 && (
+                                                <span className="text-[9px] font-mono font-bold text-amber-400 flex items-center gap-1">
+                                                    <Clock size={11} /> {Math.floor(sessionRemainingSec / 60)}:{(sessionRemainingSec % 60).toString().padStart(2, '0')}
+                                                </span>
+                                            )}
+                                        </div>
                                         <h3 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
                                             Decrypted Medical Dossier
                                         </h3>
@@ -438,11 +491,13 @@ export default function EmergencyPage() {
                                 <button
                                     onClick={() => {
                                         setIsMedicalAuthorized(false);
+                                        setAuthorizedMedicalData(null);
+                                        setSessionExpiresAt(null);
                                         toast.success("Medical dossier locked.");
                                     }}
-                                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10"
+                                    className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 flex items-center gap-1"
                                 >
-                                    Lock Profile
+                                    <Lock size={12} /> Lock Profile
                                 </button>
                             </div>
 
@@ -453,7 +508,7 @@ export default function EmergencyPage() {
                                         <Droplet size={13} /> Blood Group
                                     </p>
                                     <p className="text-6xl font-black italic tracking-tighter leading-none mt-2">
-                                        {user.bloodGroup || 'N/A'}
+                                        {authorizedMedicalData?.bloodGroup || 'N/A'}
                                     </p>
                                 </div>
 
@@ -462,7 +517,7 @@ export default function EmergencyPage() {
                                         Organ Donor Status
                                     </p>
                                     <p className="text-xl font-black italic uppercase text-emerald-400">
-                                        {user.isOrganDonor ? 'Registered Donor' : 'Not Registered'}
+                                        {authorizedMedicalData?.isOrganDonor ? 'Registered Donor' : 'Not Registered'}
                                     </p>
                                 </div>
                             </div>
@@ -474,7 +529,7 @@ export default function EmergencyPage() {
                                         <AlertCircle size={14} /> Critical Allergies
                                     </p>
                                     <p className="text-base font-black italic uppercase text-white">
-                                        {user.allergies || 'No known allergies reported'}
+                                        {authorizedMedicalData?.allergies || 'No known allergies reported'}
                                     </p>
                                 </div>
 
@@ -483,7 +538,7 @@ export default function EmergencyPage() {
                                         <HeartPulse size={14} /> Chronic Conditions
                                     </p>
                                     <p className="text-base font-black italic uppercase text-white">
-                                        {user.healthIssues || 'No chronic conditions recorded'}
+                                        {authorizedMedicalData?.medicalConditions || 'No chronic conditions recorded'}
                                     </p>
                                 </div>
 
@@ -492,7 +547,7 @@ export default function EmergencyPage() {
                                         <Pill size={14} /> Current Medications
                                     </p>
                                     <p className="text-base font-black italic uppercase text-white">
-                                        {user.currentMedication || 'None recorded'}
+                                        {authorizedMedicalData?.currentMedication || 'None recorded'}
                                     </p>
                                 </div>
 
@@ -501,66 +556,82 @@ export default function EmergencyPage() {
                                         <Scissors size={14} /> Previous Surgeries
                                     </p>
                                     <p className="text-base font-black italic uppercase text-white">
-                                        {user.previousSurgeries || 'None recorded'}
+                                        {authorizedMedicalData?.previousSurgeries || 'None recorded'}
                                     </p>
                                 </div>
                             </div>
 
-                            {user.emergencyNotes && (
+                            {authorizedMedicalData?.emergencyNotes && (
                                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-6">
                                     <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-400 flex items-center gap-2 mb-2">
                                         <Info size={14} /> Emergency Clinical Notes
                                     </p>
                                     <p className="text-sm font-bold text-slate-200 leading-relaxed">
-                                        {user.emergencyNotes}
+                                        {authorizedMedicalData.emergencyNotes}
                                     </p>
                                 </div>
                             )}
 
                             {/* Insurance Details */}
-                            {hasInsurance && (
+                            {authorizedMedicalData?.insurance && (authorizedMedicalData.insurance.insuranceCompany || authorizedMedicalData.insurance.policyNumber) && (
                                 <div className="bg-white/5 border border-white/10 rounded-3xl p-6 space-y-3">
                                     <p className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-400 flex items-center gap-2">
                                         <CreditCard size={14} /> Health Insurance Cover
                                     </p>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-2">
-                                        {user.insurance.insuranceCompany && (
+                                        {authorizedMedicalData.insurance.insuranceCompany && (
                                             <div>
                                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Provider</p>
-                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">{user.insurance.insuranceCompany}</p>
+                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">{authorizedMedicalData.insurance.insuranceCompany}</p>
                                             </div>
                                         )}
-                                        {user.insurance.policyNumber && (
+                                        {authorizedMedicalData.insurance.policyNumber && (
                                             <div>
                                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Policy No.</p>
-                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">{user.insurance.policyNumber}</p>
+                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">{authorizedMedicalData.insurance.policyNumber}</p>
                                             </div>
                                         )}
-                                        {user.insurance.coverageAmount && (
+                                        {authorizedMedicalData.insurance.coverageAmount && (
                                             <div>
                                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Coverage</p>
-                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">₹{user.insurance.coverageAmount}</p>
+                                                <p className="text-sm font-black italic uppercase text-white mt-0.5">₹{authorizedMedicalData.insurance.coverageAmount}</p>
                                             </div>
                                         )}
                                     </div>
                                 </div>
                             )}
-
-                            <div className="text-center pt-2">
-                                <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-600">
-                                    Medical clearance logged under RESQR Trauma Protocol
-                                </p>
-                            </div>
                         </div>
                     )}
                 </div>
             </div>
 
             {/* ============================================================
-                MODAL: AUTHORIZED MEDICAL ACCESS VERIFICATION
+                BIOMETRIC FACE VERIFICATION MODAL
+                ============================================================ */}
+            <HospitalFaceVerificationModal
+                isOpen={showBiometricModal}
+                onClose={() => setShowBiometricModal(false)}
+                patientName={publicUser.name}
+                patientId={resolvedPatientId}
+                qrId={id}
+                biometricProfile={biometricProfile}
+                doctorInfo={{
+                    regNo: doctorRegNo || 'STAFF_DOCTOR',
+                    hospitalName: hospitalName || 'Emergency Trauma Center'
+                }}
+                onVerificationSuccess={handleBiometricSuccess}
+                onAlternateOverride={() => {
+                    setShowBiometricModal(false);
+                    setShowAlternateModal(true);
+                }}
+            />
+
+            {/* ============================================================
+                MODAL: AUTHORIZED ALTERNATE CLINICAL OVERRIDE
+                (Section 17 & 18: Used when face is obstructed, severely injured, or inconclusive)
                 ============================================================ */}
             <AnimatePresence>
-                {showAuthModal && (
+                {showAlternateModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
@@ -569,123 +640,65 @@ export default function EmergencyPage() {
                             className="bg-[#11192A] border border-white/10 rounded-[36px] max-w-md w-full p-8 space-y-6 shadow-2xl relative"
                         >
                             <button
-                                onClick={() => setShowAuthModal(false)}
+                                onClick={() => setShowAlternateModal(false)}
                                 className="absolute top-6 right-6 text-slate-400 hover:text-white p-2"
                             >
                                 <X size={20} />
                             </button>
 
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-red-600/10 rounded-2xl text-red-500">
-                                    <Lock size={24} />
+                                <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-500">
+                                    <ShieldAlert size={24} />
                                 </div>
                                 <div>
                                     <h3 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                        Medical Clearance
+                                        Authorized Alternate Override
                                     </h3>
                                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                                        Authorized Personnel Verification
+                                        Clinical Trauma Audit Protocol
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Toggle Auth Methods */}
-                            <div className="grid grid-cols-2 gap-2 bg-black/30 p-1 rounded-2xl">
-                                <button
-                                    type="button"
-                                    onClick={() => setAuthMethod('otp')}
-                                    className={`py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
-                                        authMethod === 'otp' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                                    }`}
-                                >
-                                    Emergency OTP
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setAuthMethod('doctor_id')}
-                                    className={`py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
-                                        authMethod === 'doctor_id' ? 'bg-red-600 text-white shadow' : 'text-slate-400 hover:text-white'
-                                    }`}
-                                >
-                                    Doctor / Hospital ID
-                                </button>
-                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                                Used when patient face verification is inconclusive due to severe facial trauma, bandages, or optical obstruction. All overrides are permanently recorded in the institutional audit log.
+                            </p>
 
-                            <form onSubmit={handleVerifyMedicalAccess} className="space-y-4">
-                                {authMethod === 'otp' ? (
-                                    <div className="space-y-3">
-                                        <p className="text-xs text-slate-400 leading-relaxed">
-                                            Send a high-priority 4-digit verification OTP to the registered emergency contact ({user.emergencyContact.name || 'Guardian'}).
-                                        </p>
-                                        {!otpSent ? (
-                                            <button
-                                                type="button"
-                                                onClick={handleSendEmergencyOtp}
-                                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black italic uppercase text-xs tracking-widest transition-all"
-                                            >
-                                                Send OTP to Emergency Contact
-                                            </button>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                <input
-                                                    type="text"
-                                                    placeholder="Enter 4-digit OTP"
-                                                    maxLength={6}
-                                                    value={otpCode}
-                                                    onChange={(e) => setOtpCode(e.target.value)}
-                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-center font-mono text-lg tracking-widest text-white outline-none focus:border-red-500"
-                                                    required
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSendEmergencyOtp}
-                                                    className="text-[10px] font-bold text-slate-400 hover:text-white underline block text-center"
-                                                >
-                                                    Resend Code
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-xs text-slate-400 leading-relaxed">
-                                            Enter your state Medical Council Registration number or Hospital trauma center ID for the audit trail.
-                                        </p>
-                                        <input
-                                            type="text"
-                                            placeholder="Doctor Reg / License No. (e.g. MCI-12345)"
-                                            value={doctorRegNo}
-                                            onChange={(e) => setDoctorRegNo(e.target.value)}
-                                            className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs font-mono uppercase text-white outline-none focus:border-red-500"
-                                            required
-                                        />
-                                        <input
-                                            type="text"
-                                            placeholder="Hospital / Trauma Center Name"
-                                            value={hospitalName}
-                                            onChange={(e) => setHospitalName(e.target.value)}
-                                            className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white outline-none focus:border-red-500"
-                                        />
-                                    </div>
-                                )}
+                            <form onSubmit={handleAlternateOverrideSubmit} className="space-y-4">
+                                <input
+                                    type="text"
+                                    placeholder="Doctor Reg / License No. (e.g. MCI-98214)"
+                                    value={doctorRegNo}
+                                    onChange={(e) => setDoctorRegNo(e.target.value)}
+                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs font-mono uppercase text-white outline-none focus:border-amber-500"
+                                    required
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Hospital / Trauma Center Name"
+                                    value={hospitalName}
+                                    onChange={(e) => setHospitalName(e.target.value)}
+                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-white outline-none focus:border-amber-500"
+                                    required
+                                />
+                                <select
+                                    value={overrideReason}
+                                    onChange={(e) => setOverrideReason(e.target.value)}
+                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-xs text-slate-300 outline-none focus:border-amber-500"
+                                >
+                                    <option value="UNCONSCIOUS_TRAUMA_OVERRIDE">Unconscious Patient with Facial Trauma</option>
+                                    <option value="OBSTRUCTED_BANDAGES">Severe Injuries / Medical Bandages Obscuring Face</option>
+                                    <option value="CRITICAL_LIFE_SAVING_MEASURE">Immediate Life Saving Resuscitation Protocol</option>
+                                </select>
 
                                 <button
                                     type="submit"
-                                    disabled={verifyingAuth}
-                                    className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black italic uppercase text-xs tracking-widest transition-all shadow-xl shadow-red-600/30 flex items-center justify-center gap-2"
+                                    disabled={submittingOverride}
+                                    className="w-full py-4 bg-amber-500 hover:bg-amber-400 text-black rounded-2xl font-black italic uppercase text-xs tracking-widest transition-all shadow-xl flex items-center justify-center gap-2"
                                 >
-                                    {verifyingAuth ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                                    Verify & Decrypt Medical Records
+                                    {submittingOverride ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
+                                    Log Override & Decrypt Dossier
                                 </button>
-
-                                <div className="text-center pt-2">
-                                    <Link
-                                        to="/login"
-                                        className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
-                                    >
-                                        Hospital Staff Portal Login &rarr;
-                                    </Link>
-                                </div>
                             </form>
                         </motion.div>
                     </div>
