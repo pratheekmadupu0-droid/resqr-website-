@@ -88,6 +88,8 @@ export default function AdminPanel() {
     const [syncNameInput, setSyncNameInput] = useState('');
     const [syncRoleInput, setSyncRoleInput] = useState('citizen');
     const [isSyncing, setIsSyncing] = useState(false);
+    const [editingGoogleId, setEditingGoogleId] = useState(false);
+    const [newGoogleIdInput, setNewGoogleIdInput] = useState('');
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -1623,45 +1625,88 @@ export default function AdminPanel() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-8">
-                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                        <div className="flex flex-col gap-2 items-start min-w-[200px]">
                                                             {isGoogle ? (
-                                                                <div className="flex flex-col gap-1">
-                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black tracking-wider">
-                                                                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 24 24">
+                                                                <div className="flex flex-col gap-1.5 w-full">
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black tracking-wider w-fit">
+                                                                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
                                                                             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                                                                             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                                                                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                                                                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                                                                         </svg>
-                                                                        <span>GOOGLE CONNECTED</span>
+                                                                        <span>GOOGLE AUTH</span>
                                                                     </div>
-                                                                    <div className="flex flex-col text-[10px] font-mono leading-tight">
-                                                                        <span className="text-slate-300 font-bold truncate max-w-[190px]" title={user.googleEmail || user.email}>
-                                                                            {user.googleEmail || user.email}
-                                                                        </span>
-                                                                        <div className="flex items-center gap-1 text-[9px] text-slate-500 mt-0.5">
-                                                                            <span className="text-slate-600">ID:</span>
-                                                                            <span className="text-blue-400 font-bold font-mono truncate max-w-[140px]" title={user.googleId || user.uid}>
-                                                                                {user.googleId ? (user.googleId.length > 15 ? user.googleId.slice(0, 14) + '...' : user.googleId) : (user.uid?.slice(0, 12) + '...')}
-                                                                            </span>
+                                                                    
+                                                                    <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-white/5 w-full font-mono">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[8px] font-black uppercase text-blue-400 tracking-wider">Google ID:</span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    navigator.clipboard.writeText(user.googleId || user.uid || user.id);
+                                                                                    toast.success("Copied Google ID!");
+                                                                                }}
+                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+                                                                                title="Copy Google ID"
+                                                                            >
+                                                                                <Copy size={11} />
+                                                                            </button>
                                                                         </div>
+                                                                        <span className="text-white font-bold text-[10px] select-all break-all leading-tight">
+                                                                            {user.googleId || (user.uid ? user.uid : 'Google Connected')}
+                                                                        </span>
+
+                                                                        <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-white/5">
+                                                                            <span className="text-[8px] font-black uppercase text-slate-500 tracking-wider">Firebase UID:</span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    navigator.clipboard.writeText(user.uid || user.id);
+                                                                                    toast.success("Copied Firebase UID!");
+                                                                                }}
+                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+                                                                                title="Copy Firebase UID"
+                                                                            >
+                                                                                <Copy size={11} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <span className="text-slate-400 text-[9px] select-all break-all leading-tight">
+                                                                            {user.uid || user.id}
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             ) : (
-                                                                <div className="flex flex-col gap-1">
-                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-400 text-[9px] font-black tracking-wider">
-                                                                        <Key size={10} />
+                                                                <div className="flex flex-col gap-1.5 w-full">
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-400 text-[9px] font-black tracking-wider w-fit">
+                                                                        <Key size={11} />
                                                                         <span>FIREBASE AUTH</span>
                                                                     </div>
-                                                                    <div className="flex flex-col text-[10px] font-mono leading-tight">
-                                                                        <span className="text-slate-400 truncate max-w-[190px]">{user.email || 'No Email'}</span>
-                                                                        <span className="text-[9px] text-slate-600 truncate max-w-[140px]">UID: {user.uid?.slice(0, 10) || user.id?.slice(0, 10)}...</span>
+                                                                    <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-white/5 w-full font-mono">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <span className="text-[8px] font-black uppercase text-slate-500 tracking-wider">Firebase UID:</span>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    navigator.clipboard.writeText(user.uid || user.id);
+                                                                                    toast.success("Copied UID!");
+                                                                                }}
+                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
+                                                                                title="Copy UID"
+                                                                            >
+                                                                                <Copy size={11} />
+                                                                            </button>
+                                                                        </div>
+                                                                        <span className="text-primary font-bold text-[10px] select-all break-all leading-tight">
+                                                                            {user.uid || user.id}
+                                                                        </span>
                                                                     </div>
                                                                 </div>
                                                             )}
                                                             <button
-                                                                onClick={() => setSelectedUserForAuthModal(user)}
-                                                                className="text-[9px] font-black uppercase text-primary/80 hover:text-primary transition-colors flex items-center gap-1 tracking-widest italic mt-0.5 cursor-pointer"
+                                                                onClick={() => {
+                                                                    setSelectedUserForAuthModal(user);
+                                                                    setNewGoogleIdInput(user.googleId || '');
+                                                                    setEditingGoogleId(false);
+                                                                }}
+                                                                className="text-[9px] font-black uppercase text-primary/80 hover:text-primary transition-colors flex items-center gap-1 tracking-widest italic cursor-pointer"
                                                             >
                                                                 <ShieldCheck size={11} /> View Details
                                                             </button>
@@ -3128,23 +3173,64 @@ export default function AdminPanel() {
 
                                     <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5">
                                         <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Google OAuth Account ID</span>
-                                            {selectedUserForAuthModal.googleId && (
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Google OAuth ID</span>
+                                            <div className="flex items-center gap-3">
+                                                {selectedUserForAuthModal.googleId && (
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(selectedUserForAuthModal.googleId);
+                                                            toast.success("Google ID copied to clipboard!");
+                                                        }}
+                                                        className="text-slate-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[9px] uppercase font-bold"
+                                                        title="Copy Google ID"
+                                                    >
+                                                        <Copy size={11} /> Copy
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText(selectedUserForAuthModal.googleId);
-                                                        toast.success("Google ID copied to clipboard!");
+                                                        setNewGoogleIdInput(selectedUserForAuthModal.googleId || '');
+                                                        setEditingGoogleId(!editingGoogleId);
                                                     }}
-                                                    className="text-slate-400 hover:text-white transition-colors cursor-pointer"
-                                                    title="Copy Google ID"
+                                                    className="text-[9px] font-black uppercase text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                                                 >
-                                                    <Copy size={12} />
+                                                    {editingGoogleId ? 'Cancel' : (selectedUserForAuthModal.googleId ? 'Edit' : '+ Set ID')}
                                                 </button>
-                                            )}
+                                            </div>
                                         </div>
-                                        <span className="text-xs font-mono font-black text-blue-400 break-all select-all">
-                                            {selectedUserForAuthModal.googleId || (selectedUserForAuthModal.isGoogleAuth ? selectedUserForAuthModal.uid : (selectedUserForAuthModal.email?.includes('@gmail.com') ? selectedUserForAuthModal.uid : 'Not Available (Standard Auth)'))}
-                                        </span>
+
+                                        {editingGoogleId ? (
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Paste Google ID from Firebase Console..."
+                                                    value={newGoogleIdInput}
+                                                    onChange={(e) => setNewGoogleIdInput(e.target.value)}
+                                                    className="flex-1 bg-slate-950 border border-blue-500/40 rounded-xl px-3 py-1.5 text-xs font-mono text-white outline-none focus:ring-2 focus:ring-blue-500/30"
+                                                />
+                                                <Button
+                                                    onClick={async () => {
+                                                        if (!newGoogleIdInput.trim()) return;
+                                                        const uid = selectedUserForAuthModal.uid || selectedUserForAuthModal.id;
+                                                        await update(ref(db, `users/${uid}`), {
+                                                            googleId: newGoogleIdInput.trim(),
+                                                            isGoogleAuth: true,
+                                                            googleEmail: selectedUserForAuthModal.googleEmail || selectedUserForAuthModal.email
+                                                        });
+                                                        setSelectedUserForAuthModal(prev => ({ ...prev, googleId: newGoogleIdInput.trim(), isGoogleAuth: true }));
+                                                        setEditingGoogleId(false);
+                                                        toast.success("Google ID saved to database!");
+                                                    }}
+                                                    className="h-8 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-[9px] uppercase tracking-wider"
+                                                >
+                                                    Save
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs font-mono font-black text-blue-400 break-all select-all">
+                                                {selectedUserForAuthModal.googleId || (selectedUserForAuthModal.isGoogleAuth ? selectedUserForAuthModal.uid : (selectedUserForAuthModal.email?.includes('@gmail.com') ? selectedUserForAuthModal.uid : 'Not Available (Standard Auth)'))}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {selectedUserForAuthModal.googleDisplayName && (
