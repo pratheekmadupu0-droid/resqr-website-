@@ -80,12 +80,111 @@ export default function AdminPanel() {
     const [selectedUserForProfile, setSelectedUserForProfile] = useState(null);
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingAd, setEditingAd] = useState(null);
+    const [loginFilter, setLoginFilter] = useState('all'); // 'all', 'recent', 'inactive', 'never'
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
     const safeProducts = Array.isArray(products) ? products.filter(Boolean) : [];
     const safeAds = Array.isArray(ads) ? ads.filter(Boolean) : [];
     const safeContacts = Array.isArray(contacts) ? contacts.filter(Boolean) : [];
+
+    // Helper to evaluate login recency and activity telemetry from Firebase
+    const getLoginTelemetry = (lastLogin) => {
+        if (!lastLogin || lastLogin === 'Never') {
+            return {
+                status: 'never',
+                label: 'Never Logged In',
+                relative: 'Never',
+                isRecent: false,
+                badgeClass: 'bg-slate-800/80 text-slate-400 border-slate-700/50',
+                dotClass: 'bg-slate-600'
+            };
+        }
+        const loginTime = new Date(lastLogin).getTime();
+        if (isNaN(loginTime) || loginTime === 0) {
+            return {
+                status: 'never',
+                label: 'Never Logged In',
+                relative: 'Never',
+                isRecent: false,
+                badgeClass: 'bg-slate-800/80 text-slate-400 border-slate-700/50',
+                dotClass: 'bg-slate-600'
+            };
+        }
+        const now = Date.now();
+        const diffMs = Math.max(0, now - loginTime);
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+        let relative = '';
+        if (diffMs < 60 * 1000) {
+            relative = 'Just now';
+        } else if (diffMs < 60 * 60 * 1000) {
+            const mins = Math.floor(diffMs / (60 * 1000));
+            relative = `${mins}m ago`;
+        } else if (diffHours < 24) {
+            const hrs = Math.floor(diffHours);
+            relative = `${hrs}h ago`;
+        } else if (diffDays < 7) {
+            const d = Math.floor(diffDays);
+            relative = `${d}d ago`;
+        } else if (diffDays < 30) {
+            const w = Math.floor(diffDays / 7);
+            relative = `${w}w ago`;
+        } else if (diffDays < 365) {
+            const m = Math.floor(diffDays / 30);
+            relative = `${m}mo ago`;
+        } else {
+            const y = Math.floor(diffDays / 365);
+            relative = `${y}y ago`;
+        }
+
+        if (diffHours <= 24) {
+            return {
+                status: 'active_today',
+                label: 'Active Today',
+                relative,
+                isRecent: true,
+                badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+                dotClass: 'bg-emerald-400 animate-pulse ring-2 ring-emerald-500/30'
+            };
+        } else if (diffDays <= 7) {
+            return {
+                status: 'active_week',
+                label: 'Active This Week',
+                relative,
+                isRecent: true,
+                badgeClass: 'bg-green-500/10 text-green-400 border-green-500/30',
+                dotClass: 'bg-green-400'
+            };
+        } else if (diffDays <= 30) {
+            return {
+                status: 'inactive',
+                label: 'Inactive (>7d)',
+                relative,
+                isRecent: false,
+                badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+                dotClass: 'bg-amber-400'
+            };
+        } else {
+            return {
+                status: 'dormant',
+                label: 'Dormant (>30d)',
+                relative,
+                isRecent: false,
+                badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+                dotClass: 'bg-rose-400'
+            };
+        }
+    };
+
+    // Telemetry counts
+    const recentUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).isRecent).length;
+    const inactiveUsersCount = safeUsers.filter(u => {
+        const tele = getLoginTelemetry(u.lastLogin);
+        return !tele.isRecent && tele.status !== 'never';
+    }).length;
+    const neverUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).status === 'never').length;
 
     // Sort users by most recent login (or createdAt as fallback)
     const sortedUsers = [...safeUsers].sort((a, b) => {
@@ -94,14 +193,23 @@ export default function AdminPanel() {
         return timeB - timeA;
     });
 
-    const filteredUsers = sortedUsers.filter(u =>
-        u && (
+    const filteredUsers = sortedUsers.filter(u => {
+        if (!u) return false;
+        
+        const matchesSearch = (
             (u.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.id?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
             (u.role?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-        )
-    );
+        );
+        if (!matchesSearch) return false;
+
+        const tele = getLoginTelemetry(u.lastLogin);
+        if (loginFilter === 'recent') return tele.isRecent;
+        if (loginFilter === 'inactive') return !tele.isRecent && tele.status !== 'never';
+        if (loginFilter === 'never') return tele.status === 'never';
+        return true;
+    });
 
     const getProfileForAuthUser = (userOrEmail) => {
         if (!userOrEmail) return null;
@@ -1261,132 +1369,240 @@ export default function AdminPanel() {
                 {activeTab === 'users' && (
                     <Card className="bg-medical-card border-white/5 overflow-hidden p-0 rounded-[40px] shadow-2xl relative">
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
-                        <div className="p-10 border-b border-white/5 flex flex-col md:flex-row items-center justify-between gap-8">
+                        
+                        {/* Quick Telemetry Cards */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-8 md:p-10 pb-0">
+                            <div 
+                                onClick={() => setLoginFilter('all')} 
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'all' ? 'bg-primary/10 border-primary/40 shadow-lg shadow-primary/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Total Registered Units</span>
+                                    <Users size={16} className={loginFilter === 'all' ? 'text-primary' : 'text-slate-500'} />
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-black italic tracking-tight font-poppins">{safeUsers.length}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase">Accounts</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setLoginFilter('recent')} 
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'recent' ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Logged In Recently
+                                    </span>
+                                    <Activity size={16} className="text-emerald-400" />
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-black italic tracking-tight text-emerald-400 font-poppins">{recentUsersCount}</span>
+                                    <span className="text-[10px] text-emerald-500/80 font-bold uppercase">Active &lt; 7 Days</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setLoginFilter('inactive')} 
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'inactive' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-amber-400" /> Not Logged In Recently
+                                    </span>
+                                    <Clock size={16} className="text-amber-400" />
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-black italic tracking-tight text-amber-400 font-poppins">{inactiveUsersCount}</span>
+                                    <span className="text-[10px] text-amber-500/80 font-bold uppercase">Inactive &gt; 7 Days</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setLoginFilter('never')} 
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'never' ? 'bg-slate-800/60 border-slate-600/40 shadow-lg shadow-slate-900/20' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-slate-600" /> Never Logged In
+                                    </span>
+                                    <ShieldAlert size={16} className="text-slate-500" />
+                                </div>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-black italic tracking-tight text-slate-300 font-poppins">{neverUsersCount}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase">No Telemetry</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 md:p-10 border-b border-white/5 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                             <div>
                                 <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">Authenticated Units</h2>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Global Responder Access Nodes</p>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Firebase Login Telemetry & Global Responder Access Nodes</p>
                             </div>
-                            <div className="relative group w-full md:w-auto">
-                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-primary group-hover:scale-110 transition-transform" size={20} />
+
+                            {/* Filter Buttons */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {[
+                                    { id: 'all', label: `All Units (${safeUsers.length})` },
+                                    { id: 'recent', label: `🟢 Recent (${recentUsersCount})` },
+                                    { id: 'inactive', label: `🟡 Inactive (${inactiveUsersCount})` },
+                                    { id: 'never', label: `⚪ Never (${neverUsersCount})` },
+                                ].map(btn => (
+                                    <button
+                                        key={btn.id}
+                                        onClick={() => setLoginFilter(btn.id)}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all border ${
+                                            loginFilter === btn.id
+                                                ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                                                : 'bg-slate-950/60 text-slate-400 border-white/5 hover:text-white hover:border-white/20'
+                                        }`}
+                                    >
+                                        {btn.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="relative group w-full lg:w-80">
+                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-primary group-hover:scale-110 transition-transform" size={18} />
                                 <input
                                     type="text"
-                                    placeholder="SEARCH BY IDENTIFIER..."
-                                    className="pl-14 pr-8 py-5 bg-slate-950 border border-white/5 rounded-2xl text-[11px] font-black tracking-widest uppercase italic focus:outline-none focus:ring-2 focus:ring-primary/20 w-full md:w-96 transition-all"
+                                    placeholder="SEARCH IDENTIFIER..."
+                                    className="pl-12 pr-6 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[11px] font-black tracking-widest uppercase italic focus:outline-none focus:ring-2 focus:ring-primary/20 w-full transition-all"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
                         </div>
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
                                     <tr>
                                         <th className="px-10 py-6 text-slate-400">Tactical User</th>
                                         <th className="px-10 py-6 text-slate-400">Role & Status</th>
-                                        <th className="px-10 py-6 text-slate-400">Last Sync</th>
+                                        <th className="px-10 py-6 text-slate-400">Firebase Login Telemetry</th>
                                         <th className="px-10 py-6 text-slate-400">Vault Condition</th>
                                         <th className="px-10 py-6 text-right text-slate-400">Operations</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {filteredUsers.map(user => {
-                                        const profile = getProfileForAuthUser(user);
-                                        return (
-                                            <tr key={user.id} className="hover:bg-white/5 transition-all group">
-                                                <td className="px-10 py-8">
-                                                    <div className="flex items-center gap-4">
-                                                        {user.photo ? (
-                                                            <img src={user.photo} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-white/10 shrink-0" />
-                                                        ) : (
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center font-black text-primary text-sm shrink-0">
-                                                                {user.name?.[0]?.toUpperCase() || 'U'}
+                                    {filteredUsers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" className="px-10 py-12 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+                                                No users found matching "{searchTerm || loginFilter}".
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredUsers.map(user => {
+                                            const profile = getProfileForAuthUser(user);
+                                            const tele = getLoginTelemetry(user.lastLogin);
+                                            return (
+                                                <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                    <td className="px-10 py-8">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="relative shrink-0">
+                                                                {user.photo ? (
+                                                                    <img src={user.photo} alt={user.name} className="w-11 h-11 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" />
+                                                                ) : (
+                                                                    <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center font-black text-primary text-base group-hover:scale-105 transition-transform">
+                                                                        {user.name?.[0]?.toUpperCase() || 'U'}
+                                                                    </div>
+                                                                )}
+                                                                <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${tele.dotClass}`} title={tele.label} />
                                                             </div>
-                                                        )}
-                                                        <div className="flex flex-col min-w-0">
-                                                            <span className="font-black text-white italic tracking-tight text-base truncate">{user.name || 'Member'}</span>
-                                                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{user.email || 'No Email'}</span>
-                                                            <span className="text-[8px] text-slate-600 font-mono tracking-wider truncate">{user.id}</span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    <div className="flex flex-col gap-1.5 items-start">
-                                                        <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-3 py-0.5 font-black italic text-[9px]`}>
-                                                            {user.role?.toUpperCase() || 'CITIZEN'}
-                                                        </Badge>
-                                                        {user.status === 'pending' && (
-                                                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-2.5 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
-                                                        )}
-                                                        {user.authProvider && (
-                                                            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">{user.authProvider.replace('.com', '')}</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-10 py-8 text-[10px] font-black text-slate-400 italic uppercase">
-                                                    {user.lastLogin && user.lastLogin !== 'Never' ? (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-white font-bold">{new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                            <span className="text-[9px] text-slate-500">{new Date(user.lastLogin).toLocaleDateString()}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-600">NEVER</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-10 py-8">
-                                                    {profile ? (
-                                                        <div className="flex flex-col gap-2">
-                                                            <div className="flex items-center gap-3">
-                                                                <Badge className="bg-green-500/10 text-green-500 border-none font-black italic px-4 py-1 text-[8px]">ACTIVE</Badge>
-                                                                <span className="text-sm font-black text-primary italic font-poppins">{profile.bloodGroup}</span>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="font-black text-white italic tracking-tight text-base truncate">{user.name || 'Member'}</span>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{user.email || 'No Email'}</span>
+                                                                <span className="text-[8px] text-slate-600 font-mono tracking-wider truncate">{user.id}</span>
                                                             </div>
-                                                            <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest italic">{profile.id || 'N/A'}</span>
                                                         </div>
-                                                    ) : (
-                                                        <Badge className="bg-slate-800 text-slate-500 border-none font-black italic px-4 py-1 text-[8px] opacity-40 uppercase tracking-widest">No Node Initialized</Badge>
-                                                    )}
-                                                </td>
-                                                <td className="px-10 py-8 text-right">
-                                                    <div className="flex items-center justify-end gap-3">
-                                                        {profile && (
-                                                            <Link
-                                                                to={`/e/${profile.id}`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
-                                                                title="View QR Profile"
-                                                            >
-                                                                <ExternalLink size={18} />
-                                                            </Link>
-                                                        )}
+                                                    </td>
+                                                    <td className="px-10 py-8">
+                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                            <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-3 py-0.5 font-black italic text-[9px]`}>
+                                                                {user.role?.toUpperCase() || 'CITIZEN'}
+                                                            </Badge>
+                                                            {user.status === 'pending' && (
+                                                                <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-2.5 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
+                                                            )}
+                                                            {user.authProvider && (
+                                                                <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">{user.authProvider.replace('.com', '')}</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-10 py-8">
+                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                            <Badge className={`${tele.badgeClass} px-3 py-1 font-black italic text-[8px] border flex items-center gap-1.5`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full ${tele.dotClass}`} />
+                                                                {tele.label.toUpperCase()}
+                                                            </Badge>
+                                                            {user.lastLogin && user.lastLogin !== 'Never' ? (
+                                                                <div className="flex flex-col text-[10px] font-black italic text-slate-400">
+                                                                    <span className="text-white">{new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({tele.relative})</span>
+                                                                    <span className="text-[9px] text-slate-500 uppercase">{new Date(user.lastLogin).toLocaleDateString()}</span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black italic text-slate-600 uppercase tracking-widest">No Login Logged</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-10 py-8">
                                                         {profile ? (
-                                                            <button
-                                                                className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
-                                                                onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
-                                                                title="Edit Medical Profile"
-                                                            >
-                                                                <Edit3 size={18} />
-                                                            </button>
+                                                            <div className="flex flex-col gap-2">
+                                                                <div className="flex items-center gap-3">
+                                                                    <Badge className="bg-green-500/10 text-green-500 border-none font-black italic px-4 py-1 text-[8px]">ACTIVE</Badge>
+                                                                    <span className="text-sm font-black text-primary italic font-poppins">{profile.bloodGroup}</span>
+                                                                </div>
+                                                                <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest italic">{profile.id || 'N/A'}</span>
+                                                            </div>
                                                         ) : (
-                                                            <button
-                                                                className="p-3 text-slate-400 hover:text-green-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-green-500/20"
-                                                                onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
-                                                                title="Generate Medical Profile"
-                                                            >
-                                                                <Plus size={18} />
-                                                            </button>
+                                                            <Badge className="bg-slate-800 text-slate-500 border-none font-black italic px-4 py-1 text-[8px] opacity-40 uppercase tracking-widest">No Node Initialized</Badge>
                                                         )}
-                                                        <button
-                                                            className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
-                                                            onClick={() => deleteItem(`users/${user.id}`)}
-                                                            title="Delete User"
-                                                        >
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
+                                                    </td>
+                                                    <td className="px-10 py-8 text-right">
+                                                        <div className="flex items-center justify-end gap-3">
+                                                            {profile && (
+                                                                <Link
+                                                                    to={`/e/${profile.id}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                    title="View QR Profile"
+                                                                >
+                                                                    <ExternalLink size={18} />
+                                                                </Link>
+                                                            )}
+                                                            {profile ? (
+                                                                <button
+                                                                    className="p-3 text-slate-400 hover:text-primary transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                    onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
+                                                                    title="Edit Medical Profile"
+                                                                >
+                                                                    <Edit3 size={18} />
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    className="p-3 text-slate-400 hover:text-green-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-green-500/20"
+                                                                    onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
+                                                                    title="Generate Medical Profile"
+                                                                >
+                                                                    <Plus size={18} />
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                className="p-3 text-slate-400 hover:text-red-500 transition-all bg-slate-950 rounded-xl border border-white/5 hover:border-primary/20"
+                                                                onClick={() => deleteItem(`users/${user.id}`)}
+                                                                title="Delete User"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </table>
                         </div>
