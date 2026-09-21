@@ -87,22 +87,44 @@ export default function AdminPanel() {
     const safeAds = Array.isArray(ads) ? ads.filter(Boolean) : [];
     const safeContacts = Array.isArray(contacts) ? contacts.filter(Boolean) : [];
 
-    const filteredUsers = safeUsers.filter(u =>
+    // Sort users by most recent login (or createdAt as fallback)
+    const sortedUsers = [...safeUsers].sort((a, b) => {
+        const timeA = new Date(a.lastLogin && a.lastLogin !== 'Never' ? a.lastLogin : (a.createdAt || 0)).getTime();
+        const timeB = new Date(b.lastLogin && b.lastLogin !== 'Never' ? b.lastLogin : (b.createdAt || 0)).getTime();
+        return timeB - timeA;
+    });
+
+    const filteredUsers = sortedUsers.filter(u =>
         u && (
             (u.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+            (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (u.id?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (u.role?.toLowerCase() || "").includes(searchTerm.toLowerCase())
         )
     );
 
-    const getProfileForAuthUser = (email) => {
-        if (!email) return null;
-        const lowerEmail = email.toLowerCase();
-        return safeProfiles.find(p =>
-            p && (
-                (p.email && p.email.toLowerCase() === lowerEmail) ||
-                (p.name && p.name.toLowerCase() === lowerEmail.split('@')[0])
-            )
-        );
+    const getProfileForAuthUser = (userOrEmail) => {
+        if (!userOrEmail) return null;
+        const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail.email;
+        const uid = typeof userOrEmail === 'object' ? (userOrEmail.uid || userOrEmail.id) : null;
+        const userProfiles = typeof userOrEmail === 'object' && userOrEmail.profiles ? userOrEmail.profiles : null;
+
+        if (userProfiles && typeof userProfiles === 'object') {
+            const firstP = Object.values(userProfiles)[0];
+            if (firstP) return firstP;
+        }
+
+        const lowerEmail = email ? email.toLowerCase().trim() : null;
+
+        return safeProfiles.find(p => {
+            if (!p) return false;
+            if (uid && (p.uid === uid || p.id === `c_${uid}` || p.id === uid)) return true;
+            if (lowerEmail) {
+                if (p.email && p.email.toLowerCase().trim() === lowerEmail) return true;
+                if (p.name && p.name.toLowerCase().trim() === lowerEmail.split('@')[0]) return true;
+            }
+            return false;
+        });
     };
 
     const handleAdminSignOut = async () => {
@@ -1160,15 +1182,29 @@ export default function AdminPanel() {
                                 <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-slate-800 to-transparent" />
                                 <h2 className="text-[10px] font-black uppercase tracking-[0.4em] mb-10 text-slate-500 italic">Recent Tactical Activity</h2>
                                 <div className="space-y-6">
-                                    {safeUsers.slice(-5).reverse().map(user => {
-                                        const profile = getProfileForAuthUser(user?.email);
+                                    {sortedUsers.slice(0, 5).map(user => {
+                                        const profile = getProfileForAuthUser(user);
+                                        const lastLoginTime = user.lastLogin && user.lastLogin !== 'Never'
+                                            ? new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ', ' + new Date(user.lastLogin).toLocaleDateString()
+                                            : 'Registered';
                                         return (
                                             <div key={user.id} className="flex items-center justify-between p-6 bg-slate-950/50 rounded-3xl border border-white/5 hover:border-primary/20 transition-all group">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-2xl bg-medical-bg flex items-center justify-center font-black text-primary border border-white/5 group-hover:scale-110 transition-transform">{user.name?.[0]}</div>
+                                                    {user.photo ? (
+                                                        <img src={user.photo} alt={user.name} className="w-12 h-12 rounded-2xl object-cover border border-white/5 group-hover:scale-110 transition-transform" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 rounded-2xl bg-medical-bg flex items-center justify-center font-black text-primary border border-white/5 group-hover:scale-110 transition-transform">
+                                                            {user.name?.[0]?.toUpperCase() || 'U'}
+                                                        </div>
+                                                    )}
                                                     <div>
-                                                        <p className="font-black italic uppercase tracking-tighter">{user.name}</p>
-                                                        <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.2em]">{user.id}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-black italic uppercase tracking-tighter">{user.name || 'Member'}</p>
+                                                            <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400' : 'bg-emerald-500/10 text-emerald-400'} border-none px-2 py-0 text-[7px] font-black italic`}>
+                                                                {user.role?.toUpperCase() || 'CITIZEN'}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-[9px] font-black uppercase text-slate-500 tracking-[0.1em]">{user.email || user.id} • {lastLoginTime}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
@@ -1183,7 +1219,7 @@ export default function AdminPanel() {
                                                             <ExternalLink size={16} />
                                                         </Link>
                                                     )}
-                                                    <Badge className="bg-green-500/10 text-green-500 border-none font-black italic tracking-widest text-[8px] px-3">DEPLOYED</Badge>
+                                                    <Badge className="bg-green-500/10 text-green-500 border-none font-black italic tracking-widest text-[8px] px-3">ACTIVE</Badge>
                                                 </div>
                                             </div>
                                         );
@@ -1254,27 +1290,47 @@ export default function AdminPanel() {
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {filteredUsers.map(user => {
-                                        const profile = getProfileForAuthUser(user.email);
+                                        const profile = getProfileForAuthUser(user);
                                         return (
                                             <tr key={user.id} className="hover:bg-white/5 transition-all group">
                                                 <td className="px-10 py-8">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-black text-white italic tracking-tight text-lg">{user.name}</span>
-                                                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{user.email}</span>
+                                                    <div className="flex items-center gap-4">
+                                                        {user.photo ? (
+                                                            <img src={user.photo} alt={user.name} className="w-10 h-10 rounded-xl object-cover border border-white/10 shrink-0" />
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center font-black text-primary text-sm shrink-0">
+                                                                {user.name?.[0]?.toUpperCase() || 'U'}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="font-black text-white italic tracking-tight text-base truncate">{user.name || 'Member'}</span>
+                                                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{user.email || 'No Email'}</span>
+                                                            <span className="text-[8px] text-slate-600 font-mono tracking-wider truncate">{user.id}</span>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="px-10 py-8">
-                                                    <div className="flex flex-col gap-2 items-start">
-                                                        <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'} px-4 py-1 font-black italic text-[9px]`}>
+                                                    <div className="flex flex-col gap-1.5 items-start">
+                                                        <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-3 py-0.5 font-black italic text-[9px]`}>
                                                             {user.role?.toUpperCase() || 'CITIZEN'}
                                                         </Badge>
                                                         {user.status === 'pending' && (
-                                                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-3 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
+                                                            <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-2.5 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
+                                                        )}
+                                                        {user.authProvider && (
+                                                            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">{user.authProvider.replace('.com', '')}</span>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-10 py-8 text-[10px] font-black text-slate-400 italic uppercase">
-                                                    {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'PENDING'}
+                                                    {user.lastLogin && user.lastLogin !== 'Never' ? (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-white font-bold">{new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                            <span className="text-[9px] text-slate-500">{new Date(user.lastLogin).toLocaleDateString()}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-slate-600">NEVER</span>
+                                                    )}
                                                 </td>
                                                 <td className="px-10 py-8">
                                                     {profile ? (

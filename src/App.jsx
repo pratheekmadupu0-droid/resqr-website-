@@ -11,6 +11,8 @@ import Footer from './components/Footer';
 import MobileNav from './components/MobileNav';
 import SiconBadge from './components/SiconBadge';
 import AppLoading from './components/ui/AppLoading';
+import { auth } from './lib/firebase';
+import { syncUserOnLogin } from './lib/userSync';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MyQR = lazy(() => import('./pages/MyQR'));
@@ -107,6 +109,20 @@ function ScrollToTop() {
 function App() {
     const location = useLocation();
     const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings'].includes(location.pathname.split('/')[1]));
+
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+            if (currentUser) {
+                const lastSync = sessionStorage.getItem('resqr_last_auth_sync');
+                const now = Date.now();
+                if (!lastSync || now - Number(lastSync) > 3 * 60 * 1000) {
+                    sessionStorage.setItem('resqr_last_auth_sync', String(now));
+                    await syncUserOnLogin(currentUser);
+                }
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">

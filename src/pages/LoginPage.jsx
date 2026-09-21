@@ -16,6 +16,7 @@ import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
+import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -144,11 +145,8 @@ export default function LoginPage() {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (currentUser) {
                 try {
-                    const uid = currentUser.uid;
-                    const userSnap = await get(ref(db, `users/${uid}`));
-                    if (userSnap.exists()) {
-                        const userData = userSnap.val();
-                        
+                    const userData = await syncUserOnLogin(currentUser);
+                    if (userData) {
                         if (userData.status === 'pending') {
                             toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
                             await auth.signOut();
@@ -198,13 +196,13 @@ export default function LoginPage() {
             const provider = new GoogleAuthProvider();
             const userCredential = await signInWithPopup(auth, provider);
             const user = userCredential.user;
-            const uid = user.uid;
 
-            // Check if user already registered in RTDB by UID
-            const userSnap = await get(ref(db, `users/${uid}`));
-            
-            if (userSnap.exists()) {
-                const userData = userSnap.val();
+            // Immediately register/update user in Realtime Database so Admin Panel reflects login
+            const userData = await syncUserOnLogin(user, {
+                role: selectedRole || 'citizen'
+            });
+
+            if (userData) {
                 if (userData.status === 'pending') {
                     toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
                     await auth.signOut();
@@ -459,6 +457,7 @@ export default function LoginPage() {
                 }
                 // Register in Auth
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                await syncUserOnLogin(userCredential.user, { role: 'hospital', status: 'pending' });
                 
                 // Move to Hospital Registration steps
                 toast.success("Hospital account credentials created! Complete institutional registration.");
@@ -468,36 +467,23 @@ export default function LoginPage() {
             } else {
                 // Sign in
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                const uid = userCredential.user.uid;
+                const userData = await syncUserOnLogin(userCredential.user, { role: 'hospital' });
 
-                // Check RTDB
-                const userSnap = await get(ref(db, `users/${uid}`));
-                if (userSnap.exists()) {
-                    const userData = userSnap.val();
+                if (userData) {
                     if (userData.status === 'pending') {
                         toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
                         await auth.signOut();
                         setAuthLoading(false);
                         return;
                     }
-                    toast.success(`Welcome back, ${userData.name || 'Hospital'}!`);
-                    navigate('/dashboard');
-                    return;
-                }
-                
-                // Check if existing user by email in all users
-                const allUsersSnap = await get(ref(db, 'users'));
-                if (allUsersSnap.exists()) {
-                    const allUsers = allUsersSnap.val();
-                    const matchedHospital = Object.values(allUsers).find(u => u.email === email);
-                    if (matchedHospital) {
-                        toast.success(`Welcome back, ${matchedHospital.name || 'Hospital'}!`);
+                    if (userData.hospitalProfile || userData.profileCompleted) {
+                        toast.success(`Welcome back, ${userData.name || 'Hospital'}!`);
                         navigate('/dashboard');
                         return;
                     }
                 }
 
-                // If signed in via Auth but no RTDB record yet, proceed to complete hospital wizard
+                // If signed in via Auth but no hospitalProfile yet, proceed to complete hospital wizard
                 toast.success("Authenticated! Complete your hospital profile.");
                 setSelectedRole('hospital');
                 setAuthState('register_wizard');
