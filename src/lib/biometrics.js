@@ -177,22 +177,22 @@ export function analyzeImageQuality(inputElement, detection) {
 
     if (!isInsideFrame) {
         qualityStatus = 'OUT_OF_FRAME';
-        qualityMessage = 'Keep your face completely inside the frame.';
+        qualityMessage = 'Keep your face inside the frame.';
     } else if (isTooFar) {
         qualityStatus = 'TOO_FAR';
-        qualityMessage = 'Move closer to the camera.';
+        qualityMessage = 'Move closer';
     } else if (isTooClose) {
         qualityStatus = 'TOO_CLOSE';
-        qualityMessage = 'Move slightly back from the camera.';
+        qualityMessage = 'Move farther';
     } else if (isTooDark) {
         qualityStatus = 'TOO_DARK';
-        qualityMessage = 'Face not clear. Please move to a well-lit area.';
+        qualityMessage = 'Too dark — improve lighting';
     } else if (isTooBright) {
         qualityStatus = 'TOO_BRIGHT';
-        qualityMessage = 'Lighting too bright. Avoid strong direct glare.';
+        qualityMessage = 'Lighting too bright — avoid glare';
     } else if (isBlurry) {
         qualityStatus = 'BLURRY';
-        qualityMessage = 'Image blurry. Hold the camera steady.';
+        qualityMessage = 'Hold still';
     }
 
     return {
@@ -266,7 +266,7 @@ export function verifyAngleTarget(pose, targetStep) {
         const isMatch = Math.abs(yaw) <= 12;
         return {
             isMatch,
-            feedback: isMatch ? '✓ FRONT ALIGNED' : 'Look directly into the camera'
+            feedback: isMatch ? 'Ready to capture' : 'Look directly at the camera'
         };
     }
 
@@ -275,7 +275,7 @@ export function verifyAngleTarget(pose, targetStep) {
         const isMatch = yaw <= -15 && yaw >= -50;
         return {
             isMatch,
-            feedback: isMatch ? '✓ LEFT PROFILE ALIGNED' : (yaw > -15 ? 'Turn further to your LEFT' : 'Too far, ease back')
+            feedback: isMatch ? 'Ready to capture' : (yaw > -15 ? 'Turn left slightly more' : 'Turn right slightly more')
         };
     }
 
@@ -284,7 +284,7 @@ export function verifyAngleTarget(pose, targetStep) {
         const isMatch = yaw >= 15 && yaw <= 50;
         return {
             isMatch,
-            feedback: isMatch ? '✓ RIGHT PROFILE ALIGNED' : (yaw < 15 ? 'Turn further to your RIGHT' : 'Too far, ease back')
+            feedback: isMatch ? 'Ready to capture' : (yaw < 15 ? 'Turn right slightly more' : 'Turn left slightly more')
         };
     }
 

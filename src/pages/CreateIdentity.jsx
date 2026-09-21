@@ -35,8 +35,8 @@ export default function CreateIdentity() {
     const [primaryProfile, setPrimaryProfile] = useState(null);
 
     // Flow states
-    const [selectedType, setSelectedType] = useState(null); // null, 'myself', 'family', 'child', 'friend'
-    const [wizardStep, setWizardStep] = useState(1); // 1: Personal, 2: Medical, 3: Biometric Face, 4: Payment
+    const [wizardStep, setWizardStep] = useState(1); // 1: Face Registration, 2: Personal, 3: Medical, 4: Payment
+    const [faceRegStarted, setFaceRegStarted] = useState(false);
     const [biometricEnrollment, setBiometricEnrollment] = useState(null);
 
     // Form states
@@ -275,7 +275,7 @@ export default function CreateIdentity() {
                 return;
             }
             toast.success("Username available!", { id: t });
-            setWizardStep(2);
+            setWizardStep(3);
         } catch (e) {
             console.error("Username check error:", e);
             toast.error("Error validating username", { id: t });
@@ -287,7 +287,7 @@ export default function CreateIdentity() {
             toast.error("Please specify a blood group.");
             return;
         }
-        setWizardStep(3);
+        setWizardStep(4);
     };
 
     const handleCreateIdentitySubmit = async (paymentId) => {
@@ -559,7 +559,7 @@ export default function CreateIdentity() {
                         >
                             <Card className="p-10 bg-slate-900/80 border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden backdrop-blur-md animate-in fade-in zoom-in-95">
                                 <button 
-                                    onClick={() => { setSelectedType(null); setWizardStep(1); }} 
+                                    onClick={() => { setSelectedType(null); setWizardStep(1); setFaceRegStarted(false); }} 
                                     className="mb-6 flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-widest italic"
                                 >
                                     <ArrowLeft size={14} /> Change Identity Type
@@ -571,14 +571,70 @@ export default function CreateIdentity() {
                                             {selectedType} IDENTITY NODE
                                         </Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                            Step {wizardStep} of 4: {wizardStep === 1 ? 'Personal Details' : wizardStep === 2 ? 'Medical Vault' : wizardStep === 3 ? 'Biometric Face Verification' : 'Secure Checkout'}
+                                            Step {wizardStep} of 4: {wizardStep === 1 ? 'Face Verification' : wizardStep === 2 ? 'Personal Details' : wizardStep === 3 ? 'Medical Vault' : 'Secure Checkout'}
                                         </h2>
                                     </div>
                                     <span className="text-xl font-black italic text-primary font-poppins">{Math.round((wizardStep / 4) * 100)}% Completed</span>
                                 </div>
 
-                                {/* Step 1: Personal Details */}
+                                {/* Step 1: Face Verification */}
                                 {wizardStep === 1 && (
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        {!faceRegStarted ? (
+                                            <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto">
+                                                <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 text-primary rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-primary/20">
+                                                    <Camera size={36} />
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary block mb-1 font-poppins">
+                                                        RESQR
+                                                    </span>
+                                                    <h3 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                                        FACE VERIFICATION
+                                                    </h3>
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mt-1">
+                                                        Step 1 of 4
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-3 text-slate-400 text-xs leading-relaxed">
+                                                    <p className="font-bold text-slate-200">
+                                                        Create your secure identity profile.
+                                                    </p>
+                                                    <p>
+                                                        We need three facial views to help verify your identity during authorized medical access.
+                                                    </p>
+                                                </div>
+                                                <div className="pt-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFaceRegStarted(true)}
+                                                        className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-primary/25 transition-all active:scale-95 cursor-pointer"
+                                                    >
+                                                        START FACE REGISTRATION
+                                                        <ArrowRight size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <FaceEnrollmentWizard
+                                                    onComplete={(bioProfile) => {
+                                                        setBiometricEnrollment(bioProfile);
+                                                        if (bioProfile?.frontPhotoSnapshot) {
+                                                            setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                        }
+                                                        toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                        setWizardStep(2);
+                                                    }}
+                                                    onCancel={() => setFaceRegStarted(false)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Step 2: Personal Details */}
+                                {wizardStep === 2 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         
                                         {/* Dynamic Relationship Field for Family Members */}
@@ -633,10 +689,17 @@ export default function CreateIdentity() {
                                                         <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
                                                     </label>
                                                 </div>
-                                                <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                                                    <ShieldCheck size={12} className="text-primary" />
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Face Scan on Step 3</span>
-                                                </div>
+                                                {biometricEnrollment ? (
+                                                    <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                                                        <ShieldCheck size={12} className="text-emerald-400" />
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 italic">Face Verified</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+                                                        <ShieldCheck size={12} className="text-primary" />
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Emergency Photo</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="e.g. Jane Doe" value={citizenName} onChange={(e) => setCitizenName(e.target.value)} required />
@@ -773,17 +836,20 @@ export default function CreateIdentity() {
                                                 <Input label="Hospital Name" placeholder="City General" value={familyDoctor.hospital} onChange={(e) => setFamilyDoctor({...familyDoctor, hospital: e.target.value})} />
                                                 <Input label="Doctor Phone" maxLength="10" value={familyDoctor.phone} onChange={(e) => setFamilyDoctor({...familyDoctor, phone: e.target.value.replace(/\D/g, '')})} />
                                             </div>
-                                            <div className="pt-8 flex justify-end">
+                                            <div className="pt-8 flex justify-between">
+                                                <Button onClick={() => setWizardStep(1)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                    <ArrowLeft size={16} className="mr-2" /> Back
+                                                </Button>
                                                 <Button onClick={handleStep1Submit} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                    Continue to Medical details <ArrowRight size={16} className="ml-2" />
+                                                    Continue to Medical Vault <ArrowRight size={16} className="ml-2" />
                                                 </Button>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 2: Medical Passport */}
-                                {wizardStep === 2 && (
+                                {/* Step 3: Medical Vault */}
+                                {wizardStep === 3 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <Select 
@@ -832,32 +898,11 @@ export default function CreateIdentity() {
                                         </div>
 
                                         <div className="pt-8 flex justify-between">
-                                            <Button onClick={() => setWizardStep(1)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
-                                                <ArrowLeft size={16} className="mr-2" /> Back
-                                            </Button>
-                                            <Button onClick={handleStep2Submit} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Proceed to Face Verification <ArrowRight size={16} className="ml-2" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 3: Biometric Face Verification */}
-                                {wizardStep === 3 && (
-                                    <div className="space-y-6 animate-in fade-in duration-300">
-                                        <FaceEnrollmentWizard
-                                            onComplete={(bioProfile) => {
-                                                setBiometricEnrollment(bioProfile);
-                                                setWizardStep(4);
-                                            }}
-                                            onCancel={() => setWizardStep(2)}
-                                        />
-                                        <div className="flex justify-between items-center pt-4">
                                             <Button onClick={() => setWizardStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button onClick={() => setWizardStep(4)} variant="outline" className="py-4 px-6 rounded-2xl font-black italic uppercase text-[11px] border-white/10 text-slate-400 hover:text-white">
-                                                Skip Biometrics &rarr;
+                                            <Button onClick={handleStep2Submit} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                Proceed to Checkout <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>

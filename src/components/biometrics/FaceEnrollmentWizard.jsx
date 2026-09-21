@@ -45,6 +45,7 @@ export default function FaceEnrollmentWizard({
         left: null,
         right: null
     });
+    const [finalBiometricProfile, setFinalBiometricProfile] = useState(null);
 
     // 1. Initialize models & camera stream
     useEffect(() => {
@@ -208,11 +209,33 @@ export default function FaceEnrollmentWizard({
         setIsCapturing(true);
 
         setTimeout(() => {
+            let frontSnapshot = null;
+            if (videoRef.current && currentStep === 'FRONT') {
+                try {
+                    const snapCanvas = document.createElement('canvas');
+                    snapCanvas.width = 320;
+                    snapCanvas.height = 320;
+                    const ctx = snapCanvas.getContext('2d');
+                    const vW = videoRef.current.videoWidth || 640;
+                    const vH = videoRef.current.videoHeight || 480;
+                    const minDim = Math.min(vW, vH);
+                    const sx = (vW - minDim) / 2;
+                    const sy = (vH - minDim) / 2;
+                    ctx.translate(320, 0);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(videoRef.current, sx, sy, minDim, minDim, 0, 0, 320, 320);
+                    frontSnapshot = snapCanvas.toDataURL('image/jpeg', 0.85);
+                } catch (e) {
+                    console.warn("Front snapshot error:", e);
+                }
+            }
+
             const template = {
                 descriptor: bio.descriptor,
                 qualityScore: Number(((bio.detection.detection.score || 0.9) * 100).toFixed(1)),
                 yaw: bio.pose.yaw,
                 pitch: bio.pose.pitch,
+                snapshot: frontSnapshot,
                 capturedAt: new Date().toISOString()
             };
 
@@ -242,14 +265,13 @@ export default function FaceEnrollmentWizard({
                     frontTemplate: finalTemplates.front,
                     leftTemplate: finalTemplates.left,
                     rightTemplate: template,
+                    frontPhotoSnapshot: finalTemplates.front?.snapshot || frontSnapshot || null,
                     templateVersion: TEMPLATE_VERSION,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
 
-                if (onComplete) {
-                    onComplete(biometricProfile);
-                }
+                setFinalBiometricProfile(biometricProfile);
             }
 
             setIsCapturing(false);
@@ -292,7 +314,7 @@ export default function FaceEnrollmentWizard({
                 }`}>
                     <span className="text-[9px] font-black uppercase tracking-widest block">Step 1</span>
                     <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.front ? '✓ Front' : currentStep === 'FRONT' ? '● Front' : '○ Front'}
+                        {enrolledTemplates.front ? '✓ FRONT' : currentStep === 'FRONT' ? '● FRONT' : '○ FRONT'}
                     </span>
                 </div>
 
@@ -305,7 +327,7 @@ export default function FaceEnrollmentWizard({
                 }`}>
                     <span className="text-[9px] font-black uppercase tracking-widest block">Step 2</span>
                     <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.left ? '✓ Left' : currentStep === 'LEFT' ? '● Left' : '○ Left'}
+                        {enrolledTemplates.left ? '✓ LEFT' : currentStep === 'LEFT' ? '● LEFT' : '○ LEFT'}
                     </span>
                 </div>
 
@@ -318,7 +340,7 @@ export default function FaceEnrollmentWizard({
                 }`}>
                     <span className="text-[9px] font-black uppercase tracking-widest block">Step 3</span>
                     <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.right ? '✓ Right' : currentStep === 'RIGHT' ? '● Right' : '○ Right'}
+                        {enrolledTemplates.right ? '✓ RIGHT' : currentStep === 'RIGHT' ? '● RIGHT' : '○ RIGHT'}
                     </span>
                 </div>
             </div>
@@ -393,7 +415,7 @@ export default function FaceEnrollmentWizard({
                     {/* Step Guidance Prompt */}
                     <div className="text-center space-y-2">
                         <p className="text-sm font-bold text-slate-200">
-                            {currentStep === 'FRONT' && "Look directly at the camera. Keep your face inside the frame."}
+                            {currentStep === 'FRONT' && "Look directly at the camera. Keep your entire face inside the frame. Make sure you are in a well-lit area."}
                             {currentStep === 'LEFT' && "Slowly turn your face to the LEFT. Keep your face inside the frame."}
                             {currentStep === 'RIGHT' && "Slowly turn your face to the RIGHT. Keep your face inside the frame."}
                         </p>
@@ -427,7 +449,9 @@ export default function FaceEnrollmentWizard({
                             ) : (
                                 <>
                                     <Camera size={16} />
-                                    Capture {currentStep} View
+                                    {currentStep === 'FRONT' && "CAPTURE FRONT FACE"}
+                                    {currentStep === 'LEFT' && "CAPTURE LEFT PROFILE"}
+                                    {currentStep === 'RIGHT' && "CAPTURE RIGHT PROFILE"}
                                 </>
                             )}
                         </button>
@@ -441,10 +465,10 @@ export default function FaceEnrollmentWizard({
                     </div>
                     <div>
                         <h4 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                            ✓ FACE VERIFICATION COMPLETE
+                            ✓ FACE REGISTRATION COMPLETE
                         </h4>
                         <p className="text-xs text-slate-400 max-w-md mx-auto mt-2 leading-relaxed">
-                            All 3 angles (Front, Left, Right) successfully mapped into 128-dimensional encrypted biometric representations. Raw photos are never stored.
+                            Continue to your personal details.
                         </p>
                     </div>
 
@@ -463,6 +487,21 @@ export default function FaceEnrollmentWizard({
                             <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Right Profile</span>
                             <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
                         </div>
+                    </div>
+
+                    <div className="pt-2 flex justify-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (onComplete && finalBiometricProfile) {
+                                    onComplete(finalBiometricProfile);
+                                }
+                            }}
+                            className="w-full max-w-sm py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+                        >
+                            CONTINUE
+                            <ArrowRight size={16} />
+                        </button>
                     </div>
                 </div>
             )}

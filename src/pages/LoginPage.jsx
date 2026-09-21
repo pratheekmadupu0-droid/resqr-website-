@@ -59,6 +59,7 @@ export default function LoginPage() {
 
     // Citizen Registration Wizard States
     const [citizenStep, setCitizenStep] = useState(1);
+    const [faceRegStarted, setFaceRegStarted] = useState(false);
     const [biometricEnrollment, setBiometricEnrollment] = useState(null);
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
     const [citizenName, setCitizenName] = useState('');
@@ -1120,18 +1121,74 @@ export default function LoginPage() {
                                         <Badge className="bg-primary/20 text-primary border-none px-4 py-1 font-black italic tracking-widest text-[9px] mb-2">CITIZEN IDENTITY PROTOCOL</Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">
                                             Step {citizenStep} of 5: {
-                                                citizenStep === 1 ? 'Personal Details' :
-                                                citizenStep === 2 ? 'Medical Passport' :
-                                                citizenStep === 3 ? 'Biometric Face Verification' :
-                                                citizenStep === 4 ? 'Insurance Cover' : 'Pricing & Tags'
+                                                citizenStep === 1 ? 'Face Verification' :
+                                                citizenStep === 2 ? 'Personal Details' :
+                                                citizenStep === 3 ? 'Medical Details' :
+                                                citizenStep === 4 ? 'Insurance Details' : 'Choose Your RESQR'
                                             }
                                         </h2>
                                     </div>
                                     <span className="text-xl font-black italic text-primary font-poppins">{Math.round((citizenStep / 5) * 100)}% Completed</span>
                                 </div>
 
-                                {/* Step 1: Personal Details */}
+                                {/* Step 1: Face Registration */}
                                 {citizenStep === 1 && (
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        {!faceRegStarted ? (
+                                            <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto">
+                                                <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 text-primary rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-primary/20">
+                                                    <Camera size={36} />
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary block mb-1 font-poppins">
+                                                        RESQR
+                                                    </span>
+                                                    <h3 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                                        FACE VERIFICATION
+                                                    </h3>
+                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mt-1">
+                                                        Step 1 of 5
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-3 text-slate-400 text-xs leading-relaxed">
+                                                    <p className="font-bold text-slate-200">
+                                                        Create your secure identity profile.
+                                                    </p>
+                                                    <p>
+                                                        We need three facial views to help verify your identity during authorized medical access.
+                                                    </p>
+                                                </div>
+                                                <div className="pt-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFaceRegStarted(true)}
+                                                        className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-primary/25 transition-all active:scale-95 cursor-pointer"
+                                                    >
+                                                        START FACE REGISTRATION
+                                                        <ArrowRight size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                <FaceEnrollmentWizard
+                                                    onComplete={(bioProfile) => {
+                                                        setBiometricEnrollment(bioProfile);
+                                                        if (bioProfile?.frontPhotoSnapshot) {
+                                                            setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                        }
+                                                        toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                        setCitizenStep(2);
+                                                    }}
+                                                    onCancel={() => setFaceRegStarted(false)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Step 2: Personal Details */}
+                                {citizenStep === 2 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         <div className="flex flex-col md:flex-row gap-8 items-center border-b border-white/5 pb-8 mb-6">
                                             <div className="flex flex-col items-center">
@@ -1149,10 +1206,17 @@ export default function LoginPage() {
                                                         <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setCitizenProfilePhoto)} />
                                                     </label>
                                                 </div>
-                                                <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
-                                                    <ShieldCheck size={12} className="text-primary" />
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Face Scan on Step 3</span>
-                                                </div>
+                                                {biometricEnrollment ? (
+                                                    <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                                                        <ShieldCheck size={12} className="text-emerald-400" />
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 italic">Face Verified</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-2.5 flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full">
+                                                        <ShieldCheck size={12} className="text-primary" />
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-primary italic">Emergency Photo</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex-1 w-full space-y-4">
                                                 <Input label="Full Name" placeholder="e.g. John Doe" value={citizenName} onChange={(e) => setCitizenName(e.target.value)} required />
@@ -1260,43 +1324,46 @@ export default function LoginPage() {
                                                 <Input label="Hospital Name" placeholder="City General" value={familyDoctor.hospital} onChange={(e) => setFamilyDoctor({...familyDoctor, hospital: e.target.value})} />
                                                 <Input label="Doctor Phone" maxLength="10" value={familyDoctor.phone} onChange={(e) => setFamilyDoctor({...familyDoctor, phone: e.target.value.replace(/\D/g, '')})} />
                                             </div>
-                                            <div className="pt-8 flex justify-end">
-                                             <Button onClick={async () => {
-                                                 if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode || !chosenUsername) {
-                                                     toast.error("Please fill all mandatory personal & address details, including a username.");
-                                                     return;
-                                                 }
+                                            <div className="pt-8 flex justify-between">
+                                                <Button onClick={() => setCitizenStep(1)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                    <ArrowLeft size={16} className="mr-2" /> Back
+                                                </Button>
+                                                <Button onClick={async () => {
+                                                    if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode || !chosenUsername) {
+                                                        toast.error("Please fill all mandatory personal & address details, including a username.");
+                                                        return;
+                                                    }
 
-                                                 const cleanUser = chosenUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
-                                                 if (cleanUser.length < 3) {
-                                                     toast.error("Username must be at least 3 characters long.");
-                                                     return;
-                                                 }
+                                                    const cleanUser = chosenUsername.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                                    if (cleanUser.length < 3) {
+                                                        toast.error("Username must be at least 3 characters long.");
+                                                        return;
+                                                    }
 
-                                                 const t = toast.loading("Checking username availability...");
-                                                 try {
-                                                     const regRef = ref(db, `usernames/${cleanUser}`);
-                                                     const existing = await get(regRef);
-                                                     if (existing.exists()) {
-                                                         toast.error("Username already taken. Please choose another one.", { id: t });
-                                                         return;
-                                                     }
-                                                     toast.success("Username available!", { id: t });
-                                                     setCitizenStep(2);
-                                                 } catch (e) {
-                                                     console.error("Username check error:", e);
-                                                     toast.error("Error validating username", { id: t });
-                                                 }
-                                             }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                 Continue to Medical details <ArrowRight size={16} className="ml-2" />
-                                             </Button>
-                                         </div>
+                                                    const t = toast.loading("Checking username availability...");
+                                                    try {
+                                                        const regRef = ref(db, `usernames/${cleanUser}`);
+                                                        const existing = await get(regRef);
+                                                        if (existing.exists()) {
+                                                            toast.error("Username already taken. Please choose another one.", { id: t });
+                                                            return;
+                                                        }
+                                                        toast.success("Username available!", { id: t });
+                                                        setCitizenStep(3);
+                                                    } catch (e) {
+                                                        console.error("Username check error:", e);
+                                                        toast.error("Error validating username", { id: t });
+                                                    }
+                                                }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                    Continue to Medical Details <ArrowRight size={16} className="ml-2" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 2: Medical Details */}
-                                {citizenStep === 2 && (
+                                {/* Step 3: Medical Details */}
+                                {citizenStep === 3 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <Select 
@@ -1345,7 +1412,7 @@ export default function LoginPage() {
                                         </div>
 
                                         <div className="pt-8 flex justify-between">
-                                            <Button onClick={() => setCitizenStep(1)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                            <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
                                             <Button onClick={() => {
@@ -1353,31 +1420,9 @@ export default function LoginPage() {
                                                     toast.error("Please specify your blood group.");
                                                     return;
                                                 }
-                                                setCitizenStep(3);
-                                            }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Proceed to Face Verification <ArrowRight size={16} className="ml-2" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Step 3: Biometric Face Verification */}
-                                {citizenStep === 3 && (
-                                    <div className="space-y-6 animate-in fade-in duration-300">
-                                        <FaceEnrollmentWizard
-                                            onComplete={(bioProfile) => {
-                                                setBiometricEnrollment(bioProfile);
-                                                toast.success("Facial biometric profile enrolled successfully!");
                                                 setCitizenStep(4);
-                                            }}
-                                            onCancel={() => setCitizenStep(2)}
-                                        />
-                                        <div className="flex justify-between items-center pt-4">
-                                            <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
-                                                <ArrowLeft size={16} className="mr-2" /> Back
-                                            </Button>
-                                            <Button onClick={() => setCitizenStep(4)} variant="outline" className="py-4 px-6 rounded-2xl font-black italic uppercase text-[11px] border-white/10 text-slate-400 hover:text-white">
-                                                Skip Biometrics &rarr;
+                                            }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                Proceed to Insurance Details <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>
