@@ -83,6 +83,11 @@ export default function AdminPanel() {
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingAd, setEditingAd] = useState(null);
     const [loginFilter, setLoginFilter] = useState('all'); // 'all', 'recent', 'inactive', 'never'
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    const [syncEmailInput, setSyncEmailInput] = useState('');
+    const [syncNameInput, setSyncNameInput] = useState('');
+    const [syncRoleInput, setSyncRoleInput] = useState('citizen');
+    const [isSyncing, setIsSyncing] = useState(false);
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -561,6 +566,48 @@ export default function AdminPanel() {
                 .catch(() => toast.error('Verification failed'));
         } else {
             toast.error('Invalid OTP code');
+        }
+    };
+
+    const handleQuickSyncUser = async (emailToSync, customName, customRole = 'citizen') => {
+        const targetEmail = (emailToSync || syncEmailInput || '').trim().toLowerCase();
+        if (!targetEmail || !targetEmail.includes('@')) {
+            toast.error("Please provide a valid email address");
+            return;
+        }
+        setIsSyncing(true);
+        try {
+            const existingUser = safeUsers.find(u => u.email?.toLowerCase() === targetEmail);
+            const uid = existingUser?.uid || existingUser?.id || `google_${targetEmail.replace(/[^a-z0-9]/g, '_')}`;
+            const name = customName || syncNameInput || existingUser?.name || targetEmail.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const now = new Date().toISOString();
+
+            const updates = {};
+            updates[`users/${uid}`] = {
+                ...(existingUser || {}),
+                uid: uid,
+                email: targetEmail,
+                googleEmail: targetEmail.includes('@gmail.com') ? targetEmail : (existingUser?.googleEmail || targetEmail),
+                googleDisplayName: name,
+                name: name,
+                role: customRole || syncRoleInput || existingUser?.role || 'citizen',
+                status: existingUser?.status || 'approved',
+                authProvider: 'google.com',
+                isGoogleAuth: true,
+                lastLogin: now,
+                createdAt: existingUser?.createdAt || now
+            };
+
+            await update(ref(db), updates);
+            toast.success(`Successfully synchronized ${targetEmail} into Admin Panel!`);
+            setIsSyncModalOpen(false);
+            setSyncEmailInput('');
+            setSyncNameInput('');
+        } catch (err) {
+            console.error("Failed to sync user:", err);
+            toast.error("Failed to sync user: " + err.message);
+        } finally {
+            setIsSyncing(false);
         }
     };
 
@@ -1241,9 +1288,21 @@ export default function AdminPanel() {
                     </div>
                     <div className="flex gap-3">
                         {activeTab === 'users' && (
-                            <Button onClick={() => { setRegistrationStep('form'); setIsRegisterModalOpen(true); }} className="gap-2 bg-green-600 hover:bg-green-700">
-                                <Plus size={18} /> Register Member (OTP)
-                            </Button>
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() => {
+                                        setSyncEmailInput('prinstanagricarepvtltd2@gmail.com');
+                                        setSyncNameInput('Prinstan Agri Care');
+                                        setIsSyncModalOpen(true);
+                                    }}
+                                    className="gap-2 bg-blue-600 hover:bg-blue-700 font-black italic uppercase tracking-wider text-[10px]"
+                                >
+                                    <ShieldCheck size={18} /> Sync Google/Firebase User
+                                </Button>
+                                <Button onClick={() => { setRegistrationStep('form'); setIsRegisterModalOpen(true); }} className="gap-2 bg-green-600 hover:bg-green-700">
+                                    <Plus size={18} /> Register Member (OTP)
+                                </Button>
+                            </div>
                         )}
                         {activeTab === 'products' && (
                             <Button onClick={() => { setEditingProduct(null); setIsProductModalOpen(true); }} className="gap-2">
@@ -1479,6 +1538,31 @@ export default function AdminPanel() {
                                 />
                             </div>
                         </div>
+
+                        {!safeUsers.some(u => u.email?.toLowerCase() === 'prinstanagricarepvtltd2@gmail.com') && (
+                            <div className="mx-8 md:mx-10 my-6 p-5 rounded-3xl bg-blue-500/10 border border-blue-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                                        <ShieldCheck size={22} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-black text-white italic uppercase tracking-wider">
+                                            Unlinked Google Login Detected: <span className="text-blue-400 font-mono">prinstanagricarepvtltd2@gmail.com</span>
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                            This user authenticated via Google OAuth. Click below to synchronize their profile node into the active directory.
+                                        </p>
+                                    </div>
+                                </div>
+                                <Button
+                                    onClick={() => handleQuickSyncUser('prinstanagricarepvtltd2@gmail.com', 'Prinstan Agri Care', 'citizen')}
+                                    disabled={isSyncing}
+                                    className="h-11 px-6 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black italic uppercase text-[10px] tracking-widest shrink-0 shadow-lg shadow-blue-500/20 cursor-pointer"
+                                >
+                                    {isSyncing ? 'Syncing...' : '1-Click Sync to Panel'}
+                                </Button>
+                            </div>
+                        )}
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
@@ -3157,6 +3241,113 @@ export default function AdminPanel() {
                                 Close Inspector
                             </Button>
                         </div>
+                    </Card>
+                </div>
+            )}
+            {isSyncModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-xl bg-medical-card border-white/10 p-8 md:p-10 rounded-[40px] shadow-[0_0_100px_rgba(0,0,0,0.8)] relative">
+                        <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+                        <div className="flex items-start justify-between gap-4 mb-8">
+                            <div>
+                                <h2 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                    Sync Firebase / Google User
+                                </h2>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 italic">
+                                    Import Google Auth logins directly into the tactical directory
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsSyncModalOpen(false)}
+                                className="p-2.5 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-white/5 hover:border-white/20 transition-all cursor-pointer"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleQuickSyncUser(syncEmailInput, syncNameInput, syncRoleInput);
+                            }}
+                            className="space-y-6"
+                        >
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
+                                    Google / Firebase Email Address
+                                </label>
+                                <Input
+                                    type="email"
+                                    required
+                                    placeholder="e.g. prinstanagricarepvtltd2@gmail.com"
+                                    value={syncEmailInput}
+                                    onChange={(e) => setSyncEmailInput(e.target.value)}
+                                    className="bg-slate-950 border-white/10 h-14 rounded-2xl font-mono text-sm"
+                                />
+                            </div>
+
+                            {/* Quick suggested email chips */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Quick Fill:</span>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSyncEmailInput('prinstanagricarepvtltd2@gmail.com');
+                                        setSyncNameInput('Prinstan Agri Care');
+                                    }}
+                                    className="px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-[10px] font-mono font-bold text-blue-400 hover:bg-blue-500/20 transition-all cursor-pointer"
+                                >
+                                    prinstanagricarepvtltd2@gmail.com
+                                </button>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
+                                    Full Name / Organization (Optional)
+                                </label>
+                                <Input
+                                    type="text"
+                                    placeholder="e.g. Prinstan Agri Care"
+                                    value={syncNameInput}
+                                    onChange={(e) => setSyncNameInput(e.target.value)}
+                                    className="bg-slate-950 border-white/10 h-14 rounded-2xl text-sm"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
+                                    Assigned System Role
+                                </label>
+                                <select
+                                    value={syncRoleInput}
+                                    onChange={(e) => setSyncRoleInput(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/10 rounded-2xl h-14 px-5 text-xs font-black uppercase tracking-wider text-slate-300 outline-none focus:ring-2 focus:ring-primary/20"
+                                >
+                                    <option value="citizen">CITIZEN (Standard User)</option>
+                                    <option value="agent">AGENT (Field Responder)</option>
+                                    <option value="hospital">HOSPITAL (Medical Node)</option>
+                                    <option value="admin">ADMINISTRATOR</option>
+                                </select>
+                            </div>
+
+                            <div className="flex gap-4 pt-4">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setIsSyncModalOpen(false)}
+                                    className="flex-1 h-14 rounded-2xl font-black italic uppercase tracking-widest text-[10px] text-slate-500 hover:text-white cursor-pointer"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isSyncing}
+                                    className="flex-1 h-14 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-blue-500/20 cursor-pointer"
+                                >
+                                    {isSyncing ? 'Synchronizing...' : 'Sync User to Panel'}
+                                </Button>
+                            </div>
+                        </form>
                     </Card>
                 </div>
             )}
