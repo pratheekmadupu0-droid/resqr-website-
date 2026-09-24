@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     User, Users, Baby, Heart, ArrowLeft, ArrowRight, Upload, Camera, 
@@ -28,6 +28,10 @@ function Badge({ children, className = '', ...props }) {
 
 export default function CreateIdentity() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const initialType = queryParams.get('type') || null;
+
     const [authLoading, setAuthLoading] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
 
@@ -35,6 +39,7 @@ export default function CreateIdentity() {
     const [primaryProfile, setPrimaryProfile] = useState(null);
 
     // Flow states
+    const [selectedType, setSelectedType] = useState(initialType); // 'myself' | 'family' | 'child' | 'friend' | null
     const [wizardStep, setWizardStep] = useState(1); // 1: Face Registration, 2: Personal, 3: Medical, 4: Payment
     const [faceRegStarted, setFaceRegStarted] = useState(false);
     const [biometricEnrollment, setBiometricEnrollment] = useState(null);

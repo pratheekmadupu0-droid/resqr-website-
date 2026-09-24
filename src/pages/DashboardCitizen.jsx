@@ -313,7 +313,7 @@ export default function DashboardCitizen() {
                     <p className="text-xs text-slate-400 font-medium leading-relaxed">
                         You have not generated an emergency profile yet. Generate your secure medical tag to activate your emergency dashboard.
                     </p>
-                    <Button onClick={() => navigate('/create-identity')} className="w-full py-4 bg-primary text-white rounded-2xl font-black italic uppercase tracking-wider text-xs">
+                    <Button onClick={() => navigate('/create-identity?type=myself')} className="w-full py-4 bg-primary text-white rounded-2xl font-black italic uppercase tracking-wider text-xs">
                         Create Emergency Identity
                     </Button>
                 </div>
