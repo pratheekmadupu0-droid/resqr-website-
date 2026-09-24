@@ -1619,14 +1619,6 @@ export default function LoginPage() {
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
 
-                                            <Button 
-                                                type="button"
-                                                onClick={() => setIsQrPreviewOpen(true)}
-                                                variant="outline" 
-                                                className="w-full sm:w-auto py-4 px-6 rounded-2xl font-black italic uppercase text-xs border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-2"
-                                            >
-                                                <Eye size={16} /> Preview QR Code
-                                            </Button>
 
                                             <Button 
                                                 onClick={() => setIsRazorpayOpen(true)}

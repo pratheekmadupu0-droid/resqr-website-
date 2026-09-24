@@ -935,15 +935,6 @@ export default function CreateIdentity() {
                                                 </Button>
 
                                                 <Button 
-                                                    type="button"
-                                                    onClick={() => setIsQrPreviewOpen(true)}
-                                                    variant="outline" 
-                                                    className="w-full sm:w-auto py-4 px-6 rounded-2xl font-black italic uppercase text-xs border-primary/40 text-primary hover:bg-primary/10 flex items-center justify-center gap-2"
-                                                >
-                                                    <Eye size={16} /> Preview QR Code
-                                                </Button>
-
-                                                <Button 
                                                     onClick={() => setIsRazorpayOpen(true)}
                                                     disabled={authLoading}
                                                     className="w-full sm:flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
