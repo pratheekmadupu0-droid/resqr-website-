@@ -26,24 +26,27 @@ export default function QRScanIdentityGate({
     const streamRef = useRef(null);
     const padAnalyzerRef = useRef(new PassivePADAnalyzer());
 
-    // Gate stages: 'PROMPT' | 'CAMERA' | 'VERIFYING' | 'MATCH' | 'NO_MATCH' | 'LOCKED' | 'ERROR'
+    // Gate stages: 'PROMPT' | 'CAMERA' | 'ANALYZING' | 'MATCH' | 'NO_MATCH' | 'LOCKED' | 'ERROR'
     const [gateStage, setGateStage] = useState('PROMPT');
     const [cameraActive, setCameraActive] = useState(false);
-    const [facingMode, setFacingMode] = useState('environment'); // Default to rear camera to scan victim, switchable
+    const [facingMode, setFacingMode] = useState('user'); // Default to front camera as specified
     const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
     const [cameraError, setCameraError] = useState(null);
 
-    // Detection feedback
-    const [detectionStatus, setDetectionStatus] = useState('SEARCHING'); // 'SEARCHING' | 'READY' | 'MULTIPLE' | 'WARNING'
-    const [statusMessage, setStatusMessage] = useState('Position face clearly inside frame.');
-    const [isQualityOk, setIsQualityOk] = useState(false);
+    // Single captured still photograph state
+    const [capturedPhotoUrl, setCapturedPhotoUrl] = useState(null);
+    const [analyzingSubtext, setAnalyzingSubtext] = useState('Analyzing captured image...');
+
+    // Simple camera positioning guidance (NOT verification)
+    const [positionStatus, setPositionStatus] = useState('SEARCHING'); // 'SEARCHING' | 'POSITIONED' | 'MULTIPLE' | 'WARNING'
+    const [guidanceMessage, setGuidanceMessage] = useState('Position face clearly inside frame.');
     const [faceCount, setFaceCount] = useState(0);
 
     // Rate limiting (max 3 attempts)
     const [attempts, setAttempts] = useState(0);
     const maxAttempts = 3;
 
-    // Check multiple cameras on mount
+    // Check for multiple camera devices on mount
     useEffect(() => {
         if (navigator.mediaDevices?.enumerateDevices) {
             navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -80,12 +83,13 @@ export default function QRScanIdentityGate({
         };
     }, [stopCamera]);
 
-    // Open camera
+    // Open camera for face framing
     const handleOpenCamera = async () => {
         stopCamera();
         setCameraError(null);
-        setDetectionStatus('SEARCHING');
-        setStatusMessage('Starting camera & AI vision models...');
+        setPositionStatus('SEARCHING');
+        setGuidanceMessage('Starting camera & AI vision models...');
+        setCapturedPhotoUrl(null);
 
         try {
             await loadBiometricModels();
@@ -101,7 +105,7 @@ export default function QRScanIdentityGate({
                 video: {
                     width: { ideal: 640 },
                     height: { ideal: 480 },
-                    facingMode: facingMode ? { ideal: facingMode } : 'environment'
+                    facingMode: facingMode ? { ideal: facingMode } : 'user'
                 },
                 audio: false
             };
@@ -150,7 +154,7 @@ export default function QRScanIdentityGate({
         }
     }, []);
 
-    // Real-time Detection Loop
+    // Real-time Positioning Guidance Loop (ONLY positioning guidance — NEVER verifies)
     useEffect(() => {
         if (gateStage !== 'CAMERA' || !cameraActive) return;
 
@@ -160,40 +164,40 @@ export default function QRScanIdentityGate({
 
         const loop = async (timestamp) => {
             const video = videoRef.current;
-            if (video && video.readyState >= 2 && video.videoWidth > 0 && !isEvaluating && (timestamp - lastTime > 100)) {
+            if (video && video.readyState >= 2 && video.videoWidth > 0 && !isEvaluating && (timestamp - lastTime > 120)) {
                 isEvaluating = true;
                 lastTime = timestamp;
 
                 try {
+                    // Extract face positioning and quality only (NO descriptor extraction, NO verification)
                     const result = await detectSingleFace(video, { extractDescriptor: false });
 
                     if (result.status === 'NO_FACE') {
                         setFaceCount(0);
-                        setDetectionStatus('SEARCHING');
-                        setStatusMessage('NO FACE DETECTED. Position the person\'s face inside the frame.');
-                        setIsQualityOk(false);
+                        setPositionStatus('SEARCHING');
+                        setGuidanceMessage('Position face inside frame');
                     } else if (result.status === 'MULTIPLE_FACES') {
                         setFaceCount(result.faceCount || 2);
-                        setDetectionStatus('MULTIPLE');
-                        setStatusMessage('MULTIPLE FACES DETECTED. Make sure only the person associated with this RESQR is visible.');
-                        setIsQualityOk(false);
+                        setPositionStatus('MULTIPLE');
+                        setGuidanceMessage('Multiple faces detected — ensure only 1 person in frame');
                     } else if (result.status === 'FACE_DETECTED') {
                         setFaceCount(1);
-                        video._latestProbe = result;
                         padAnalyzerRef.current.addSample(result.detection, result.quality);
 
-                        if (!result.quality.isAcceptable) {
-                            setDetectionStatus('WARNING');
-                            setStatusMessage(result.quality.qualityMessage);
-                            setIsQualityOk(false);
+                        const yaw = Math.abs(result.pose?.yaw || 0);
+                        if (!result.quality?.isAcceptable) {
+                            setPositionStatus('WARNING');
+                            setGuidanceMessage(result.quality.isTooDark ? 'Improve lighting' : 'Hold steady inside frame');
+                        } else if (yaw > 20) {
+                            setPositionStatus('WARNING');
+                            setGuidanceMessage('Look directly at the camera');
                         } else {
-                            setDetectionStatus('READY');
-                            setStatusMessage('✓ Face positioned clearly. Ready to capture.');
-                            setIsQualityOk(true);
+                            setPositionStatus('POSITIONED');
+                            setGuidanceMessage('Face positioned inside frame');
                         }
                     }
                 } catch (e) {
-                    // Loop exception fallback
+                    // Ignore dropped frame
                 } finally {
                     isEvaluating = false;
                 }
@@ -206,51 +210,78 @@ export default function QRScanIdentityGate({
         return () => cancelAnimationFrame(animId);
     }, [gateStage, cameraActive]);
 
-    // Handle Capture & Biometric 1:1 Match
-    const handleCaptureVerification = async () => {
+    // Handle single still photograph capture & verification analysis
+    const handleCapturePhoto = async () => {
         const video = videoRef.current;
-        if (!video) return;
+        if (!video || !cameraActive) return;
 
-        setGateStage('VERIFYING');
+        // STEP 3 — CAPTURE STILL IMAGE (exactly one photograph)
+        const vW = video.videoWidth || 640;
+        const vH = video.videoHeight || 480;
+        const snapCanvas = document.createElement('canvas');
+        snapCanvas.width = vW;
+        snapCanvas.height = vH;
+        const sCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
+
+        // Mirror front selfie camera snapshot to match user's perspective
+        if (facingMode === 'user') {
+            sCtx.translate(vW, 0);
+            sCtx.scale(-1, 1);
+        }
+        sCtx.drawImage(video, 0, 0, vW, vH);
+        const photoDataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
+        setCapturedPhotoUrl(photoDataUrl);
+
+        // Immediately stop live camera stream
+        stopCamera();
+
+        // STEP 4 — TRANSITION TO STILL IMAGE ANALYSIS
+        setGateStage('ANALYZING');
+        setAnalyzingSubtext('Analyzing captured image...');
 
         try {
-            // Snapshot dedicated frame canvas for isolated descriptor extraction
-            const snapCanvas = document.createElement('canvas');
-            const vW = video.videoWidth || 640;
-            const vH = video.videoHeight || 480;
-            snapCanvas.width = vW;
-            snapCanvas.height = vH;
-            const sCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
-            sCtx.drawImage(video, 0, 0, vW, vH);
-
-            // Extract high-resolution probe descriptor directly from snapshot
-            let probe = null;
-            try {
-                probe = await detectSingleFace(snapCanvas, { extractDescriptor: true });
-            } catch (e) {
-                console.warn("Probe extraction warning:", e);
-            }
-
-            if (!probe || probe.status !== 'FACE_DETECTED' || !probe.descriptor || probe.descriptor.length !== 128 || isPseudoEmbedding(probe.descriptor)) {
-                setGateStage('CAMERA');
-                toast.error(probe?.message || "Could not extract facial features. Please ensure your face is clearly visible inside the oval frame.");
-                return;
-            }
-
-            // Quality gate check
-            if (!probe.quality?.isAcceptable) {
-                setGateStage('CAMERA');
-                toast.error(probe.quality?.qualityMessage || "Face not clear. Please improve lighting and hold steady.");
-                return;
-            }
-
-            const probeDescriptor = probe.descriptor;
-
-            // Passive Presentation Attack Detection (PAD)
+            // Optical sensor variance check
             const padResult = padAnalyzerRef.current.evaluatePassiveLiveness();
             const padScore = padResult.score || 0.8;
 
-            // 1:1 Biometric Verification against enrolled profile
+            // Analyze the frozen still photograph canvas
+            setAnalyzingSubtext('Detecting facial presence & orientation...');
+            const probe = await detectSingleFace(snapCanvas, { extractDescriptor: true });
+
+            // Check 1: Is a face present in the still photo?
+            if (!probe || probe.status === 'NO_FACE') {
+                handleFailure();
+                return;
+            }
+
+            // Check 2: Exactly ONE face in the still photo?
+            if (probe.status === 'MULTIPLE_FACES' || (probe.faceCount && probe.faceCount > 1)) {
+                handleFailure();
+                return;
+            }
+
+            // Check 3: Image quality, lighting, and blur
+            if (!probe.quality?.isAcceptable) {
+                handleFailure();
+                return;
+            }
+
+            // Check 4: Face orientation (must not be turned away)
+            if (probe.pose && Math.abs(probe.pose.yaw) > 25) {
+                handleFailure();
+                return;
+            }
+
+            // Check 5: Neural metric descriptor extraction (Float32Array of 128 elements)
+            const probeDescriptor = probe.descriptor;
+            if (!probeDescriptor || probeDescriptor.length !== 128 || isPseudoEmbedding(probeDescriptor)) {
+                handleFailure();
+                return;
+            }
+
+            // STEP 5 — QR-BOUND 1:1 FACE MATCH
+            // Compares ONLY against the registered biometric profile belonging to THIS specific QR owner
+            setAnalyzingSubtext('Verifying with registered RESQR biometric enrollment...');
             const verifyResult = await verifyPublicEmergencyAccess({
                 probeDescriptor,
                 patientId,
@@ -258,11 +289,11 @@ export default function QRScanIdentityGate({
                 padScore
             });
 
+            // STEP 6 — SUCCESS
             if (verifyResult.verified && verifyResult.verificationToken) {
-                stopCamera();
                 setGateStage('MATCH');
 
-                // After brief confirmation animation, advance to Emergency Profile
+                // Advance to Emergency Profile after brief verification confirmation
                 setTimeout(() => {
                     if (onVerificationSuccess) {
                         onVerificationSuccess({
@@ -270,23 +301,33 @@ export default function QRScanIdentityGate({
                             expiresAt: verifyResult.expiresAt
                         });
                     }
-                }, 1000);
+                }, 1200);
             } else {
-                stopCamera();
-                const nextAttempts = attempts + 1;
-                setAttempts(nextAttempts);
-
-                if (nextAttempts >= maxAttempts) {
-                    setGateStage('LOCKED');
-                } else {
-                    setGateStage('NO_MATCH');
-                }
+                // STEP 7 — FAILURE
+                handleFailure();
             }
         } catch (err) {
-            console.error("Verification error:", err);
-            stopCamera();
+            console.error("Still image analysis exception:", err);
+            handleFailure();
+        }
+    };
+
+    // Helper for failure handling (does NOT reveal match score or private details)
+    const handleFailure = () => {
+        const nextAttempts = attempts + 1;
+        setAttempts(nextAttempts);
+
+        if (nextAttempts >= maxAttempts) {
+            setGateStage('LOCKED');
+        } else {
             setGateStage('NO_MATCH');
         }
+    };
+
+    // Retry verification: clears captured photo and re-opens camera
+    const handleTryAgain = () => {
+        setCapturedPhotoUrl(null);
+        handleOpenCamera();
     };
 
     return (
@@ -308,12 +349,12 @@ export default function QRScanIdentityGate({
                             </span>
                         </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                        1:1 IDENTITY MATCH
+                    <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-sky-500/10 border border-sky-500/30 text-sky-400">
+                        1:1 QR VERIFICATION
                     </span>
                 </div>
 
-                {/* SCREEN 1: First Screen After QR Scan */}
+                {/* SCREEN 1: Initial Prompt */}
                 {gateStage === 'PROMPT' && (
                     <div className="py-8 text-center space-y-6 animate-in fade-in duration-300">
                         <div className="w-20 h-20 bg-red-600/10 border-2 border-red-500/30 text-red-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-red-500/20">
@@ -328,10 +369,10 @@ export default function QRScanIdentityGate({
                                 IDENTITY VERIFICATION
                             </h3>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto font-medium pt-1">
-                                For security, please take a photo of the person associated with this RESQR.
+                                Position your face clearly inside the frame.
                             </p>
                             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                                Position their face clearly inside the frame.
+                                The camera will capture a single still photo to verify against the registered RESQR identity.
                             </p>
                         </div>
 
@@ -348,7 +389,7 @@ export default function QRScanIdentityGate({
                     </div>
                 )}
 
-                {/* SCREEN 2: Live Camera View & Verification */}
+                {/* SCREEN 2: Live Camera View (Purely for Framing — NEVER Verifies) */}
                 {gateStage === 'CAMERA' && (
                     <div className="space-y-6 pt-4 animate-in fade-in duration-300">
                         <div className="text-center space-y-1">
@@ -356,11 +397,11 @@ export default function QRScanIdentityGate({
                                 IDENTITY VERIFICATION
                             </h4>
                             <p className="text-xs text-slate-400 font-medium">
-                                Position face clearly
+                                Position your face clearly inside the frame.
                             </p>
                         </div>
 
-                        {/* Viewport Frame with Oval Face Guide */}
+                        {/* Viewport Frame with Neutral Positioning Guide */}
                         <div className="relative aspect-[4/3] w-full max-w-md mx-auto rounded-[32px] overflow-hidden bg-black border border-white/15 flex items-center justify-center shadow-inner">
                             <video
                                 ref={setVideoNode}
@@ -370,18 +411,18 @@ export default function QRScanIdentityGate({
                                 className={`w-full h-full object-cover ${facingMode === 'user' ? 'transform scale-x-[-1]' : ''}`}
                             />
 
-                            {/* Oval Face Guide Area */}
+                            {/* Oval Face Positioning Guide (Neutral styling — NOT verification) */}
                             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                                 <div className={`w-48 h-64 sm:w-52 sm:h-68 rounded-[50%] border-2 transition-all duration-300 relative ${
-                                    detectionStatus === 'MULTIPLE'
-                                        ? 'border-red-600 bg-red-600/15'
-                                        : isQualityOk && detectionStatus === 'READY'
-                                        ? 'border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.35)]'
-                                        : detectionStatus === 'WARNING'
+                                    positionStatus === 'MULTIPLE'
+                                        ? 'border-red-600 bg-red-600/10'
+                                        : positionStatus === 'POSITIONED'
+                                        ? 'border-sky-400/80 shadow-[0_0_25px_rgba(56,189,248,0.2)]'
+                                        : positionStatus === 'WARNING'
                                         ? 'border-amber-400/80 border-dashed'
                                         : 'border-white/35 border-dashed'
                                 }`}>
-                                    {/* Crosshair markers */}
+                                    {/* Crosshair positioning markers */}
                                     <div className="absolute top-2 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-white/40" />
                                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-white/40" />
                                     <div className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-white/40" />
@@ -390,25 +431,16 @@ export default function QRScanIdentityGate({
                             </div>
 
                             {/* Multiple Faces Warning Banner */}
-                            {detectionStatus === 'MULTIPLE' && (
+                            {positionStatus === 'MULTIPLE' && (
                                 <div className="absolute top-4 inset-x-4 z-30 bg-red-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl animate-pulse">
                                     <ShieldAlert size={14} /> MULTIPLE FACES DETECTED — ONLY 1 PERSON VISIBLE
                                 </div>
                             )}
 
                             {/* Quality Warning Banner */}
-                            {detectionStatus === 'WARNING' && (
+                            {positionStatus === 'WARNING' && (
                                 <div className="absolute top-4 inset-x-4 z-30 bg-amber-500/90 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-lg">
-                                    <AlertCircle size={14} /> {statusMessage}
-                                </div>
-                            )}
-
-                            {/* Ready Glow Alert */}
-                            {isQualityOk && detectionStatus === 'READY' && (
-                                <div className="absolute bottom-4 inset-x-6 z-30 flex justify-center pointer-events-none">
-                                    <div className="px-4 py-1.5 bg-emerald-500 text-black rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl">
-                                        <CheckCircle2 size={14} /> Face Centered — Click Capture
-                                    </div>
+                                    <AlertCircle size={14} /> {guidanceMessage}
                                 </div>
                             )}
 
@@ -425,70 +457,84 @@ export default function QRScanIdentityGate({
                             )}
                         </div>
 
-                        {/* Status Message Text */}
+                        {/* Positioning Guidance Text (Neutral colors — never green verification) */}
                         <div className="text-center">
                             <p className={`text-xs font-black uppercase tracking-widest transition-colors ${
-                                detectionStatus === 'MULTIPLE' ? 'text-red-400' :
-                                detectionStatus === 'WARNING' ? 'text-amber-400' :
-                                detectionStatus === 'READY' ? 'text-emerald-400' :
+                                positionStatus === 'MULTIPLE' ? 'text-red-400' :
+                                positionStatus === 'WARNING' ? 'text-amber-400' :
+                                positionStatus === 'POSITIONED' ? 'text-sky-400' :
                                 'text-slate-400'
                             }`}>
-                                {statusMessage}
+                                {guidanceMessage}
                             </p>
                         </div>
 
-                        {/* CAPTURE BUTTON */}
+                        {/* CAPTURE PHOTO BUTTON */}
                         <div className="flex items-center justify-center">
                             <button
                                 type="button"
-                                onClick={handleCaptureVerification}
-                                disabled={!cameraActive || detectionStatus === 'MULTIPLE' || faceCount === 0}
+                                onClick={handleCapturePhoto}
+                                disabled={!cameraActive || positionStatus === 'MULTIPLE' || faceCount === 0}
                                 className={`w-full max-w-sm py-4 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl transition-all cursor-pointer ${
-                                    !cameraActive || detectionStatus === 'MULTIPLE' || faceCount === 0
+                                    !cameraActive || positionStatus === 'MULTIPLE' || faceCount === 0
                                         ? 'bg-white/10 text-slate-500 cursor-not-allowed'
-                                        : isQualityOk && detectionStatus === 'READY'
-                                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-500/25 active:scale-95 ring-2 ring-emerald-400/50'
                                         : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30 active:scale-95'
                                 }`}
                             >
                                 <Camera size={16} />
-                                {isQualityOk && detectionStatus === 'READY' ? "✓ CAPTURE (READY)" : "CAPTURE"}
+                                CAPTURE PHOTO
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* SCREEN 3: Verifying In Progress */}
-                {gateStage === 'VERIFYING' && (
-                    <div className="py-12 text-center space-y-6 animate-in fade-in duration-300">
-                        <div className="w-20 h-20 bg-red-600/10 border-2 border-red-500/30 text-red-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-red-500/20">
-                            <Loader2 size={38} className="animate-spin" />
-                        </div>
-                        <div className="space-y-2">
-                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                VERIFYING IDENTITY...
-                            </h4>
-                            <p className="text-xs text-slate-400 max-w-xs mx-auto">
-                                Analyzing image quality, anti-spoofing vectors, and comparing with registered facial identity...
-                            </p>
+                {/* SCREEN 3: Analyzing Still Image */}
+                {gateStage === 'ANALYZING' && (
+                    <div className="space-y-6 pt-4 text-center animate-in fade-in duration-300">
+                        {/* Display Frozen Captured Photo */}
+                        {capturedPhotoUrl && (
+                            <div className="relative aspect-[4/3] w-full max-w-md mx-auto rounded-[32px] overflow-hidden bg-black border border-white/15 shadow-2xl">
+                                <img
+                                    src={capturedPhotoUrl}
+                                    alt="Captured Identity Probe"
+                                    className="w-full h-full object-cover"
+                                />
+                                {/* Laser Scan Animation Overlay */}
+                                <div className="absolute inset-0 bg-red-600/10 pointer-events-none" />
+                                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse top-1/2 -translate-y-1/2 shadow-[0_0_15px_rgba(239,68,68,0.8)]" />
+                            </div>
+                        )}
+
+                        <div className="py-4 space-y-3">
+                            <div className="w-12 h-12 bg-red-600/10 border-2 border-red-500/30 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-xl">
+                                <Loader2 size={24} className="animate-spin" />
+                            </div>
+                            <div className="space-y-1">
+                                <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                    ANALYZING IDENTITY...
+                                </h4>
+                                <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                                    {analyzingSubtext}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {/* SCREEN 4: SUCCESS MATCH */}
                 {gateStage === 'MATCH' && (
-                    <div className="py-12 text-center space-y-6 animate-in fade-in duration-300">
+                    <div className="py-8 text-center space-y-6 animate-in fade-in duration-300">
                         <div className="w-20 h-20 bg-emerald-500/15 border-2 border-emerald-500/40 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/30 animate-bounce">
                             <CheckCircle2 size={42} />
                         </div>
                         <div className="space-y-2">
-                            <span className="text-xs font-mono font-black text-emerald-400 uppercase tracking-widest block">
+                            <h4 className="text-2xl font-black uppercase italic tracking-tight text-emerald-400 font-poppins">
                                 ✓ IDENTITY VERIFIED
-                            </span>
-                            <h4 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                RESQR IDENTITY CONFIRMED
                             </h4>
-                            <p className="text-xs text-slate-300 max-w-xs mx-auto">
+                            <p className="text-xs text-slate-300 max-w-xs mx-auto font-medium">
+                                Identity successfully verified.
+                            </p>
+                            <p className="text-[11px] text-slate-500 pt-2 font-mono">
                                 Opening emergency profile...
                             </p>
                         </div>
@@ -504,13 +550,13 @@ export default function QRScanIdentityGate({
 
                         <div className="space-y-2">
                             <h4 className="text-xl font-black uppercase italic tracking-tight text-red-400 font-poppins">
-                                IDENTITY COULD NOT BE VERIFIED
+                                IDENTITY NOT VERIFIED
                             </h4>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto font-medium">
-                                The captured person could not be sufficiently matched with the RESQR identity.
+                                The captured person does not match the registered RESQR user.
                             </p>
                             <p className="text-[11px] text-slate-400 font-medium max-w-xs mx-auto">
-                                The protected profile will not be opened.
+                                Access to the Emergency Profile remains locked.
                             </p>
                             <span className="text-[10px] font-mono text-slate-500 block pt-1">
                                 Attempt {attempts} of {maxAttempts}
@@ -520,7 +566,7 @@ export default function QRScanIdentityGate({
                         <div className="pt-2 flex justify-center">
                             <button
                                 type="button"
-                                onClick={handleOpenCamera}
+                                onClick={handleTryAgain}
                                 className="w-full max-w-sm py-4 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 border border-white/10 transition-all cursor-pointer"
                             >
                                 <RefreshCw size={14} />
@@ -542,10 +588,10 @@ export default function QRScanIdentityGate({
                                 IDENTITY VERIFICATION TEMPORARILY LOCKED
                             </h4>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
-                                Maximum verification attempts reached. Please use the authorized alternate verification process.
+                                Maximum verification attempts reached. Direct emergency profile access is restricted.
                             </p>
                             <p className="text-[11px] text-slate-400">
-                                Protected RESQR profile unavailable.
+                                Protected RESQR emergency profile remains unavailable.
                             </p>
                         </div>
                     </div>
@@ -578,7 +624,7 @@ export default function QRScanIdentityGate({
                     </div>
                 )}
 
-                {/* EMERGENCY FALLBACK ACTION LAYER (Section 18 & 39) */}
+                {/* EMERGENCY FALLBACK ACTION LAYER */}
                 {/* Always available in failure, lock, or error states so identity verification NEVER blocks calling 108/100 */}
                 {(gateStage === 'NO_MATCH' || gateStage === 'LOCKED' || gateStage === 'ERROR' || gateStage === 'PROMPT') && (
                     <div className="mt-8 pt-6 border-t border-white/10 space-y-3">

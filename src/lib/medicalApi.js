@@ -272,12 +272,47 @@ export async function verifyPublicEmergencyAccess({
         return { verified: false, error: 'MISSING_PATIENT_ID', message: 'Target RESQR identity identifier required.' };
     }
 
+    const cleanId = patientId.trim();
+
+    // 1. Attempt Serverless Backend Endpoint
     try {
-        // 1. Retrieve candidate's enrolled biometric profile
-        let cleanId = patientId.trim();
+        const response = await fetch('/api/medical/verify-emergency-qr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                probeDescriptor,
+                patientId: cleanId,
+                qrId: qrId || cleanId,
+                padScore
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.verified && data.verificationToken) {
+                return {
+                    verified: true,
+                    verificationToken: data.verificationToken,
+                    expiresAt: data.expiresAt
+                };
+            }
+        } else if (response.status === 401 || response.status === 429) {
+            const errData = await response.json();
+            return {
+                verified: false,
+                error: errData.error || 'IDENTITY_MISMATCH',
+                message: errData.message || 'The captured person does not match the registered RESQR user.'
+            };
+        }
+    } catch (apiErr) {
+        // Serverless API offline or static preview: proceed to direct RTDB fallback
+    }
+
+    try {
+        // 2. Retrieve candidate's enrolled biometric profile directly from RTDB
         let bioSnap = await get(ref(db, `biometricProfiles/${cleanId}`));
         
-        // 2. Try resolving via UID prefix
+        // 3. Try resolving via UID prefix
         if (!bioSnap.exists()) {
             const uid = cleanId.includes('_') ? (cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0]) : cleanId;
             bioSnap = await get(ref(db, `users/${uid}/biometricProfiles/${cleanId}`));
