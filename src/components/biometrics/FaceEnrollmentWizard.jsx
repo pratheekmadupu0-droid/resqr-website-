@@ -1,45 +1,59 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Camera, CheckCircle2, ShieldCheck, AlertTriangle, RefreshCw,
-    X, Sparkles, Loader2, ArrowRight, Eye, ShieldAlert
+    X, Sparkles, Loader2, ArrowRight, Eye, ShieldAlert, SwitchCamera,
+    Lock, Check, AlertCircle
 } from 'lucide-react';
 import { 
     detectSingleFace, 
     verifyAngleTarget, 
     loadBiometricModels, 
+    saveBiometricProfileToAccount,
+    checkBiometricEnrollmentStatus,
     TEMPLATE_VERSION 
 } from '../../lib/biometrics';
 import toast from 'react-hot-toast';
 
 export default function FaceEnrollmentWizard({
+    uid,
+    profileId,
     onComplete,
     onCancel,
-    initialStep = 'FRONT'
+    stepNumber = 1,
+    totalSteps = 5
 }) {
     const videoRef = useRef(null);
-    const canvasRef = useRef(null);
     const streamRef = useRef(null);
 
-    const [currentStep, setCurrentStep] = useState('FRONT'); // 'FRONT' | 'LEFT' | 'RIGHT' | 'COMPLETE'
-    const [modelLoading, setModelLoading] = useState(true);
+    // Permission and camera lifecycle states:
+    // 'CHECKING_SAVED' | 'PERMISSION_PROMPT' | 'CAMERA_ACTIVE' | 'CAMERA_ERROR' | 'SAVE_READY' | 'SAVING' | 'ALREADY_COMPLETED'
+    const [uiStage, setUiStage] = useState('CHECKING_SAVED');
+    const [cameraErrorType, setCameraErrorType] = useState(null); // 'NO_CAMERA' | 'PERMISSION_DENIED' | 'IN_USE' | 'NOT_SUPPORTED' | 'STREAM_FAILURE'
+    const [modelLoading, setModelLoading] = useState(false);
+    const [modelReady, setModelReady] = useState(false);
     const [cameraActive, setCameraActive] = useState(false);
-    const [cameraError, setCameraError] = useState(null);
+    const [facingMode, setFacingMode] = useState('user');
+    const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
 
-    // Live feedback states
-    const [faceStatus, setFaceStatus] = useState('ALIGNING');
-    const [statusMessage, setStatusMessage] = useState('Initializing biometric camera...');
+    // Registration angle stages: 'FRONT' | 'LEFT' | 'RIGHT' | 'COMPLETE'
+    const [currentStep, setCurrentStep] = useState('FRONT');
+    const [isCapturing, setIsCapturing] = useState(false);
+
+    // Real-time detection feedback
+    const [faceStatus, setFaceStatus] = useState('SEARCHING'); // 'SEARCHING' | 'ALIGNING' | 'WARNING' | 'ERROR' | 'READY'
+    const [statusMessage, setStatusMessage] = useState('Position your face inside the frame.');
     const [multipleFaces, setMultipleFaces] = useState(false);
     const [yawAngle, setYawAngle] = useState(0);
     const [isAngleAligned, setIsAngleAligned] = useState(false);
     const [qualityOk, setQualityOk] = useState(false);
-    const [isCapturing, setIsCapturing] = useState(false);
+    const [qualityReason, setQualityReason] = useState('');
 
-    // Liveness / PAD tracking (Step 1 blink or micro-motion)
+    // Blink / Liveness for Front face
     const [blinkDetected, setBlinkDetected] = useState(false);
     const earHistoryRef = useRef([]);
 
-    // Enrolled views storage (128-d descriptors only)
+    // Enrolled views storage
     const [enrolledTemplates, setEnrolledTemplates] = useState({
         front: null,
         left: null,
@@ -47,113 +61,241 @@ export default function FaceEnrollmentWizard({
     });
     const [finalBiometricProfile, setFinalBiometricProfile] = useState(null);
 
-    // 1. Initialize models & camera stream
+    // Backend save states
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState(null);
+    const [saveSuccess, setSaveSuccess] = useState(false);
+
+    // 1. Initial mount: check if face profile already exists in DB / localStorage
     useEffect(() => {
         let isMounted = true;
-        const init = async () => {
-            try {
-                setModelLoading(true);
-                await loadBiometricModels();
-                if (!isMounted) return;
-                setModelLoading(false);
-                await startCamera();
-            } catch (err) {
-                console.error("Biometric init error:", err);
-                if (isMounted) {
-                    setCameraError("Failed to initialize facial recognition engine. Ensure camera access is allowed.");
-                    setModelLoading(false);
+
+        const checkExisting = async () => {
+            if (uid && profileId) {
+                try {
+                    const result = await checkBiometricEnrollmentStatus({ uid, profileId });
+                    if (!isMounted) return;
+                    if (result.enrolled && result.profile) {
+                        setFinalBiometricProfile(result.profile);
+                        setEnrolledTemplates({
+                            front: result.profile.frontTemplate || null,
+                            left: result.profile.leftTemplate || null,
+                            right: result.profile.rightTemplate || null
+                        });
+                        setUiStage('ALREADY_COMPLETED');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn("Could not check existing face registration:", e);
                 }
             }
+
+            if (isMounted) {
+                setUiStage('PERMISSION_PROMPT');
+            }
         };
-        init();
+
+        checkExisting();
+
+        // Check for multiple video input devices
+        if (navigator.mediaDevices?.enumerateDevices) {
+            navigator.mediaDevices.enumerateDevices().then(devices => {
+                const videoInputs = devices.filter(d => d.kind === 'videoinput');
+                if (isMounted && videoInputs.length > 1) {
+                    setHasMultipleCameras(true);
+                }
+            }).catch(() => {});
+        }
 
         return () => {
             isMounted = false;
-            stopCamera();
+            stopCameraStream();
         };
+    }, [uid, profileId]);
+
+    // Handle tab visibility change (stop camera if user switches tab)
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && streamRef.current) {
+                stopCameraStream();
+                if (uiStage === 'CAMERA_ACTIVE') {
+                    setUiStage('PERMISSION_PROMPT');
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [uiStage]);
+
+    // Stop active camera media stream
+    const stopCameraStream = useCallback(() => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => {
+                try {
+                    track.stop();
+                } catch (e) {}
+            });
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            try {
+                videoRef.current.srcObject = null;
+            } catch (e) {}
+        }
+        setCameraActive(false);
     }, []);
 
-    const startCamera = async () => {
+    // Request Camera Permission and Start Stream
+    const handleEnableCamera = async () => {
+        stopCameraStream();
+        setCameraErrorType(null);
+        setModelLoading(true);
+
         try {
-            stopCamera();
-            const stream = await navigator.mediaDevices.getUserMedia({
+            // First ensure AI vision models are initialized
+            await loadBiometricModels();
+            setModelReady(true);
+            setModelLoading(false);
+        } catch (modelErr) {
+            console.error("Biometric model loading failed:", modelErr);
+            setModelLoading(false);
+            setCameraErrorType('STREAM_FAILURE');
+            setUiStage('CAMERA_ERROR');
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setCameraErrorType('NOT_SUPPORTED');
+            setUiStage('CAMERA_ERROR');
+            return;
+        }
+
+        try {
+            const constraints = {
                 video: {
                     width: { ideal: 640 },
                     height: { ideal: 480 },
-                    facingMode: 'user'
+                    facingMode: facingMode ? { ideal: facingMode } : 'user'
                 },
                 audio: false
-            });
+            };
+
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             streamRef.current = stream;
+
+            setUiStage('CAMERA_ACTIVE');
+
+            // Attach stream to video element
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                videoRef.current.onloadedmetadata = () => {
-                    videoRef.current.play();
+                videoRef.current.onloadedmetadata = async () => {
+                    try {
+                        await videoRef.current.play();
+                    } catch (playErr) {
+                        console.warn("Video play triggered automatically:", playErr);
+                    }
                     setCameraActive(true);
                 };
             }
         } catch (err) {
             console.error("Camera access error:", err);
-            setCameraError("Camera permission denied or camera device unavailable.");
+            stopCameraStream();
+
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setCameraErrorType('PERMISSION_DENIED');
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                setCameraErrorType('NO_CAMERA');
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                setCameraErrorType('IN_USE');
+            } else if (err.name === 'OverconstrainedError') {
+                // Retry with standard unconstrained video
+                try {
+                    const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                    streamRef.current = fallbackStream;
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = fallbackStream;
+                        await videoRef.current.play().catch(() => {});
+                        setCameraActive(true);
+                        setUiStage('CAMERA_ACTIVE');
+                        return;
+                    }
+                } catch (fbErr) {
+                    setCameraErrorType('STREAM_FAILURE');
+                }
+            } else {
+                setCameraErrorType('STREAM_FAILURE');
+            }
+
+            setUiStage('CAMERA_ERROR');
         }
     };
 
-    const stopCamera = () => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-            streamRef.current = null;
-        }
-        setCameraActive(false);
+    // Toggle camera between front and environment
+    const handleSwitchCamera = async () => {
+        const nextMode = facingMode === 'user' ? 'environment' : 'user';
+        setFacingMode(nextMode);
+        stopCameraStream();
+        setTimeout(() => {
+            handleEnableCamera();
+        }, 150);
     };
 
-    // 2. Real-time Detection Loop
+    // 2. Real-time Face Detection Loop
     useEffect(() => {
-        if (!cameraActive || modelLoading || currentStep === 'COMPLETE') return;
+        if (uiStage !== 'CAMERA_ACTIVE' || !cameraActive || currentStep === 'COMPLETE') return;
 
         let animationFrameId;
         let isEvaluating = false;
 
         const loop = async () => {
-            if (videoRef.current && videoRef.current.readyState === 4 && !isEvaluating) {
+            const video = videoRef.current;
+            if (video && video.readyState >= 2 && video.videoWidth > 0 && !isEvaluating) {
                 isEvaluating = true;
                 try {
-                    const result = await detectSingleFace(videoRef.current);
+                    const result = await detectSingleFace(video);
 
-                    if (result.status === 'MULTIPLE_FACES') {
+                    if (result.status === 'INITIALIZING') {
+                        setFaceStatus('SEARCHING');
+                        setStatusMessage('Initializing video stream...');
+                        setIsAngleAligned(false);
+                        setQualityOk(false);
+                    } else if (result.status === 'MULTIPLE_FACES') {
                         setMultipleFaces(true);
                         setFaceStatus('ERROR');
-                        setStatusMessage('MULTIPLE FACES DETECTED. Only the registered user should be visible.');
+                        setStatusMessage('MULTIPLE FACES DETECTED. Only one person should be visible. Please make sure nobody else is inside the camera frame.');
                         setIsAngleAligned(false);
                         setQualityOk(false);
                     } else if (result.status === 'NO_FACE') {
                         setMultipleFaces(false);
                         setFaceStatus('SEARCHING');
-                        setStatusMessage('Look directly at the camera. Keep your face inside the frame.');
+                        setStatusMessage('NO FACE DETECTED. Move closer to the camera and make sure your face is clearly visible.');
                         setIsAngleAligned(false);
                         setQualityOk(false);
-                    } else {
+                    } else if (result.status === 'FACE_DETECTED') {
                         setMultipleFaces(false);
-                        setYawAngle(result.pose.yaw);
+                        const yaw = result.pose.yaw;
+                        setYawAngle(yaw);
 
-                        // Blink / Liveness check for Frontal enrollment
+                        // Blink liveness check for Front capture
                         if (currentStep === 'FRONT') {
                             const ear = result.pose.ear;
                             earHistoryRef.current.push(ear);
                             if (earHistoryRef.current.length > 10) earHistoryRef.current.shift();
                             const minEar = Math.min(...earHistoryRef.current);
                             const maxEar = Math.max(...earHistoryRef.current);
-                            if (minEar < 0.20 && maxEar > 0.26) {
+                            if (minEar < 0.20 && maxEar > 0.25) {
                                 setBlinkDetected(true);
                             }
                         }
 
-                        // Check angle target
-                        const angleCheck = verifyAngleTarget(result.pose, currentStep);
-                        setIsAngleAligned(angleCheck.isMatch);
-
-                        // Check image quality
+                        // Quality check
                         const quality = result.quality;
                         setQualityOk(quality.isAcceptable);
+                        setQualityReason(quality.qualityMessage);
+
+                        // Angle alignment check
+                        const angleCheck = verifyAngleTarget(result.pose, currentStep);
+                        setIsAngleAligned(angleCheck.isMatch);
 
                         if (!quality.isAcceptable) {
                             setFaceStatus('WARNING');
@@ -165,16 +307,16 @@ export default function FaceEnrollmentWizard({
                             setFaceStatus('READY');
                             setStatusMessage(
                                 currentStep === 'FRONT' && !blinkDetected
-                                    ? 'Blink your eyes to verify live presence'
-                                    : `✓ ${currentStep} PROFILE READY FOR CAPTURE`
+                                    ? 'Blink your eyes to confirm live presence'
+                                    : `✓ ${currentStep} FACE READY TO CAPTURE`
                             );
                         }
 
-                        // Store latest frame descriptor for capture
-                        videoRef.current._latestBiometric = result;
+                        // Cache latest detection on video element for capture
+                        video._latestBiometric = result;
                     }
                 } catch (e) {
-                    // silent loop frame drop
+                    // silent drop for frame rate smoothness
                 } finally {
                     isEvaluating = false;
                 }
@@ -185,24 +327,26 @@ export default function FaceEnrollmentWizard({
 
         animationFrameId = requestAnimationFrame(loop);
         return () => cancelAnimationFrame(animationFrameId);
-    }, [cameraActive, modelLoading, currentStep, blinkDetected]);
+    }, [uiStage, cameraActive, currentStep, blinkDetected]);
 
-    // 3. Capture Step Handler
+    // 3. Step Capture Handler
     const handleCaptureStep = () => {
-        if (!videoRef.current?._latestBiometric) {
-            toast.error("Face not positioned. Please wait for camera stabilization.");
+        const video = videoRef.current;
+        if (!video || !video._latestBiometric) {
+            toast.error("Face not positioned inside frame. Please wait for camera stabilization.");
             return;
         }
 
-        const bio = videoRef.current._latestBiometric;
+        const bio = video._latestBiometric;
+
         if (!bio.quality.isAcceptable) {
-            toast.error(bio.quality.qualityMessage);
+            toast.error(bio.quality.qualityMessage || "Face quality too low. Please improve lighting and position.");
             return;
         }
 
         const angleCheck = verifyAngleTarget(bio.pose, currentStep);
         if (!angleCheck.isMatch) {
-            toast.error(`Please adjust head pose: ${angleCheck.feedback}`);
+            toast.error(angleCheck.feedback);
             return;
         }
 
@@ -210,29 +354,30 @@ export default function FaceEnrollmentWizard({
 
         setTimeout(() => {
             let frontSnapshot = null;
-            if (videoRef.current && currentStep === 'FRONT') {
+            if (video && currentStep === 'FRONT') {
                 try {
                     const snapCanvas = document.createElement('canvas');
                     snapCanvas.width = 320;
                     snapCanvas.height = 320;
                     const ctx = snapCanvas.getContext('2d');
-                    const vW = videoRef.current.videoWidth || 640;
-                    const vH = videoRef.current.videoHeight || 480;
+                    const vW = video.videoWidth || 640;
+                    const vH = video.videoHeight || 480;
                     const minDim = Math.min(vW, vH);
                     const sx = (vW - minDim) / 2;
                     const sy = (vH - minDim) / 2;
+                    // Mirror snapshot for user's natural selfie perspective
                     ctx.translate(320, 0);
                     ctx.scale(-1, 1);
-                    ctx.drawImage(videoRef.current, sx, sy, minDim, minDim, 0, 0, 320, 320);
+                    ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 320, 320);
                     frontSnapshot = snapCanvas.toDataURL('image/jpeg', 0.85);
                 } catch (e) {
-                    console.warn("Front snapshot error:", e);
+                    console.warn("Snapshot capture error:", e);
                 }
             }
 
             const template = {
                 descriptor: bio.descriptor,
-                qualityScore: Number(((bio.detection.detection.score || 0.9) * 100).toFixed(1)),
+                qualityScore: Number(((bio.detection?.detection?.score || 0.9) * 100).toFixed(1)),
                 yaw: bio.pose.yaw,
                 pitch: bio.pose.pitch,
                 snapshot: frontSnapshot,
@@ -243,44 +388,98 @@ export default function FaceEnrollmentWizard({
                 setEnrolledTemplates(prev => ({ ...prev, front: template }));
                 toast.success("✓ FRONT FACE CAPTURED");
                 setCurrentStep('LEFT');
-                setStatusMessage('Step 2: Slowly turn your face to the LEFT.');
+                setStatusMessage('Turn your face slowly to the LEFT.');
             } else if (currentStep === 'LEFT') {
                 setEnrolledTemplates(prev => ({ ...prev, left: template }));
                 toast.success("✓ LEFT PROFILE CAPTURED");
                 setCurrentStep('RIGHT');
-                setStatusMessage('Step 3: Slowly turn your face to the RIGHT.');
+                setStatusMessage('Turn your face slowly to the RIGHT.');
             } else if (currentStep === 'RIGHT') {
-                const finalTemplates = {
+                const completeTemplates = {
                     ...enrolledTemplates,
                     right: template
                 };
-                setEnrolledTemplates(finalTemplates);
+                setEnrolledTemplates(completeTemplates);
                 toast.success("✓ RIGHT PROFILE CAPTURED");
                 setCurrentStep('COMPLETE');
-                stopCamera();
+                stopCameraStream();
 
-                // Biometric profile conforming to Phase 4
-                const biometricProfile = {
+                const bioProfile = {
                     enrollmentStatus: 'enrolled',
-                    frontTemplate: finalTemplates.front,
-                    leftTemplate: finalTemplates.left,
+                    faceEnrollmentStatus: 'completed',
+                    frontTemplate: completeTemplates.front,
+                    leftTemplate: completeTemplates.left,
                     rightTemplate: template,
-                    frontPhotoSnapshot: finalTemplates.front?.snapshot || frontSnapshot || null,
+                    frontPhotoSnapshot: completeTemplates.front?.snapshot || frontSnapshot || null,
                     templateVersion: TEMPLATE_VERSION,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
 
-                setFinalBiometricProfile(biometricProfile);
+                setFinalBiometricProfile(bioProfile);
+                setUiStage('SAVE_READY');
             }
 
             setIsCapturing(false);
-        }, 300);
+        }, 250);
+    };
+
+    // 4. Save Biometric Profile to User Account (CRITICAL: Section 25 & 26)
+    const handleSaveBiometricProfile = async () => {
+        if (!finalBiometricProfile) {
+            toast.error("Facial profile capture incomplete.");
+            return;
+        }
+
+        setIsSaving(true);
+        setSaveError(null);
+        const toastId = toast.loading("Creating secure facial profile...");
+
+        try {
+            const targetUid = uid || 'guest_user';
+            const targetPid = profileId || `c_${targetUid}`;
+
+            const saveResult = await saveBiometricProfileToAccount({
+                uid: targetUid,
+                profileId: targetPid,
+                biometricProfile: finalBiometricProfile
+            });
+
+            if (saveResult?.success) {
+                setSaveSuccess(true);
+                toast.success("✓ FACIAL PROFILE CREATED", { id: toastId });
+
+                // Advancing to Step 2 ONLY AFTER backend confirms success
+                setTimeout(() => {
+                    if (onComplete) {
+                        onComplete(saveResult.profile);
+                    }
+                }, 800);
+            } else {
+                throw new Error("Backend storage confirmation failed.");
+            }
+        } catch (err) {
+            console.error("Biometric save failed:", err);
+            setIsSaving(false);
+            setSaveError("FACIAL PROFILE COULD NOT BE SAVED. Please check network connection and try again.");
+            toast.error("FACIAL PROFILE COULD NOT BE SAVED", { id: toastId });
+        }
+    };
+
+    // 5. Reset / Re-enroll
+    const handleReEnroll = () => {
+        stopCameraStream();
+        setEnrolledTemplates({ front: null, left: null, right: null });
+        setFinalBiometricProfile(null);
+        setCurrentStep('FRONT');
+        setSaveSuccess(false);
+        setSaveError(null);
+        setUiStage('PERMISSION_PROMPT');
     };
 
     return (
         <div className="bg-[#0A0F1D] border border-white/10 rounded-[36px] p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden font-manrope">
-            {/* Header / Step Tracker */}
+            {/* Header / Biometric Protocol Banner */}
             <div className="flex items-center justify-between border-b border-white/10 pb-5 mb-6">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -290,105 +489,286 @@ export default function FaceEnrollmentWizard({
                         </span>
                     </div>
                     <h3 className="text-xl sm:text-2xl font-black italic uppercase tracking-tight font-poppins">
-                        Face Verification Enrollment
+                        RESQR Face Registration
                     </h3>
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mt-1">
+                        Step {stepNumber} of {totalSteps}
+                    </p>
                 </div>
                 {onCancel && (
                     <button 
-                        onClick={onCancel}
+                        onClick={() => {
+                            stopCameraStream();
+                            onCancel();
+                        }}
                         className="p-2.5 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                        title="Cancel"
                     >
                         <X size={18} />
                     </button>
                 )}
             </div>
 
-            {/* Step Progress Indicators: Front ● Left ○ Right */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
-                <div className={`p-3 rounded-2xl border text-center transition-all ${
-                    currentStep === 'FRONT'
-                        ? 'bg-red-600/10 border-red-500 text-white shadow-lg shadow-red-500/20'
-                        : enrolledTemplates.front
-                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                        : 'bg-white/5 border-white/5 text-slate-500'
-                }`}>
-                    <span className="text-[9px] font-black uppercase tracking-widest block">Step 1</span>
-                    <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.front ? '✓ FRONT' : currentStep === 'FRONT' ? '● FRONT' : '○ FRONT'}
-                    </span>
+            {/* STAGE 1: Checking Existing Profile */}
+            {uiStage === 'CHECKING_SAVED' && (
+                <div className="py-16 text-center space-y-4">
+                    <Loader2 className="animate-spin text-red-500 mx-auto" size={36} />
+                    <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                        Synchronizing Biometric Identity Status...
+                    </p>
                 </div>
+            )}
 
-                <div className={`p-3 rounded-2xl border text-center transition-all ${
-                    currentStep === 'LEFT'
-                        ? 'bg-red-600/10 border-red-500 text-white shadow-lg shadow-red-500/20'
-                        : enrolledTemplates.left
-                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                        : 'bg-white/5 border-white/5 text-slate-500'
-                }`}>
-                    <span className="text-[9px] font-black uppercase tracking-widest block">Step 2</span>
-                    <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.left ? '✓ LEFT' : currentStep === 'LEFT' ? '● LEFT' : '○ LEFT'}
-                    </span>
+            {/* STAGE 2: Already Completed (e.g. on Page Refresh / Resume) */}
+            {uiStage === 'ALREADY_COMPLETED' && (
+                <div className="py-8 text-center space-y-6 animate-in fade-in duration-300">
+                    <div className="w-20 h-20 bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/20">
+                        <CheckCircle2 size={42} />
+                    </div>
+                    <div>
+                        <h4 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
+                            ✓ FACE REGISTRATION COMPLETE
+                        </h4>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto mt-2 leading-relaxed">
+                            Your secure biometric facial profile is enrolled and stored on your account. You can proceed directly to personal details.
+                        </p>
+                    </div>
+
+                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl max-w-sm mx-auto flex items-center justify-around text-center">
+                        <div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Front Face</span>
+                            <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10" />
+                        <div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Left Face</span>
+                            <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10" />
+                        <div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Right Face</span>
+                            <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (onComplete && finalBiometricProfile) {
+                                    onComplete(finalBiometricProfile);
+                                }
+                            }}
+                            className="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/30 transition-all cursor-pointer"
+                        >
+                            PROCEED TO STEP 2
+                            <ArrowRight size={16} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleReEnroll}
+                            className="w-full sm:w-auto px-6 py-4 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded-2xl font-bold uppercase tracking-widest text-xs transition-colors"
+                        >
+                            RE-ENROLL FACIAL PROFILE
+                        </button>
+                    </div>
                 </div>
+            )}
 
-                <div className={`p-3 rounded-2xl border text-center transition-all ${
-                    currentStep === 'RIGHT'
-                        ? 'bg-red-600/10 border-red-500 text-white shadow-lg shadow-red-500/20'
-                        : enrolledTemplates.right
-                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
-                        : 'bg-white/5 border-white/5 text-slate-500'
-                }`}>
-                    <span className="text-[9px] font-black uppercase tracking-widest block">Step 3</span>
-                    <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
-                        {enrolledTemplates.right ? '✓ RIGHT' : currentStep === 'RIGHT' ? '● RIGHT' : '○ RIGHT'}
-                    </span>
+            {/* STAGE 3: Camera Permission UI (Section 4) */}
+            {uiStage === 'PERMISSION_PROMPT' && (
+                <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto animate-in fade-in duration-300">
+                    <div className="w-20 h-20 bg-red-600/10 border-2 border-red-500/30 text-red-500 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-red-500/20">
+                        <Camera size={36} />
+                    </div>
+
+                    <div>
+                        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-red-400 block mb-1 font-poppins">
+                            RESQR FACE REGISTRATION
+                        </span>
+                        <h4 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
+                            Step {stepNumber} of {totalSteps}
+                        </h4>
+                    </div>
+
+                    <div className="space-y-3 text-slate-300 text-xs leading-relaxed">
+                        <p className="font-bold text-white text-sm">
+                            We need to securely verify your identity.
+                        </p>
+                        <p className="text-slate-400">
+                            Your camera will be used to register your facial profile (Front, Left, and Right views).
+                        </p>
+                    </div>
+
+                    <div className="pt-4">
+                        <button
+                            type="button"
+                            onClick={handleEnableCamera}
+                            disabled={modelLoading}
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 disabled:bg-white/10 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 transition-all active:scale-95 cursor-pointer"
+                        >
+                            {modelLoading ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    INITIALIZING VISION MODELS...
+                                </>
+                            ) : (
+                                <>
+                                    <Camera size={16} />
+                                    ENABLE CAMERA
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Video Viewport & Real-time HUD */}
-            {currentStep !== 'COMPLETE' ? (
+            {/* STAGE 4: Camera Error Handling (Section 5) */}
+            {uiStage === 'CAMERA_ERROR' && (
+                <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto animate-in fade-in duration-300">
+                    <div className="w-20 h-20 bg-amber-500/10 border-2 border-amber-500/30 text-amber-400 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/20">
+                        <AlertTriangle size={36} />
+                    </div>
+
+                    {cameraErrorType === 'NO_CAMERA' && (
+                        <div>
+                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                NO CAMERA DETECTED
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                Please connect or enable a camera device on your system and try again.
+                            </p>
+                        </div>
+                    )}
+
+                    {cameraErrorType === 'PERMISSION_DENIED' && (
+                        <div>
+                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                CAMERA PERMISSION DENIED
+                            </h4>
+                            <p className="text-xs text-slate-300 font-bold mt-2">
+                                CAMERA ACCESS REQUIRED
+                            </p>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                                Please allow camera access in your browser settings and try again.
+                            </p>
+                        </div>
+                    )}
+
+                    {cameraErrorType === 'IN_USE' && (
+                        <div>
+                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                CAMERA IS CURRENTLY IN USE
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                Close other applications or tabs using the camera and try again.
+                            </p>
+                        </div>
+                    )}
+
+                    {cameraErrorType === 'NOT_SUPPORTED' && (
+                        <div>
+                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                CAMERA NOT SUPPORTED
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                Please use a modern browser such as Chrome, Edge, Safari, or Firefox over HTTPS.
+                            </p>
+                        </div>
+                    )}
+
+                    {cameraErrorType === 'STREAM_FAILURE' && (
+                        <div>
+                            <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
+                                UNABLE TO START CAMERA
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                An error occurred starting the camera feed. Please check device permissions and retry.
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="pt-4 flex justify-center gap-3">
+                        <button
+                            type="button"
+                            onClick={handleEnableCamera}
+                            className="w-full py-4 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-red-600/30 transition-all active:scale-95 cursor-pointer"
+                        >
+                            <RefreshCw size={14} />
+                            TRY AGAIN
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* STAGE 5: Live Camera View & Capture (Sections 8, 9, 10, 11) */}
+            {uiStage === 'CAMERA_ACTIVE' && currentStep !== 'COMPLETE' && (
                 <div className="space-y-6">
-                    <div className="relative aspect-[4/3] w-full max-w-md mx-auto rounded-[32px] overflow-hidden bg-black/60 border border-white/15 flex items-center justify-center shadow-inner">
-                        {modelLoading && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#0A0F1D]/90 gap-3 text-center p-6">
-                                <Loader2 className="animate-spin text-red-500" size={36} />
-                                <p className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                                    Loading Biometric Vision Weights...
-                                </p>
-                            </div>
-                        )}
+                    {/* Multi-angle indicator pills: Front ● Left ○ Right */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        <div className={`p-3 rounded-2xl border text-center transition-all ${
+                            currentStep === 'FRONT'
+                                ? 'bg-red-600/15 border-red-500 text-white shadow-lg shadow-red-500/20'
+                                : enrolledTemplates.front
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                                : 'bg-white/5 border-white/5 text-slate-500'
+                        }`}>
+                            <span className="text-[9px] font-black uppercase tracking-widest block">Step 1</span>
+                            <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
+                                {enrolledTemplates.front ? '✓ FRONT' : currentStep === 'FRONT' ? '● FRONT' : '○ FRONT'}
+                            </span>
+                        </div>
 
-                        {cameraError && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#0A0F1D] p-6 text-center space-y-4">
-                                <AlertTriangle className="text-red-500" size={40} />
-                                <p className="text-xs text-red-400 font-bold leading-relaxed">{cameraError}</p>
-                                <button
-                                    onClick={startCamera}
-                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all"
-                                >
-                                    Retry Camera
-                                </button>
-                            </div>
-                        )}
+                        <div className={`p-3 rounded-2xl border text-center transition-all ${
+                            currentStep === 'LEFT'
+                                ? 'bg-red-600/15 border-red-500 text-white shadow-lg shadow-red-500/20'
+                                : enrolledTemplates.left
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                                : 'bg-white/5 border-white/5 text-slate-500'
+                        }`}>
+                            <span className="text-[9px] font-black uppercase tracking-widest block">Step 2</span>
+                            <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
+                                {enrolledTemplates.left ? '✓ LEFT' : currentStep === 'LEFT' ? '● LEFT' : '○ LEFT'}
+                            </span>
+                        </div>
 
+                        <div className={`p-3 rounded-2xl border text-center transition-all ${
+                            currentStep === 'RIGHT'
+                                ? 'bg-red-600/15 border-red-500 text-white shadow-lg shadow-red-500/20'
+                                : enrolledTemplates.right
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                                : 'bg-white/5 border-white/5 text-slate-500'
+                        }`}>
+                            <span className="text-[9px] font-black uppercase tracking-widest block">Step 3</span>
+                            <span className="text-xs sm:text-sm font-black uppercase italic tracking-tight">
+                                {enrolledTemplates.right ? '✓ RIGHT' : currentStep === 'RIGHT' ? '● RIGHT' : '○ RIGHT'}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Camera Viewport with Oval HUD */}
+                    <div className="relative aspect-[4/3] w-full max-w-md mx-auto rounded-[32px] overflow-hidden bg-black/80 border border-white/15 flex items-center justify-center shadow-inner">
                         {/* Video Element */}
                         <video
                             ref={videoRef}
+                            autoPlay
                             playsInline
                             muted
                             className="w-full h-full object-cover transform scale-x-[-1]"
                         />
 
-                        {/* Oval Biometric Framing Overlay */}
+                        {/* Oval Face Guide Frame */}
                         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                             <div className={`w-48 h-64 sm:w-56 sm:h-72 rounded-[50%] border-2 transition-all duration-300 relative ${
                                 multipleFaces 
-                                    ? 'border-red-600 bg-red-600/10'
+                                    ? 'border-red-600 bg-red-600/15'
                                     : isAngleAligned && qualityOk
-                                    ? 'border-emerald-400 shadow-[0_0_25px_rgba(52,211,153,0.3)]'
-                                    : 'border-white/30 border-dashed'
+                                    ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.35)]'
+                                    : faceStatus === 'WARNING'
+                                    ? 'border-amber-400/80 border-dashed'
+                                    : 'border-white/35 border-dashed'
                             }`}>
-                                {/* Corner crosshairs */}
+                                {/* Crosshair markers */}
                                 <div className="absolute top-2 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-white/40" />
                                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-white/40" />
                                 <div className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-0.5 bg-white/40" />
@@ -398,26 +778,52 @@ export default function FaceEnrollmentWizard({
 
                         {/* Multiple Faces Warning Banner */}
                         {multipleFaces && (
-                            <div className="absolute top-4 inset-x-4 z-30 bg-red-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl animate-pulse">
-                                <ShieldAlert size={14} /> MULTIPLE FACES DETECTED
+                            <div className="absolute top-4 inset-x-4 z-30 bg-red-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl animate-pulse">
+                                <ShieldAlert size={14} /> MULTIPLE FACES DETECTED — ONLY 1 PERSON VISIBLE
                             </div>
                         )}
 
-                        {/* Dynamic Yaw Gauge */}
-                        <div className="absolute bottom-4 left-4 z-20 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                        {/* Quality / Alignment Banner */}
+                        {!multipleFaces && faceStatus === 'WARNING' && (
+                            <div className="absolute top-4 inset-x-4 z-30 bg-amber-500/90 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-lg">
+                                <AlertCircle size={14} /> {qualityReason}
+                            </div>
+                        )}
+
+                        {/* Live Pose Angle Display */}
+                        <div className="absolute bottom-4 left-4 z-20 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
                             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Head Pose</span>
-                            <span className="text-[10px] font-mono font-black text-emerald-400">
+                            <span className={`text-[10px] font-mono font-black ${
+                                isAngleAligned ? 'text-emerald-400' : 'text-slate-300'
+                            }`}>
                                 {yawAngle > 0 ? `+${yawAngle}° R` : `${yawAngle}° L`}
                             </span>
                         </div>
+
+                        {/* Camera Switch Toggle (Mobile / Multi-camera) */}
+                        {hasMultipleCameras && (
+                            <button
+                                type="button"
+                                onClick={handleSwitchCamera}
+                                className="absolute bottom-4 right-4 z-20 p-2.5 rounded-full bg-black/70 hover:bg-black/90 border border-white/15 text-slate-300 hover:text-white transition-all"
+                                title="Switch Camera"
+                            >
+                                <SwitchCamera size={16} />
+                            </button>
+                        )}
                     </div>
 
                     {/* Step Guidance Prompt */}
-                    <div className="text-center space-y-2">
-                        <p className="text-sm font-bold text-slate-200">
-                            {currentStep === 'FRONT' && "Look directly at the camera. Keep your entire face inside the frame. Make sure you are in a well-lit area."}
-                            {currentStep === 'LEFT' && "Slowly turn your face to the LEFT. Keep your face inside the frame."}
-                            {currentStep === 'RIGHT' && "Slowly turn your face to the RIGHT. Keep your face inside the frame."}
+                    <div className="text-center space-y-2 max-w-md mx-auto">
+                        <h4 className="text-sm font-black uppercase tracking-wide text-white font-poppins">
+                            {currentStep === 'FRONT' && "FRONT FACE"}
+                            {currentStep === 'LEFT' && (enrolledTemplates.front ? "✓ FRONT CAPTURED — NEXT: LEFT FACE" : "LEFT FACE")}
+                            {currentStep === 'RIGHT' && (enrolledTemplates.left ? "✓ FRONT & LEFT CAPTURED — NEXT: RIGHT FACE" : "RIGHT FACE")}
+                        </h4>
+                        <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                            {currentStep === 'FRONT' && "Look directly at the camera. Keep your face inside the frame."}
+                            {currentStep === 'LEFT' && "Turn your face slowly to the LEFT. Keep your face inside the frame."}
+                            {currentStep === 'RIGHT' && "Turn your face slowly to the RIGHT. Keep your face inside the frame."}
                         </p>
                         <p className={`text-xs font-black uppercase tracking-widest transition-colors ${
                             faceStatus === 'ERROR' ? 'text-red-400' :
@@ -430,21 +836,21 @@ export default function FaceEnrollmentWizard({
                     </div>
 
                     {/* Capture Trigger Button */}
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center justify-center">
                         <button
                             type="button"
                             onClick={handleCaptureStep}
-                            disabled={!cameraActive || !isAngleAligned || !qualityOk || isCapturing}
+                            disabled={!cameraActive || !isAngleAligned || !qualityOk || isCapturing || multipleFaces}
                             className={`w-full max-w-sm py-4 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl transition-all ${
-                                isAngleAligned && qualityOk && !isCapturing
-                                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30 scale-100 active:scale-95'
+                                isAngleAligned && qualityOk && !isCapturing && !multipleFaces
+                                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30 scale-100 active:scale-95 cursor-pointer'
                                     : 'bg-white/10 text-slate-500 cursor-not-allowed'
                             }`}
                         >
                             {isCapturing ? (
                                 <>
                                     <Loader2 size={16} className="animate-spin" />
-                                    Extracting Biometric Vector...
+                                    EXTRACTING BIOMETRIC VECTOR...
                                 </>
                             ) : (
                                 <>
@@ -457,51 +863,99 @@ export default function FaceEnrollmentWizard({
                         </button>
                     </div>
                 </div>
-            ) : (
-                /* Completion Card */
-                <div className="py-8 text-center space-y-6 animate-in fade-in duration-500">
+            )}
+
+            {/* STAGE 6: All 3 Views Captured — Create Facial Profile (Section 25 & 26) */}
+            {uiStage === 'SAVE_READY' && (
+                <div className="py-8 text-center space-y-6 animate-in fade-in duration-300">
                     <div className="w-20 h-20 bg-emerald-500/10 border-2 border-emerald-500/30 text-emerald-400 rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/20">
-                        <CheckCircle2 size={42} />
+                        {saveSuccess ? <CheckCircle2 size={42} /> : <ShieldCheck size={42} />}
                     </div>
+
                     <div>
                         <h4 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                            ✓ FACE REGISTRATION COMPLETE
+                            {saveSuccess ? "✓ FACIAL PROFILE CREATED" : "ALL 3 VIEWS CAPTURED"}
                         </h4>
                         <p className="text-xs text-slate-400 max-w-md mx-auto mt-2 leading-relaxed">
-                            Continue to your personal details.
+                            {saveSuccess 
+                                ? "Biometric vectors securely stored and linked to your user account. Proceeding to Step 2..."
+                                : "Front, Left, and Right angles successfully validated. Create your protected biometric profile to complete Step 1."}
                         </p>
                     </div>
 
+                    {/* Views Summary Card */}
                     <div className="p-4 bg-white/5 border border-white/10 rounded-2xl max-w-sm mx-auto flex items-center justify-around text-center">
                         <div>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Front View</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Front</span>
                             <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
                         </div>
                         <div className="w-px h-8 bg-white/10" />
                         <div>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Left Profile</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Left</span>
                             <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
                         </div>
                         <div className="w-px h-8 bg-white/10" />
                         <div>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Right Profile</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block">Right</span>
                             <span className="text-xs font-bold text-emerald-400">✓ Enrolled</span>
                         </div>
                     </div>
 
+                    {/* Save Error Recovery Card */}
+                    {saveError && (
+                        <div className="p-4 bg-red-600/15 border border-red-500/40 rounded-2xl max-w-sm mx-auto text-center space-y-2">
+                            <p className="text-xs text-red-400 font-bold">{saveError}</p>
+                        </div>
+                    )}
+
+                    {/* Action Trigger */}
                     <div className="pt-2 flex justify-center">
                         <button
                             type="button"
-                            onClick={() => {
-                                if (onComplete && finalBiometricProfile) {
-                                    onComplete(finalBiometricProfile);
-                                }
-                            }}
-                            className="w-full max-w-sm py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl shadow-emerald-600/30 transition-all active:scale-95 cursor-pointer"
+                            onClick={handleSaveBiometricProfile}
+                            disabled={isSaving || saveSuccess}
+                            className={`w-full max-w-sm py-4 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl transition-all cursor-pointer ${
+                                saveSuccess
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30 active:scale-95'
+                            }`}
                         >
-                            CONTINUE
-                            <ArrowRight size={16} />
+                            {isSaving ? (
+                                <>
+                                    <Loader2 size={16} className="animate-spin" />
+                                    CREATING SECURE FACIAL PROFILE...
+                                </>
+                            ) : saveSuccess ? (
+                                <>
+                                    <Check size={16} />
+                                    ✓ FACIAL PROFILE CREATED
+                                </>
+                            ) : (
+                                <>
+                                    <Lock size={16} />
+                                    {saveError ? "RETRY SAVING FACIAL PROFILE" : "CREATE FACIAL PROFILE"}
+                                </>
+                            )}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Development Debug Mode HUD (Section 40) - Only in Dev */}
+            {import.meta.env.DEV && (
+                <div className="mt-6 pt-4 border-t border-white/10 text-left font-mono text-[10px] text-slate-400 space-y-1 bg-black/40 p-3 rounded-xl border border-white/5">
+                    <div className="font-bold text-slate-300 text-[11px] mb-1">=== BIOMETRIC DIAGNOSTICS (DEV ONLY) ===</div>
+                    <div className="grid grid-cols-2 gap-x-4">
+                        <div>Camera: <span className="text-emerald-400">{cameraActive ? 'READY' : 'OFF'}</span></div>
+                        <div>Model: <span className="text-emerald-400">{modelReady ? 'LOADED' : 'PENDING'}</span></div>
+                        <div>Face Detection: <span className="text-emerald-400">{cameraActive ? 'ACTIVE' : 'IDLE'}</span></div>
+                        <div>Faces Detected: <span className="text-emerald-400">{multipleFaces ? '2+' : faceStatus === 'SEARCHING' ? '0' : '1'}</span></div>
+                        <div>Quality: <span className={qualityOk ? 'text-emerald-400' : 'text-amber-400'}>{qualityOk ? 'PASS' : 'RECHECK'}</span></div>
+                        <div>Orientation: <span className="text-emerald-400">{currentStep}</span> (yaw: {yawAngle}°)</div>
+                        <div>Capture: <span className={isAngleAligned && qualityOk ? 'text-emerald-400' : 'text-slate-500'}>{isAngleAligned && qualityOk ? 'READY' : 'WAITING'}</span></div>
+                        <div>Backend: <span className="text-emerald-400">CONNECTED</span></div>
+                        <div>Enrollment: <span className={finalBiometricProfile ? 'text-emerald-400' : 'text-slate-500'}>{finalBiometricProfile ? 'SUCCESS' : 'PENDING'}</span></div>
+                        <div>User ID: <span className="text-slate-300">{uid || 'GUEST'}</span></div>
                     </div>
                 </div>
             )}

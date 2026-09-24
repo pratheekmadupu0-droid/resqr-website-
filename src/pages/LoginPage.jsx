@@ -258,6 +258,37 @@ export default function LoginPage() {
         }
     };
 
+    // Direct / quick citizen registration initiator
+    const handleStartDirectCitizenRegistration = async () => {
+        setAuthLoading(true);
+        try {
+            let currentUser = auth.currentUser;
+            if (!currentUser) {
+                try {
+                    const userCredential = await signInAnonymously(auth);
+                    currentUser = userCredential.user;
+                } catch (anonErr) {
+                    console.warn("Anonymous auth restricted, switching to quick registered session:", anonErr);
+                    const randomId = Math.random().toString(36).substring(2, 8);
+                    const email = `citizen_${randomId}@resqr.co.in`;
+                    const password = `ResQR#${randomId}2026!`;
+                    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                    currentUser = userCredential.user;
+                }
+            }
+            await syncUserOnLogin(currentUser, { role: 'citizen' });
+            setSelectedRole('citizen');
+            setChosenUsername(`user${Math.floor(1000 + Math.random() * 9000)}`);
+            setAuthState('register_wizard');
+            setCitizenStep(1);
+        } catch (err) {
+            console.error("Direct registration start error:", err);
+            toast.error("Could not start registration: " + (err.message || err));
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
     // Submit Citizen registration
     const handleCitizenRegistrationSubmit = async () => {
         setAuthLoading(true);
@@ -1100,6 +1131,25 @@ export default function LoginPage() {
                                             </>
                                         )}
                                     </Button>
+
+                                    {selectedRole === 'citizen' && (
+                                        <div className="pt-2 text-center">
+                                            <div className="flex items-center gap-3 my-4">
+                                                <div className="h-px bg-white/10 flex-1" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Or</span>
+                                                <div className="h-px bg-white/10 flex-1" />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleStartDirectCitizenRegistration}
+                                                disabled={authLoading}
+                                                className="w-full py-4 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                            >
+                                                Start Registration Directly
+                                                <ArrowRight size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </Card>
                         </motion.div>
@@ -1134,56 +1184,21 @@ export default function LoginPage() {
                                 {/* Step 1: Face Registration */}
                                 {citizenStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
-                                        {!faceRegStarted ? (
-                                            <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto">
-                                                <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 text-primary rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-primary/20">
-                                                    <Camera size={36} />
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary block mb-1 font-poppins">
-                                                        RESQR
-                                                    </span>
-                                                    <h3 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                                        FACE VERIFICATION
-                                                    </h3>
-                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mt-1">
-                                                        Step 1 of 5
-                                                    </p>
-                                                </div>
-                                                <div className="space-y-3 text-slate-400 text-xs leading-relaxed">
-                                                    <p className="font-bold text-slate-200">
-                                                        Create your secure identity profile.
-                                                    </p>
-                                                    <p>
-                                                        We need three facial views to help verify your identity during authorized medical access.
-                                                    </p>
-                                                </div>
-                                                <div className="pt-4">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setFaceRegStarted(true)}
-                                                        className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-primary/25 transition-all active:scale-95 cursor-pointer"
-                                                    >
-                                                        START FACE REGISTRATION
-                                                        <ArrowRight size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <FaceEnrollmentWizard
-                                                    onComplete={(bioProfile) => {
-                                                        setBiometricEnrollment(bioProfile);
-                                                        if (bioProfile?.frontPhotoSnapshot) {
-                                                            setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
-                                                        }
-                                                        toast.success("✓ Facial biometric profile enrolled successfully!");
-                                                        setCitizenStep(2);
-                                                    }}
-                                                    onCancel={() => setFaceRegStarted(false)}
-                                                />
-                                            </div>
-                                        )}
+                                        <FaceEnrollmentWizard
+                                            uid={auth.currentUser?.uid}
+                                            profileId={auth.currentUser?.uid ? `c_${auth.currentUser.uid}` : 'c_citizen'}
+                                            stepNumber={1}
+                                            totalSteps={5}
+                                            onComplete={(bioProfile) => {
+                                                setBiometricEnrollment(bioProfile);
+                                                if (bioProfile?.frontPhotoSnapshot) {
+                                                    setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                }
+                                                toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                setCitizenStep(2);
+                                            }}
+                                            onCancel={() => setAuthState('card_select')}
+                                        />
                                     </div>
                                 )}
 

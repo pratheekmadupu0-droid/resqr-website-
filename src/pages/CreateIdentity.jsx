@@ -38,6 +38,7 @@ export default function CreateIdentity() {
     const [wizardStep, setWizardStep] = useState(1); // 1: Face Registration, 2: Personal, 3: Medical, 4: Payment
     const [faceRegStarted, setFaceRegStarted] = useState(false);
     const [biometricEnrollment, setBiometricEnrollment] = useState(null);
+    const [expansionProfileId, setExpansionProfileId] = useState(() => 'c_' + (auth.currentUser?.uid || 'user') + '_' + Math.random().toString(36).substr(2, 9));
 
     // Form states
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
@@ -297,9 +298,8 @@ export default function CreateIdentity() {
             if (!currentUser) throw new Error("Authentication context lost.");
 
             const uid = currentUser.uid;
-            // Generate unique profile key
-            const uniqueKey = Math.random().toString(36).substr(2, 9);
-            const profileId = `c_${uid}_${uniqueKey}`;
+            // Use same profileId established during Step 1 biometric enrollment
+            const profileId = expansionProfileId || `c_${uid}_${Math.random().toString(36).substr(2, 9)}`;
 
             let scannerType = biometricEnrollment ? 'facial' : 'qr';
 
@@ -580,56 +580,24 @@ export default function CreateIdentity() {
                                 {/* Step 1: Face Verification */}
                                 {wizardStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
-                                        {!faceRegStarted ? (
-                                            <div className="py-8 px-4 text-center space-y-6 max-w-md mx-auto">
-                                                <div className="w-20 h-20 bg-primary/10 border-2 border-primary/30 text-primary rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-primary/20">
-                                                    <Camera size={36} />
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-primary block mb-1 font-poppins">
-                                                        RESQR
-                                                    </span>
-                                                    <h3 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                                        FACE VERIFICATION
-                                                    </h3>
-                                                    <p className="text-xs font-black uppercase tracking-widest text-slate-500 mt-1">
-                                                        Step 1 of 4
-                                                    </p>
-                                                </div>
-                                                <div className="space-y-3 text-slate-400 text-xs leading-relaxed">
-                                                    <p className="font-bold text-slate-200">
-                                                        Create your secure identity profile.
-                                                    </p>
-                                                    <p>
-                                                        We need three facial views to help verify your identity during authorized medical access.
-                                                    </p>
-                                                </div>
-                                                <div className="pt-4">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setFaceRegStarted(true)}
-                                                        className="w-full py-4 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-xl shadow-primary/25 transition-all active:scale-95 cursor-pointer"
-                                                    >
-                                                        START FACE REGISTRATION
-                                                        <ArrowRight size={16} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                <FaceEnrollmentWizard
-                                                    onComplete={(bioProfile) => {
-                                                        setBiometricEnrollment(bioProfile);
-                                                        if (bioProfile?.frontPhotoSnapshot) {
-                                                            setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
-                                                        }
-                                                        toast.success("✓ Facial biometric profile enrolled successfully!");
-                                                        setWizardStep(2);
-                                                    }}
-                                                    onCancel={() => setFaceRegStarted(false)}
-                                                />
-                                            </div>
-                                        )}
+                                        <FaceEnrollmentWizard
+                                            uid={auth.currentUser?.uid}
+                                            profileId={expansionProfileId}
+                                            stepNumber={1}
+                                            totalSteps={4}
+                                            onComplete={(bioProfile) => {
+                                                setBiometricEnrollment(bioProfile);
+                                                if (bioProfile?.frontPhotoSnapshot) {
+                                                    setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                }
+                                                toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                setWizardStep(2);
+                                            }}
+                                            onCancel={() => {
+                                                setSelectedType(null);
+                                                setWizardStep(1);
+                                            }}
+                                        />
                                     </div>
                                 )}
 

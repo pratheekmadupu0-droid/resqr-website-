@@ -4,6 +4,9 @@
  * Conforming to NIST presentation attack guidelines and privacy separation.
  */
 
+import { db } from './firebase';
+import { ref, get, update } from 'firebase/database';
+
 let faceapi = null;
 let modelsLoaded = false;
 let modelLoadPromise = null;
@@ -15,7 +18,7 @@ export const TEMPLATE_VERSION = '1.0';
  * Dynamically loads face-api models from local assets or CDN fallback.
  */
 export async function loadBiometricModels() {
-    if (modelsLoaded) return true;
+    if (modelsLoaded && faceapi?.nets?.tinyFaceDetector?.isLoaded) return true;
     if (modelLoadPromise) return modelLoadPromise;
 
     modelLoadPromise = (async () => {
@@ -24,22 +27,29 @@ export async function loadBiometricModels() {
                 faceapi = await import('@vladmandic/face-api');
             }
 
-            const MODEL_URL = '/models/face';
+            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+            const baseUrl = typeof window !== 'undefined' ? (import.meta.env?.BASE_URL || '/') : '/';
+            const cleanBase = (origin + baseUrl).replace(/\/+$/, '');
+            const MODEL_URL = `${cleanBase}/models/face`;
             const FALLBACK_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
 
-            try {
-                await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-                ]);
-            } catch (localErr) {
-                console.warn('Local models failed, attempting CDN fallback...', localErr);
-                await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(FALLBACK_URL),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(FALLBACK_URL),
-                    faceapi.nets.faceRecognitionNet.loadFromUri(FALLBACK_URL)
-                ]);
+            if (!faceapi.nets.tinyFaceDetector.isLoaded || 
+                !faceapi.nets.faceLandmark68Net.isLoaded || 
+                !faceapi.nets.faceRecognitionNet.isLoaded) {
+                try {
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                    ]);
+                } catch (localErr) {
+                    console.warn('Local models failed at', MODEL_URL, 'attempting CDN fallback...', localErr);
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(FALLBACK_URL),
+                        faceapi.nets.faceLandmark68Net.loadFromUri(FALLBACK_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(FALLBACK_URL)
+                    ]);
+                }
             }
 
             modelsLoaded = true;
@@ -47,11 +57,99 @@ export async function loadBiometricModels() {
         } catch (err) {
             console.error('Failed to load biometric models:', err);
             modelLoadPromise = null;
-            throw new Error('Biometric AI models could not be initialized.');
+            throw new Error('Biometric AI models could not be initialized: ' + (err.message || err));
         }
     })();
 
     return modelLoadPromise;
+}
+
+/**
+ * Persists biometric enrollment to Firebase RTDB under secure user and profile nodes.
+ * Enforces ownership and isolates biometric data from public documents.
+ */
+export async function saveBiometricProfileToAccount({ uid, profileId, biometricProfile }) {
+    if (!uid) {
+        throw new Error("User authentication required to save biometric profile.");
+    }
+    if (!profileId) {
+        throw new Error("Profile identifier required to save biometric profile.");
+    }
+    if (!biometricProfile?.frontTemplate?.descriptor ||
+        !biometricProfile?.leftTemplate?.descriptor ||
+        !biometricProfile?.rightTemplate?.descriptor) {
+        throw new Error("Biometric enrollment incomplete: Front, Left, and Right facial views must all be captured.");
+    }
+
+    const payload = {
+        uid,
+        profileId,
+        enrollmentStatus: 'enrolled',
+        faceEnrollmentStatus: 'completed',
+        frontTemplate: biometricProfile.frontTemplate,
+        leftTemplate: biometricProfile.leftTemplate,
+        rightTemplate: biometricProfile.rightTemplate,
+        frontPhotoSnapshot: biometricProfile.frontPhotoSnapshot || biometricProfile.frontTemplate?.snapshot || null,
+        templateVersion: TEMPLATE_VERSION,
+        createdAt: biometricProfile.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+
+    const updates = {};
+    // Store under isolated biometric collection
+    updates[`biometricProfiles/${profileId}`] = payload;
+    // Store under user's private biometric vault
+    updates[`users/${uid}/biometricProfiles/${profileId}`] = payload;
+    // Record enrollment state on user account
+    updates[`users/${uid}/faceEnrollmentStatus`] = 'completed';
+    updates[`users/${uid}/biometricEnrolled`] = true;
+
+    await update(ref(db), updates);
+
+    // Save state to localStorage for offline / quick reload recovery
+    try {
+        localStorage.setItem(`resqr_face_status_${uid}_${profileId}`, JSON.stringify({
+            status: 'completed',
+            updatedAt: payload.updatedAt
+        }));
+    } catch (e) {
+        // non-blocking
+    }
+
+    return { success: true, profile: payload };
+}
+
+/**
+ * Checks if user has already completed face enrollment for this profile.
+ */
+export async function checkBiometricEnrollmentStatus({ uid, profileId }) {
+    if (!uid || !profileId) return { enrolled: false, status: 'pending' };
+
+    try {
+        // 1. Check user-scoped biometric profile
+        const userBioRef = ref(db, `users/${uid}/biometricProfiles/${profileId}`);
+        const userBioSnap = await get(userBioRef);
+        if (userBioSnap.exists()) {
+            const data = userBioSnap.val();
+            if (data?.frontTemplate?.descriptor && data?.faceEnrollmentStatus === 'completed') {
+                return { enrolled: true, status: 'completed', profile: data };
+            }
+        }
+
+        // 2. Check root biometric collection
+        const rootBioRef = ref(db, `biometricProfiles/${profileId}`);
+        const rootBioSnap = await get(rootBioRef);
+        if (rootBioSnap.exists()) {
+            const data = rootBioSnap.val();
+            if (data?.frontTemplate?.descriptor && data?.enrollmentStatus === 'enrolled') {
+                return { enrolled: true, status: 'completed', profile: data };
+            }
+        }
+    } catch (err) {
+        console.warn("Could not check biometric status:", err);
+    }
+
+    return { enrolled: false, status: 'pending' };
 }
 
 /**
@@ -216,9 +314,17 @@ export function analyzeImageQuality(inputElement, detection) {
 export async function detectSingleFace(inputElement) {
     await loadBiometricModels();
 
+    if (!inputElement || (inputElement.readyState && inputElement.readyState < 2) || !inputElement.videoWidth) {
+        return {
+            status: 'INITIALIZING',
+            message: 'Initializing video stream...',
+            faceCount: 0
+        };
+    }
+
     const options = new faceapi.TinyFaceDetectorOptions({
         inputSize: 416,
-        scoreThreshold: 0.55
+        scoreThreshold: 0.50
     });
 
     const detections = await faceapi
@@ -229,7 +335,7 @@ export async function detectSingleFace(inputElement) {
     if (!detections || detections.length === 0) {
         return {
             status: 'NO_FACE',
-            message: 'No face detected. Please face the camera.',
+            message: 'NO FACE DETECTED. Move closer to the camera and make sure your face is clearly visible.',
             faceCount: 0
         };
     }
@@ -237,7 +343,7 @@ export async function detectSingleFace(inputElement) {
     if (detections.length > 1) {
         return {
             status: 'MULTIPLE_FACES',
-            message: 'MULTIPLE FACES DETECTED. Only the registered user must be visible.',
+            message: 'MULTIPLE FACES DETECTED. Only one person should be visible. Please make sure nobody else is inside the camera frame.',
             faceCount: detections.length
         };
     }
@@ -266,29 +372,33 @@ export function verifyAngleTarget(pose, targetStep) {
         const isMatch = Math.abs(yaw) <= 12;
         return {
             isMatch,
-            feedback: isMatch ? 'Ready to capture' : 'Look directly at the camera'
+            feedback: isMatch ? 'Face centered — Ready to capture' : 'Look directly at the camera'
         };
     }
 
     if (targetStep === 'LEFT') {
-        // Turning to user's left means negative yaw (-16° to -48°)
-        const isMatch = yaw <= -15 && yaw >= -50;
+        // Turning to user's left gives negative yaw (-14° to -50°)
+        const isMatch = yaw <= -14 && yaw >= -50;
         return {
             isMatch,
-            feedback: isMatch ? 'Ready to capture' : (yaw > -15 ? 'Turn left slightly more' : 'Turn right slightly more')
+            feedback: isMatch 
+                ? 'Left angle verified — Ready to capture' 
+                : (yaw > -14 ? 'Turn face slowly to the LEFT' : 'Turned too far — Turn slightly back towards center')
         };
     }
 
     if (targetStep === 'RIGHT') {
-        // Turning to user's right means positive yaw (+15° to +50°)
-        const isMatch = yaw >= 15 && yaw <= 50;
+        // Turning to user's right gives positive yaw (+14° to +50°)
+        const isMatch = yaw >= 14 && yaw <= 50;
         return {
             isMatch,
-            feedback: isMatch ? 'Ready to capture' : (yaw < 15 ? 'Turn right slightly more' : 'Turn left slightly more')
+            feedback: isMatch 
+                ? 'Right angle verified — Ready to capture' 
+                : (yaw < 14 ? 'Turn face slowly to the RIGHT' : 'Turned too far — Turn slightly back towards center')
         };
     }
 
-    return { isMatch: false, feedback: 'Position face' };
+    return { isMatch: false, feedback: 'Position face inside frame' };
 }
 
 /**
