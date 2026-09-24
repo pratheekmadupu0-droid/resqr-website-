@@ -27,6 +27,14 @@ export async function loadBiometricModels() {
                 faceapi = await import('@vladmandic/face-api');
             }
 
+            if (faceapi.tf?.ready) {
+                try {
+                    await faceapi.tf.ready();
+                } catch (tfErr) {
+                    console.warn('TensorFlow backend init warning:', tfErr);
+                }
+            }
+
             const origin = typeof window !== 'undefined' ? window.location.origin : '';
             const baseUrl = typeof window !== 'undefined' ? (import.meta.env?.BASE_URL || '/') : '/';
             const cleanBase = (origin + baseUrl).replace(/\/+$/, '');
@@ -36,19 +44,33 @@ export async function loadBiometricModels() {
             if (!faceapi.nets.tinyFaceDetector.isLoaded || 
                 !faceapi.nets.faceLandmark68Net.isLoaded || 
                 !faceapi.nets.faceRecognitionNet.isLoaded) {
-                try {
-                    await Promise.all([
-                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-                    ]);
-                } catch (localErr) {
-                    console.warn('Local models failed at', MODEL_URL, 'attempting CDN fallback...', localErr);
-                    await Promise.all([
-                        faceapi.nets.tinyFaceDetector.loadFromUri(FALLBACK_URL),
-                        faceapi.nets.faceLandmark68Net.loadFromUri(FALLBACK_URL),
-                        faceapi.nets.faceRecognitionNet.loadFromUri(FALLBACK_URL)
-                    ]);
+                
+                const candidateUrls = [
+                    '/models/face',
+                    MODEL_URL,
+                    FALLBACK_URL
+                ];
+
+                let loaded = false;
+                let lastErr = null;
+
+                for (const url of candidateUrls) {
+                    try {
+                        await Promise.all([
+                            faceapi.nets.tinyFaceDetector.loadFromUri(url),
+                            faceapi.nets.faceLandmark68Net.loadFromUri(url),
+                            faceapi.nets.faceRecognitionNet.loadFromUri(url)
+                        ]);
+                        loaded = true;
+                        break;
+                    } catch (loadErr) {
+                        lastErr = loadErr;
+                        console.warn(`Could not load models from ${url}, trying fallback...`, loadErr);
+                    }
+                }
+
+                if (!loaded) {
+                    throw lastErr || new Error('Biometric AI models could not be loaded from any source');
                 }
             }
 
@@ -215,9 +237,9 @@ export function analyzeImageQuality(inputElement, detection) {
     const imgW = inputElement.videoWidth || inputElement.width || 640;
     const imgH = inputElement.videoHeight || inputElement.height || 480;
 
-    // Boundary check: is the face inside the frame?
-    const marginX = imgW * 0.05;
-    const marginY = imgH * 0.05;
+    // Boundary check: is the face inside the frame? (2% margin to avoid false out-of-frame on head turns)
+    const marginX = imgW * 0.02;
+    const marginY = imgH * 0.02;
     const isInsideFrame = (
         box.x >= marginX &&
         box.y >= marginY &&
@@ -225,10 +247,10 @@ export function analyzeImageQuality(inputElement, detection) {
         (box.y + box.height) <= (imgH - marginY)
     );
 
-    // Proximity check: is the face too small?
+    // Proximity check: is the face too small or too huge?
     const faceHeightRatio = box.height / imgH;
-    const isTooFar = faceHeightRatio < 0.22;
-    const isTooClose = faceHeightRatio > 0.85;
+    const isTooFar = faceHeightRatio < 0.15;
+    const isTooClose = faceHeightRatio > 0.90;
 
     // Extract face ROI for luminance & sharpness
     let meanLuminance = 128;
@@ -266,9 +288,9 @@ export function analyzeImageQuality(inputElement, detection) {
         // Fallback if canvas extraction restricted
     }
 
-    const isTooDark = meanLuminance < 45;
-    const isTooBright = meanLuminance > 225;
-    const isBlurry = blurScore < 15;
+    const isTooDark = meanLuminance < 25;
+    const isTooBright = meanLuminance > 240;
+    const isBlurry = blurScore < 5;
 
     let qualityStatus = 'GOOD';
     let qualityMessage = 'Position verified.';
@@ -324,7 +346,7 @@ export async function detectSingleFace(inputElement) {
 
     const options = new faceapi.TinyFaceDetectorOptions({
         inputSize: 416,
-        scoreThreshold: 0.50
+        scoreThreshold: 0.35
     });
 
     const detections = await faceapi
@@ -369,7 +391,7 @@ export function verifyAngleTarget(pose, targetStep) {
     const yaw = pose.yaw;
 
     if (targetStep === 'FRONT') {
-        const isMatch = Math.abs(yaw) <= 12;
+        const isMatch = Math.abs(yaw) <= 15;
         return {
             isMatch,
             feedback: isMatch ? 'Face centered — Ready to capture' : 'Look directly at the camera'
@@ -377,24 +399,24 @@ export function verifyAngleTarget(pose, targetStep) {
     }
 
     if (targetStep === 'LEFT') {
-        // Turning to user's left gives negative yaw (-14° to -50°)
-        const isMatch = yaw <= -14 && yaw >= -50;
+        // Turning to user's left gives negative yaw (-10° to -55°)
+        const isMatch = yaw <= -10 && yaw >= -55;
         return {
             isMatch,
             feedback: isMatch 
                 ? 'Left angle verified — Ready to capture' 
-                : (yaw > -14 ? 'Turn face slowly to the LEFT' : 'Turned too far — Turn slightly back towards center')
+                : (yaw > -10 ? 'Turn face slowly to the LEFT' : 'Turned too far — Turn slightly back towards center')
         };
     }
 
     if (targetStep === 'RIGHT') {
-        // Turning to user's right gives positive yaw (+14° to +50°)
-        const isMatch = yaw >= 14 && yaw <= 50;
+        // Turning to user's right gives positive yaw (+10° to +55°)
+        const isMatch = yaw >= 10 && yaw <= 55;
         return {
             isMatch,
             feedback: isMatch 
                 ? 'Right angle verified — Ready to capture' 
-                : (yaw < 14 ? 'Turn face slowly to the RIGHT' : 'Turned too far — Turn slightly back towards center')
+                : (yaw < 10 ? 'Turn face slowly to the RIGHT' : 'Turned too far — Turn slightly back towards center')
         };
     }
 

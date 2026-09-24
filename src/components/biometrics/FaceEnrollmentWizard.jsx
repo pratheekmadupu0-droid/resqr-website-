@@ -5,6 +5,7 @@ import {
     X, Sparkles, Loader2, ArrowRight, Eye, ShieldAlert, SwitchCamera,
     Lock, Check, AlertCircle
 } from 'lucide-react';
+import { auth } from '../../lib/firebase';
 import { 
     detectSingleFace, 
     verifyAngleTarget, 
@@ -53,7 +54,12 @@ export default function FaceEnrollmentWizard({
     const [blinkDetected, setBlinkDetected] = useState(false);
     const earHistoryRef = useRef([]);
 
-    // Enrolled views storage
+    // Enrolled views storage & template reference (ref prevents stale closures)
+    const templatesRef = useRef({
+        front: null,
+        left: null,
+        right: null
+    });
     const [enrolledTemplates, setEnrolledTemplates] = useState({
         front: null,
         left: null,
@@ -66,22 +72,46 @@ export default function FaceEnrollmentWizard({
     const [saveError, setSaveError] = useState(null);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
+    // Stop active camera media stream
+    const stopCameraStream = useCallback(() => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => {
+                try {
+                    track.stop();
+                } catch (e) {}
+            });
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            try {
+                videoRef.current.srcObject = null;
+            } catch (e) {}
+        }
+        setCameraActive(false);
+    }, []);
+
     // 1. Initial mount: check if face profile already exists in DB / localStorage
     useEffect(() => {
         let isMounted = true;
 
         const checkExisting = async () => {
-            if (uid && profileId) {
+            const currentAuthUid = auth?.currentUser?.uid;
+            const targetUid = uid || currentAuthUid;
+            const targetPid = profileId || (currentAuthUid ? `c_${currentAuthUid}` : null);
+
+            if (targetUid && targetPid) {
                 try {
-                    const result = await checkBiometricEnrollmentStatus({ uid, profileId });
+                    const result = await checkBiometricEnrollmentStatus({ uid: targetUid, profileId: targetPid });
                     if (!isMounted) return;
                     if (result.enrolled && result.profile) {
                         setFinalBiometricProfile(result.profile);
-                        setEnrolledTemplates({
+                        const existing = {
                             front: result.profile.frontTemplate || null,
                             left: result.profile.leftTemplate || null,
                             right: result.profile.rightTemplate || null
-                        });
+                        };
+                        templatesRef.current = existing;
+                        setEnrolledTemplates(existing);
                         setUiStage('ALREADY_COMPLETED');
                         return;
                     }
@@ -111,7 +141,49 @@ export default function FaceEnrollmentWizard({
             isMounted = false;
             stopCameraStream();
         };
-    }, [uid, profileId]);
+    }, [uid, profileId, stopCameraStream]);
+
+    // Robust video stream attachment helper
+    const attachStreamToVideo = useCallback((videoElement) => {
+        if (!videoElement || !streamRef.current) return;
+
+        if (videoElement.srcObject !== streamRef.current) {
+            videoElement.srcObject = streamRef.current;
+        }
+
+        const playVideo = async () => {
+            try {
+                await videoElement.play();
+                setCameraActive(true);
+            } catch (err) {
+                console.warn("Autoplay deferred or handled:", err);
+                setCameraActive(true);
+            }
+        };
+
+        videoElement.onloadedmetadata = () => {
+            playVideo();
+        };
+
+        if (videoElement.readyState >= 1) {
+            playVideo();
+        }
+    }, []);
+
+    // Callback ref for the <video> element to handle mounting cleanly
+    const setVideoRef = useCallback((node) => {
+        videoRef.current = node;
+        if (node && streamRef.current) {
+            attachStreamToVideo(node);
+        }
+    }, [attachStreamToVideo]);
+
+    // Ensure stream is attached whenever uiStage switches to CAMERA_ACTIVE
+    useEffect(() => {
+        if (uiStage === 'CAMERA_ACTIVE' && videoRef.current && streamRef.current) {
+            attachStreamToVideo(videoRef.current);
+        }
+    }, [uiStage, attachStreamToVideo]);
 
     // Handle tab visibility change (stop camera if user switches tab)
     useEffect(() => {
@@ -125,25 +197,7 @@ export default function FaceEnrollmentWizard({
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [uiStage]);
-
-    // Stop active camera media stream
-    const stopCameraStream = useCallback(() => {
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => {
-                try {
-                    track.stop();
-                } catch (e) {}
-            });
-            streamRef.current = null;
-        }
-        if (videoRef.current) {
-            try {
-                videoRef.current.srcObject = null;
-            } catch (e) {}
-        }
-        setCameraActive(false);
-    }, []);
+    }, [uiStage, stopCameraStream]);
 
     // Request Camera Permission and Start Stream
     const handleEnableCamera = async () => {
@@ -185,17 +239,9 @@ export default function FaceEnrollmentWizard({
 
             setUiStage('CAMERA_ACTIVE');
 
-            // Attach stream to video element
+            // Attach stream immediately if video element is already mounted
             if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.onloadedmetadata = async () => {
-                    try {
-                        await videoRef.current.play();
-                    } catch (playErr) {
-                        console.warn("Video play triggered automatically:", playErr);
-                    }
-                    setCameraActive(true);
-                };
+                attachStreamToVideo(videoRef.current);
             }
         } catch (err) {
             console.error("Camera access error:", err);
@@ -212,13 +258,11 @@ export default function FaceEnrollmentWizard({
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
                     streamRef.current = fallbackStream;
+                    setUiStage('CAMERA_ACTIVE');
                     if (videoRef.current) {
-                        videoRef.current.srcObject = fallbackStream;
-                        await videoRef.current.play().catch(() => {});
-                        setCameraActive(true);
-                        setUiStage('CAMERA_ACTIVE');
-                        return;
+                        attachStreamToVideo(videoRef.current);
                     }
+                    return;
                 } catch (fbErr) {
                     setCameraErrorType('STREAM_FAILURE');
                 }
@@ -305,11 +349,15 @@ export default function FaceEnrollmentWizard({
                             setStatusMessage(angleCheck.feedback);
                         } else {
                             setFaceStatus('READY');
-                            setStatusMessage(
-                                currentStep === 'FRONT' && !blinkDetected
-                                    ? 'Blink your eyes to confirm live presence'
-                                    : `✓ ${currentStep} FACE READY TO CAPTURE`
-                            );
+                            if (currentStep === 'FRONT') {
+                                setStatusMessage(
+                                    blinkDetected
+                                        ? '✓ LIVENESS CONFIRMED — READY TO CAPTURE'
+                                        : '✓ FRONT FACE READY TO CAPTURE'
+                                );
+                            } else {
+                                setStatusMessage(`✓ ${currentStep} FACE READY TO CAPTURE`);
+                            }
                         }
 
                         // Cache latest detection on video element for capture
@@ -339,8 +387,8 @@ export default function FaceEnrollmentWizard({
 
         const bio = video._latestBiometric;
 
-        if (!bio.quality.isAcceptable) {
-            toast.error(bio.quality.qualityMessage || "Face quality too low. Please improve lighting and position.");
+        if (!bio.quality?.isAcceptable) {
+            toast.error(bio.quality?.qualityMessage || "Face quality too low. Please improve lighting and position.");
             return;
         }
 
@@ -385,18 +433,22 @@ export default function FaceEnrollmentWizard({
             };
 
             if (currentStep === 'FRONT') {
+                templatesRef.current.front = template;
                 setEnrolledTemplates(prev => ({ ...prev, front: template }));
                 toast.success("✓ FRONT FACE CAPTURED");
                 setCurrentStep('LEFT');
                 setStatusMessage('Turn your face slowly to the LEFT.');
             } else if (currentStep === 'LEFT') {
+                templatesRef.current.left = template;
                 setEnrolledTemplates(prev => ({ ...prev, left: template }));
                 toast.success("✓ LEFT PROFILE CAPTURED");
                 setCurrentStep('RIGHT');
                 setStatusMessage('Turn your face slowly to the RIGHT.');
             } else if (currentStep === 'RIGHT') {
+                templatesRef.current.right = template;
                 const completeTemplates = {
-                    ...enrolledTemplates,
+                    front: templatesRef.current.front,
+                    left: templatesRef.current.left,
                     right: template
                 };
                 setEnrolledTemplates(completeTemplates);
@@ -436,8 +488,9 @@ export default function FaceEnrollmentWizard({
         const toastId = toast.loading("Creating secure facial profile...");
 
         try {
-            const targetUid = uid || 'guest_user';
-            const targetPid = profileId || `c_${targetUid}`;
+            const currentAuthUid = auth?.currentUser?.uid;
+            const targetUid = uid || currentAuthUid || 'guest_user';
+            const targetPid = profileId || (currentAuthUid ? `c_${currentAuthUid}` : `c_${targetUid}`);
 
             const saveResult = await saveBiometricProfileToAccount({
                 uid: targetUid,
@@ -469,6 +522,7 @@ export default function FaceEnrollmentWizard({
     // 5. Reset / Re-enroll
     const handleReEnroll = () => {
         stopCameraStream();
+        templatesRef.current = { front: null, left: null, right: null };
         setEnrolledTemplates({ front: null, left: null, right: null });
         setFinalBiometricProfile(null);
         setCurrentStep('FRONT');
@@ -748,9 +802,9 @@ export default function FaceEnrollmentWizard({
 
                     {/* Camera Viewport with Oval HUD */}
                     <div className="relative aspect-[4/3] w-full max-w-md mx-auto rounded-[32px] overflow-hidden bg-black/80 border border-white/15 flex items-center justify-center shadow-inner">
-                        {/* Video Element */}
+                        {/* Video Element with callback ref for immediate stream attachment */}
                         <video
-                            ref={videoRef}
+                            ref={setVideoRef}
                             autoPlay
                             playsInline
                             muted
@@ -796,7 +850,7 @@ export default function FaceEnrollmentWizard({
                             <span className={`text-[10px] font-mono font-black ${
                                 isAngleAligned ? 'text-emerald-400' : 'text-slate-300'
                             }`}>
-                                {yawAngle > 0 ? `+${yawAngle}° R` : `${yawAngle}° L`}
+                                {Math.abs(yawAngle)}° {yawAngle > 2 ? 'R' : yawAngle < -2 ? 'L' : 'Center'}
                             </span>
                         </div>
 
