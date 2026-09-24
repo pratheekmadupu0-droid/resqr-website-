@@ -237,20 +237,18 @@ export function analyzeImageQuality(inputElement, detection) {
     const imgW = inputElement.videoWidth || inputElement.width || 640;
     const imgH = inputElement.videoHeight || inputElement.height || 480;
 
-    // Boundary check: is the face inside the frame? (2% margin to avoid false out-of-frame on head turns)
-    const marginX = imgW * 0.02;
-    const marginY = imgH * 0.02;
+    // Boundary check: is the face sufficiently inside the visible frame?
     const isInsideFrame = (
-        box.x >= marginX &&
-        box.y >= marginY &&
-        (box.x + box.width) <= (imgW - marginX) &&
-        (box.y + box.height) <= (imgH - marginY)
+        (box.x + box.width * 0.7) >= 0 &&
+        (box.x + box.width * 0.3) <= imgW &&
+        (box.y + box.height * 0.7) >= 0 &&
+        (box.y + box.height * 0.3) <= imgH
     );
 
     // Proximity check: is the face too small or too huge?
     const faceHeightRatio = box.height / imgH;
-    const isTooFar = faceHeightRatio < 0.15;
-    const isTooClose = faceHeightRatio > 0.90;
+    const isTooFar = faceHeightRatio < 0.10;
+    const isTooClose = faceHeightRatio > 0.95;
 
     // Extract face ROI for luminance & sharpness
     let meanLuminance = 128;
@@ -260,7 +258,7 @@ export function analyzeImageQuality(inputElement, detection) {
         canvas.width = Math.max(32, Math.floor(box.width));
         canvas.height = Math.max(32, Math.floor(box.height));
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(inputElement, box.x, box.y, box.width, box.height, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(inputElement, Math.max(0, box.x), Math.max(0, box.y), box.width, box.height, 0, 0, canvas.width, canvas.height);
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imgData.data;
 
@@ -288,9 +286,9 @@ export function analyzeImageQuality(inputElement, detection) {
         // Fallback if canvas extraction restricted
     }
 
-    const isTooDark = meanLuminance < 25;
-    const isTooBright = meanLuminance > 240;
-    const isBlurry = blurScore < 5;
+    const isTooDark = meanLuminance < 15;
+    const isTooBright = meanLuminance > 250;
+    const isBlurry = blurScore < 2;
 
     let qualityStatus = 'GOOD';
     let qualityMessage = 'Position verified.';
@@ -346,7 +344,7 @@ export async function detectSingleFace(inputElement) {
 
     const options = new faceapi.TinyFaceDetectorOptions({
         inputSize: 416,
-        scoreThreshold: 0.35
+        scoreThreshold: 0.25
     });
 
     const detections = await faceapi
@@ -386,8 +384,9 @@ export async function detectSingleFace(inputElement) {
 
 /**
  * Verifies target angle (Front, Left, Right) with quality criteria.
+ * Supports natural turns (6° to 50°) and handles user's perspective cleanly.
  */
-export function verifyAngleTarget(pose, targetStep) {
+export function verifyAngleTarget(pose, targetStep, firstSideSign = null) {
     const yaw = pose.yaw;
 
     if (targetStep === 'FRONT') {
@@ -399,24 +398,32 @@ export function verifyAngleTarget(pose, targetStep) {
     }
 
     if (targetStep === 'LEFT') {
-        // Turning to user's left gives negative yaw (-10° to -55°)
-        const isMatch = yaw <= -10 && yaw >= -55;
+        // Natural gentle turn (6° to 50°) to either side, recording orientation
+        const absYaw = Math.abs(yaw);
+        const isMatch = absYaw >= 6 && absYaw <= 50;
         return {
             isMatch,
+            turnSign: yaw < 0 ? -1 : 1,
             feedback: isMatch 
-                ? 'Left angle verified — Ready to capture' 
-                : (yaw > -10 ? 'Turn face slowly to the LEFT' : 'Turned too far — Turn slightly back towards center')
+                ? 'Left angle detected — Ready to capture' 
+                : (absYaw < 6 ? 'Turn your head slightly to the LEFT (←)' : 'Turned too far — Turn slightly back towards center')
         };
     }
 
     if (targetStep === 'RIGHT') {
-        // Turning to user's right gives positive yaw (+10° to +55°)
-        const isMatch = yaw >= 10 && yaw <= 55;
+        const absYaw = Math.abs(yaw);
+        // If firstSideSign is provided, require the opposite turn direction
+        const isOpposite = firstSideSign ? (yaw * firstSideSign < 0) : true;
+        const isMatch = absYaw >= 6 && absYaw <= 50 && isOpposite;
+
         return {
             isMatch,
+            turnSign: yaw < 0 ? -1 : 1,
             feedback: isMatch 
-                ? 'Right angle verified — Ready to capture' 
-                : (yaw < 10 ? 'Turn face slowly to the RIGHT' : 'Turned too far — Turn slightly back towards center')
+                ? 'Right angle detected — Ready to capture' 
+                : (!isOpposite && absYaw >= 6)
+                ? 'Turn head to the OTHER side (opposite direction) →'
+                : (absYaw < 6 ? 'Turn your head slightly to the RIGHT (→)' : 'Turned too far — Turn slightly back towards center')
         };
     }
 

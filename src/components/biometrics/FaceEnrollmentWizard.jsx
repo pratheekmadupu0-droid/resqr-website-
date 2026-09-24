@@ -55,6 +55,7 @@ export default function FaceEnrollmentWizard({
     const earHistoryRef = useRef([]);
 
     // Enrolled views storage & template reference (ref prevents stale closures)
+    const firstSideSignRef = useRef(null); // records user's side-turn sign (-1 or 1)
     const templatesRef = useRef({
         front: null,
         left: null,
@@ -337,8 +338,8 @@ export default function FaceEnrollmentWizard({
                         setQualityOk(quality.isAcceptable);
                         setQualityReason(quality.qualityMessage);
 
-                        // Angle alignment check
-                        const angleCheck = verifyAngleTarget(result.pose, currentStep);
+                        // Angle alignment check with direction memory
+                        const angleCheck = verifyAngleTarget(result.pose, currentStep, firstSideSignRef.current);
                         setIsAngleAligned(angleCheck.isMatch);
 
                         if (!quality.isAcceptable) {
@@ -381,21 +382,32 @@ export default function FaceEnrollmentWizard({
     const handleCaptureStep = () => {
         const video = videoRef.current;
         if (!video || !video._latestBiometric) {
-            toast.error("Face not positioned inside frame. Please wait for camera stabilization.");
+            toast.error("Please ensure your face is visible in the camera frame.");
             return;
         }
 
         const bio = video._latestBiometric;
 
-        if (!bio.quality?.isAcceptable) {
-            toast.error(bio.quality?.qualityMessage || "Face quality too low. Please improve lighting and position.");
-            return;
-        }
-
-        const angleCheck = verifyAngleTarget(bio.pose, currentStep);
+        const angleCheck = verifyAngleTarget(bio.pose, currentStep, firstSideSignRef.current);
         if (!angleCheck.isMatch) {
-            toast.error(angleCheck.feedback);
-            return;
+            if (currentStep === 'FRONT' && Math.abs(bio.pose.yaw) > 22) {
+                toast.error("Please look straight into the camera for the front view.");
+                return;
+            }
+            if (currentStep === 'LEFT' && Math.abs(bio.pose.yaw) < 4) {
+                toast.error("Please turn your head slightly to the left.");
+                return;
+            }
+            if (currentStep === 'RIGHT') {
+                if (Math.abs(bio.pose.yaw) < 4) {
+                    toast.error("Please turn your head slightly to the right.");
+                    return;
+                }
+                if (firstSideSignRef.current && bio.pose.yaw * firstSideSignRef.current > 0 && Math.abs(bio.pose.yaw) > 8) {
+                    toast.error("Please turn your head to the opposite side.");
+                    return;
+                }
+            }
         }
 
         setIsCapturing(true);
@@ -437,13 +449,14 @@ export default function FaceEnrollmentWizard({
                 setEnrolledTemplates(prev => ({ ...prev, front: template }));
                 toast.success("✓ FRONT FACE CAPTURED");
                 setCurrentStep('LEFT');
-                setStatusMessage('Turn your face slowly to the LEFT.');
+                setStatusMessage('Turn your head slightly to the LEFT.');
             } else if (currentStep === 'LEFT') {
+                firstSideSignRef.current = bio.pose.yaw < 0 ? -1 : 1;
                 templatesRef.current.left = template;
                 setEnrolledTemplates(prev => ({ ...prev, left: template }));
                 toast.success("✓ LEFT PROFILE CAPTURED");
                 setCurrentStep('RIGHT');
-                setStatusMessage('Turn your face slowly to the RIGHT.');
+                setStatusMessage('Turn your head slightly to the RIGHT.');
             } else if (currentStep === 'RIGHT') {
                 templatesRef.current.right = template;
                 const completeTemplates = {
@@ -522,6 +535,7 @@ export default function FaceEnrollmentWizard({
     // 5. Reset / Re-enroll
     const handleReEnroll = () => {
         stopCameraStream();
+        firstSideSignRef.current = null;
         templatesRef.current = { front: null, left: null, right: null };
         setEnrolledTemplates({ front: null, left: null, right: null });
         setFinalBiometricProfile(null);
@@ -844,6 +858,27 @@ export default function FaceEnrollmentWizard({
                             </div>
                         )}
 
+                        {/* Direction Guidance Indicator */}
+                        {currentStep === 'LEFT' && !isAngleAligned && (
+                            <div className="absolute top-4 left-4 z-20 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-600/90 text-white text-[10px] font-black uppercase tracking-wider shadow-lg animate-pulse">
+                                <span>← Turn Head Slightly to the Left</span>
+                            </div>
+                        )}
+                        {currentStep === 'RIGHT' && !isAngleAligned && (
+                            <div className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-600/90 text-white text-[10px] font-black uppercase tracking-wider shadow-lg animate-pulse">
+                                <span>Turn Head Slightly to the Right →</span>
+                            </div>
+                        )}
+
+                        {/* Ready Bounce Alert */}
+                        {isAngleAligned && qualityOk && (
+                            <div className="absolute bottom-16 inset-x-6 z-30 flex justify-center pointer-events-none">
+                                <div className="px-4 py-2 bg-emerald-500 text-black rounded-2xl text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-2xl animate-bounce">
+                                    <CheckCircle2 size={16} /> Angle Aligned! Click Capture Below
+                                </div>
+                            </div>
+                        )}
+
                         {/* Live Pose Angle Display */}
                         <div className="absolute bottom-4 left-4 z-20 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
                             <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Head Pose</span>
@@ -876,8 +911,8 @@ export default function FaceEnrollmentWizard({
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed font-medium">
                             {currentStep === 'FRONT' && "Look directly at the camera. Keep your face inside the frame."}
-                            {currentStep === 'LEFT' && "Turn your face slowly to the LEFT. Keep your face inside the frame."}
-                            {currentStep === 'RIGHT' && "Turn your face slowly to the RIGHT. Keep your face inside the frame."}
+                            {currentStep === 'LEFT' && "Turn your head slightly to the LEFT. Keep your face inside the frame."}
+                            {currentStep === 'RIGHT' && "Turn your head slightly to the RIGHT. Keep your face inside the frame."}
                         </p>
                         <p className={`text-xs font-black uppercase tracking-widest transition-colors ${
                             faceStatus === 'ERROR' ? 'text-red-400' :
@@ -894,11 +929,15 @@ export default function FaceEnrollmentWizard({
                         <button
                             type="button"
                             onClick={handleCaptureStep}
-                            disabled={!cameraActive || !isAngleAligned || !qualityOk || isCapturing || multipleFaces}
+                            disabled={!cameraActive || faceStatus === 'SEARCHING' || isCapturing || multipleFaces}
                             className={`w-full max-w-sm py-4 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl transition-all ${
-                                isAngleAligned && qualityOk && !isCapturing && !multipleFaces
-                                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/30 scale-100 active:scale-95 cursor-pointer'
-                                    : 'bg-white/10 text-slate-500 cursor-not-allowed'
+                                isCapturing
+                                    ? 'bg-white/10 text-slate-400 cursor-wait'
+                                    : multipleFaces || !cameraActive || faceStatus === 'SEARCHING'
+                                    ? 'bg-white/10 text-slate-500 cursor-not-allowed'
+                                    : isAngleAligned && qualityOk
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-500/25 scale-100 active:scale-95 cursor-pointer ring-2 ring-emerald-400/50'
+                                    : 'bg-red-600 hover:bg-red-500 text-white shadow-lg shadow-red-600/20 active:scale-95 cursor-pointer'
                             }`}
                         >
                             {isCapturing ? (
@@ -909,9 +948,9 @@ export default function FaceEnrollmentWizard({
                             ) : (
                                 <>
                                     <Camera size={16} />
-                                    {currentStep === 'FRONT' && "CAPTURE FRONT FACE"}
-                                    {currentStep === 'LEFT' && "CAPTURE LEFT PROFILE"}
-                                    {currentStep === 'RIGHT' && "CAPTURE RIGHT PROFILE"}
+                                    {currentStep === 'FRONT' && (isAngleAligned ? "✓ CAPTURE FRONT FACE (READY)" : "CAPTURE FRONT FACE")}
+                                    {currentStep === 'LEFT' && (isAngleAligned ? "✓ CAPTURE LEFT PROFILE (READY)" : "CAPTURE LEFT PROFILE")}
+                                    {currentStep === 'RIGHT' && (isAngleAligned ? "✓ CAPTURE RIGHT PROFILE (READY)" : "CAPTURE RIGHT PROFILE")}
                                 </>
                             )}
                         </button>
