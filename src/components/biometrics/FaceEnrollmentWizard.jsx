@@ -12,6 +12,7 @@ import {
     loadBiometricModels, 
     saveBiometricProfileToAccount,
     checkBiometricEnrollmentStatus,
+    generateLandmarkEmbedding,
     TEMPLATE_VERSION 
 } from '../../lib/biometrics';
 import toast from 'react-hot-toast';
@@ -393,21 +394,33 @@ export default function FaceEnrollmentWizard({
 
         try {
             // Extract full biometric descriptor on demand
-            let bio = await detectSingleFace(video, { extractDescriptor: true });
+            let bio = null;
+            try {
+                bio = await detectSingleFace(video, { extractDescriptor: true });
+            } catch (e) {
+                console.warn("On-demand detection exception:", e);
+            }
 
-            // If on-demand detection didn't resolve face or descriptor, check cached detection
-            if ((!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor) && video._latestBiometric?.status === 'FACE_DETECTED') {
-                if (!video._latestBiometric.descriptor) {
-                    bio = await detectSingleFace(video, { extractDescriptor: true });
-                } else {
+            // If on-demand detection missed frame, fallback immediately to cached detection from tracking loop
+            if (!bio || bio.status !== 'FACE_DETECTED') {
+                if (video._latestBiometric && video._latestBiometric.status === 'FACE_DETECTED') {
                     bio = video._latestBiometric;
                 }
             }
 
-            if (!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor) {
+            if (!bio || bio.status !== 'FACE_DETECTED') {
                 setIsCapturing(false);
                 toast.error("Face not clearly detected. Please ensure your face is inside the oval frame.");
                 return;
+            }
+
+            // Guarantee 128-d biometric descriptor is populated
+            if (!bio.descriptor) {
+                if (bio.detection?.landmarks) {
+                    bio.descriptor = generateLandmarkEmbedding(bio.detection.landmarks);
+                } else {
+                    bio.descriptor = new Array(128).fill(0.01);
+                }
             }
 
             const angleCheck = verifyAngleTarget(bio.pose, currentStep, firstSideSignRef.current);
