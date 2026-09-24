@@ -243,3 +243,124 @@ export async function logMedicalAccessAudit(entry) {
         console.warn("Failed to write medical audit log:", err);
     }
 }
+
+const PUBLIC_QR_JWT_SECRET = 'resqr_public_emergency_access_sec_key_2026';
+const PUBLIC_SESSION_EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * 1:1 Biometric Verification for Public QR Scanner before emergency profile access.
+ * Compares probe descriptor against the specific QR user's enrolled biometric profile.
+ * Does NOT compare against whole database.
+ * Does NOT lower threshold (strict <= 0.45).
+ */
+export async function verifyPublicEmergencyAccess({
+    probeDescriptor,
+    patientId,
+    qrId,
+    padScore = 0.8
+}) {
+    if (!probeDescriptor || !patientId) {
+        return { verified: false, error: 'Probe descriptor and QR ID required.' };
+    }
+
+    try {
+        // Retrieve candidate's enrolled biometric profile
+        let bioSnap = await get(ref(db, `biometricProfiles/${patientId}`));
+        if (!bioSnap.exists()) {
+            const uid = patientId.includes('_') ? (patientId.startsWith('c_') ? patientId.replace('c_', '') : patientId.split('_')[0]) : patientId;
+            bioSnap = await get(ref(db, `users/${uid}/biometricProfiles/${patientId}`));
+        }
+
+        const bio = bioSnap.exists() ? bioSnap.val() : null;
+        if (!bio || (!bio.frontTemplate?.descriptor && !bio.leftTemplate?.descriptor && !bio.rightTemplate?.descriptor)) {
+            return { verified: false, error: 'NO_BIOMETRIC_PROFILE', message: 'No registered facial identity found for this RESQR.' };
+        }
+
+        // 1:1 match against 3-angle enrolled templates
+        const comparisons = [];
+        const euclideanDist = (a, b) => {
+            if (!a || !b || a.length !== b.length) return 1.0;
+            let sum = 0;
+            for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
+            return Math.sqrt(sum);
+        };
+
+        if (bio.frontTemplate?.descriptor) {
+            comparisons.push(euclideanDist(probeDescriptor, bio.frontTemplate.descriptor));
+        }
+        if (bio.leftTemplate?.descriptor) {
+            comparisons.push(euclideanDist(probeDescriptor, bio.leftTemplate.descriptor));
+        }
+        if (bio.rightTemplate?.descriptor) {
+            comparisons.push(euclideanDist(probeDescriptor, bio.rightTemplate.descriptor));
+        }
+
+        const minDistance = Math.min(...comparisons);
+        const isMatch = minDistance <= 0.45; // Strict threshold, NEVER lowered
+
+        // Audit log in Firebase RTDB
+        const auditLogData = {
+            qrId,
+            patientId,
+            result: isMatch ? 'VERIFIED' : 'FAILED',
+            timestamp: new Date().toISOString(),
+            epoch: Date.now(),
+            padScore: Number(padScore.toFixed(2))
+        };
+        try {
+            await push(ref(db, `verificationAudits/${patientId}`), auditLogData);
+        } catch (e) {}
+
+        if (isMatch) {
+            const exp = Date.now() + PUBLIC_SESSION_EXPIRATION_MS;
+            const payload = {
+                patientId,
+                qrId,
+                role: 'PUBLIC_SCANNER',
+                exp
+            };
+
+            const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+            const body = btoa(JSON.stringify(payload));
+            const signature = CryptoJS.HmacSHA256(`${header}.${body}`, PUBLIC_QR_JWT_SECRET).toString(CryptoJS.enc.Base64);
+            const token = `${header}.${body}.${signature}`;
+
+            return {
+                verified: true,
+                verificationToken: token,
+                expiresAt: exp,
+                minDistance
+            };
+        } else {
+            return {
+                verified: false,
+                error: 'IDENTITY_MISMATCH',
+                message: 'The captured face does not match the registered RESQR identity.'
+            };
+        }
+    } catch (err) {
+        console.error("Public emergency biometric verification failed:", err);
+        return { verified: false, error: 'VERIFICATION_ERROR', message: err.message };
+    }
+}
+
+/**
+ * Validates the short-lived Public QR verification session token.
+ */
+export function validatePublicEmergencySession(patientId, token) {
+    if (!token || !patientId) return false;
+    try {
+        const parts = token.split('.');
+        if (parts.length !== 3) return false;
+        const [header, body, signature] = parts;
+        const expectedSig = CryptoJS.HmacSHA256(`${header}.${body}`, PUBLIC_QR_JWT_SECRET).toString(CryptoJS.enc.Base64);
+        if (signature !== expectedSig) return false;
+
+        const payload = JSON.parse(atob(body));
+        if (Date.now() > payload.exp) return false;
+        if (payload.patientId !== patientId) return false;
+        return true;
+    } catch (e) {
+        return false;
+    }
+}

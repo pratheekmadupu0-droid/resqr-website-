@@ -12,11 +12,13 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import toast from 'react-hot-toast';
 import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
-import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit } from '../lib/medicalApi';
+import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
+import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
 
 export default function EmergencyPage() {
     const { id } = useParams();
     const [loading, setLoading] = useState(true);
+    const [isIdentityVerified, setIsIdentityVerified] = useState(false);
     const [scanRecorded, setScanRecorded] = useState(false);
     const [coords, setCoords] = useState(null);
     const [isTransmitting, setIsTransmitting] = useState(false);
@@ -100,6 +102,12 @@ export default function EmergencyPage() {
                 }
 
                 setResolvedPatientId(actualPid);
+
+                // Check for valid unexpired emergency verification session in current browser tab
+                const existingToken = sessionStorage.getItem(`resqr_emergency_token_${actualPid}`);
+                if (existingToken && validatePublicEmergencySession(actualPid, existingToken)) {
+                    setIsIdentityVerified(true);
+                }
 
                 if (snap.exists()) {
                     const raw = snap.val();
@@ -288,6 +296,34 @@ export default function EmergencyPage() {
         return (
             <div className="min-h-screen bg-[#040812] flex items-center justify-center">
                 <Loader2 className="text-red-600 animate-spin" size={48} />
+            </div>
+        );
+    }
+
+    // MANDATORY BIOMETRIC SECURITY GATE: Profile data completely locked until identity verified
+    if (!isIdentityVerified) {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-red-600/30">
+                <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest sticky top-0 z-50 shadow-xl italic">
+                    <ShieldAlert size={16} />
+                    RESQR SCAN DETECTED. IDENTITY VERIFICATION REQUIRED BEFORE ACCESS.
+                </div>
+
+                <div className="max-w-xl mx-auto px-5 pt-8">
+                    <div className="flex flex-col items-center mb-6 text-center">
+                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-4" />
+                    </div>
+
+                    <QRScanIdentityGate
+                        patientId={resolvedPatientId}
+                        qrId={id || resolvedPatientId}
+                        onVerificationSuccess={({ token }) => {
+                            sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
+                            setIsIdentityVerified(true);
+                            toast.success("✓ Identity confirmed. Emergency profile unlocked.");
+                        }}
+                    />
+                </div>
             </div>
         );
     }
