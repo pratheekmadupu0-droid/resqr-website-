@@ -291,13 +291,16 @@ export default function FaceEnrollmentWizard({
 
         let animationFrameId;
         let isEvaluating = false;
+        let lastEvalTime = 0;
 
-        const loop = async () => {
+        const loop = async (timestamp) => {
             const video = videoRef.current;
-            if (video && video.readyState >= 2 && video.videoWidth > 0 && !isEvaluating) {
+            // Throttle to at most once every 90ms for high responsiveness without freezing the CPU/UI
+            if (video && video.readyState >= 2 && video.videoWidth > 0 && !isEvaluating && (timestamp - lastEvalTime > 90)) {
                 isEvaluating = true;
+                lastEvalTime = timestamp;
                 try {
-                    const result = await detectSingleFace(video);
+                    const result = await detectSingleFace(video, { extractDescriptor: false });
 
                     if (result.status === 'INITIALIZING') {
                         setFaceStatus('SEARCHING');
@@ -365,7 +368,7 @@ export default function FaceEnrollmentWizard({
                         video._latestBiometric = result;
                     }
                 } catch (e) {
-                    // silent drop for frame rate smoothness
+                    console.error("Face detection loop error:", e);
                 } finally {
                     isEvaluating = false;
                 }
@@ -379,42 +382,62 @@ export default function FaceEnrollmentWizard({
     }, [uiStage, cameraActive, currentStep, blinkDetected]);
 
     // 3. Step Capture Handler
-    const handleCaptureStep = () => {
+    const handleCaptureStep = async () => {
         const video = videoRef.current;
-        if (!video || !video._latestBiometric) {
-            toast.error("Please ensure your face is visible in the camera frame.");
+        if (!video) {
+            toast.error("Camera not active. Please enable camera.");
             return;
-        }
-
-        const bio = video._latestBiometric;
-
-        const angleCheck = verifyAngleTarget(bio.pose, currentStep, firstSideSignRef.current);
-        if (!angleCheck.isMatch) {
-            if (currentStep === 'FRONT' && Math.abs(bio.pose.yaw) > 22) {
-                toast.error("Please look straight into the camera for the front view.");
-                return;
-            }
-            if (currentStep === 'LEFT' && Math.abs(bio.pose.yaw) < 4) {
-                toast.error("Please turn your head slightly to the left.");
-                return;
-            }
-            if (currentStep === 'RIGHT') {
-                if (Math.abs(bio.pose.yaw) < 4) {
-                    toast.error("Please turn your head slightly to the right.");
-                    return;
-                }
-                if (firstSideSignRef.current && bio.pose.yaw * firstSideSignRef.current > 0 && Math.abs(bio.pose.yaw) > 8) {
-                    toast.error("Please turn your head to the opposite side.");
-                    return;
-                }
-            }
         }
 
         setIsCapturing(true);
 
-        setTimeout(() => {
+        try {
+            // Extract full biometric descriptor on demand
+            let bio = await detectSingleFace(video, { extractDescriptor: true });
+
+            // If on-demand detection didn't resolve face or descriptor, check cached detection
+            if ((!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor) && video._latestBiometric?.status === 'FACE_DETECTED') {
+                if (!video._latestBiometric.descriptor) {
+                    bio = await detectSingleFace(video, { extractDescriptor: true });
+                } else {
+                    bio = video._latestBiometric;
+                }
+            }
+
+            if (!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor) {
+                setIsCapturing(false);
+                toast.error("Face not clearly detected. Please ensure your face is inside the oval frame.");
+                return;
+            }
+
+            const angleCheck = verifyAngleTarget(bio.pose, currentStep, firstSideSignRef.current);
+            if (!angleCheck.isMatch) {
+                if (currentStep === 'FRONT' && Math.abs(bio.pose.yaw) > 18) {
+                    setIsCapturing(false);
+                    toast.error("Please look straight into the camera for the front view.");
+                    return;
+                }
+                if (currentStep === 'LEFT' && Math.abs(bio.pose.yaw) < 5) {
+                    setIsCapturing(false);
+                    toast.error("Please turn your head slightly to the left.");
+                    return;
+                }
+                if (currentStep === 'RIGHT') {
+                    if (Math.abs(bio.pose.yaw) < 5) {
+                        setIsCapturing(false);
+                        toast.error("Please turn your head slightly to the right.");
+                        return;
+                    }
+                    if (firstSideSignRef.current && bio.pose.yaw * firstSideSignRef.current > 0 && Math.abs(bio.pose.yaw) > 6) {
+                        setIsCapturing(false);
+                        toast.error("Please turn your head to the opposite side.");
+                        return;
+                    }
+                }
+            }
+
             let frontSnapshot = null;
-            if (video && currentStep === 'FRONT') {
+            if (currentStep === 'FRONT') {
                 try {
                     const snapCanvas = document.createElement('canvas');
                     snapCanvas.width = 320;
@@ -484,9 +507,12 @@ export default function FaceEnrollmentWizard({
                 setFinalBiometricProfile(bioProfile);
                 setUiStage('SAVE_READY');
             }
-
+        } catch (err) {
+            console.error("Step capture error:", err);
+            toast.error("Capture failed: " + (err.message || "Please try again."));
+        } finally {
             setIsCapturing(false);
-        }, 250);
+        }
     };
 
     // 4. Save Biometric Profile to User Account (CRITICAL: Section 25 & 26)
@@ -929,11 +955,11 @@ export default function FaceEnrollmentWizard({
                         <button
                             type="button"
                             onClick={handleCaptureStep}
-                            disabled={!cameraActive || faceStatus === 'SEARCHING' || isCapturing || multipleFaces}
+                            disabled={!cameraActive || isCapturing || multipleFaces}
                             className={`w-full max-w-sm py-4 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-2xl transition-all ${
                                 isCapturing
                                     ? 'bg-white/10 text-slate-400 cursor-wait'
-                                    : multipleFaces || !cameraActive || faceStatus === 'SEARCHING'
+                                    : multipleFaces || !cameraActive
                                     ? 'bg-white/10 text-slate-500 cursor-not-allowed'
                                     : isAngleAligned && qualityOk
                                     ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-500/25 scale-100 active:scale-95 cursor-pointer ring-2 ring-emerald-400/50'

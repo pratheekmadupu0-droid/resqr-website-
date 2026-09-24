@@ -250,38 +250,44 @@ export function analyzeImageQuality(inputElement, detection) {
     const isTooFar = faceHeightRatio < 0.10;
     const isTooClose = faceHeightRatio > 0.95;
 
-    // Extract face ROI for luminance & sharpness
+    // Extract face ROI for luminance & sharpness safely
     let meanLuminance = 128;
     let blurScore = 100;
     try {
+        const sx = Math.max(0, Math.min(imgW - 1, Math.floor(box.x)));
+        const sy = Math.max(0, Math.min(imgH - 1, Math.floor(box.y)));
+        const sw = Math.max(1, Math.min(imgW - sx, Math.floor(box.width)));
+        const sh = Math.max(1, Math.min(imgH - sy, Math.floor(box.height)));
+
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(32, Math.floor(box.width));
-        canvas.height = Math.max(32, Math.floor(box.height));
+        canvas.width = Math.max(32, Math.min(128, sw));
+        canvas.height = Math.max(32, Math.min(128, sh));
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(inputElement, Math.max(0, box.x), Math.max(0, box.y), box.width, box.height, 0, 0, canvas.width, canvas.height);
-        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imgData.data;
+        if (ctx) {
+            ctx.drawImage(inputElement, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
 
-        let totalY = 0;
-        const count = data.length / 4;
-        for (let i = 0; i < data.length; i += 4) {
-            // Y = 0.299R + 0.587G + 0.114B
-            totalY += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-        }
-        meanLuminance = Math.round(totalY / count);
-
-        // Simple Laplacian / edge variance approximation
-        let edgeSum = 0;
-        const w = canvas.width;
-        for (let y = 1; y < canvas.height - 1; y += 2) {
-            for (let x = 1; x < w - 1; x += 2) {
-                const idx = (y * w + x) * 4;
-                const center = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-                const right = 0.299 * data[idx + 4] + 0.587 * data[idx + 5] + 0.114 * data[idx + 6];
-                edgeSum += Math.abs(center - right);
+            let totalY = 0;
+            const count = data.length / 4;
+            for (let i = 0; i < data.length; i += 4) {
+                totalY += (0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
             }
+            meanLuminance = Math.round(totalY / count);
+
+            // Simple Laplacian / edge variance approximation
+            let edgeSum = 0;
+            const w = canvas.width;
+            for (let y = 1; y < canvas.height - 1; y += 2) {
+                for (let x = 1; x < w - 1; x += 2) {
+                    const idx = (y * w + x) * 4;
+                    const center = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                    const right = 0.299 * data[idx + 4] + 0.587 * data[idx + 5] + 0.114 * data[idx + 6];
+                    edgeSum += Math.abs(center - right);
+                }
+            }
+            blurScore = Math.round((edgeSum / (count / 4)) * 10);
         }
-        blurScore = Math.round((edgeSum / (count / 4)) * 10);
     } catch (e) {
         // Fallback if canvas extraction restricted
     }
@@ -328,58 +334,109 @@ export function analyzeImageQuality(inputElement, detection) {
     };
 }
 
+let sharedDetectionCanvas = null;
+
 /**
  * Detects all faces in frame and extracts landmarks, pose, and quality.
+ * Supports lightweight tracking (extractDescriptor = false) and full capture (extractDescriptor = true).
  */
-export async function detectSingleFace(inputElement) {
-    await loadBiometricModels();
+export async function detectSingleFace(inputElement, options = {}) {
+    const { extractDescriptor = false } = options;
 
-    if (!inputElement || (inputElement.readyState && inputElement.readyState < 2) || !inputElement.videoWidth) {
+    try {
+        await loadBiometricModels();
+
+        if (!inputElement) {
+            return {
+                status: 'INITIALIZING',
+                message: 'Waiting for camera feed...',
+                faceCount: 0
+            };
+        }
+
+        const isVideo = typeof HTMLVideoElement !== 'undefined' && inputElement instanceof HTMLVideoElement;
+        if (isVideo) {
+            if (inputElement.readyState < 2 || !inputElement.videoWidth || !inputElement.videoHeight) {
+                return {
+                    status: 'INITIALIZING',
+                    message: 'Initializing video stream...',
+                    faceCount: 0
+                };
+            }
+        }
+
+        // Draw frame to offscreen canvas to avoid WebGL live video lockups and handle transforms
+        let sourceElement = inputElement;
+        if (isVideo && typeof document !== 'undefined') {
+            if (!sharedDetectionCanvas) {
+                sharedDetectionCanvas = document.createElement('canvas');
+            }
+            const vW = inputElement.videoWidth;
+            const vH = inputElement.videoHeight;
+            if (sharedDetectionCanvas.width !== vW || sharedDetectionCanvas.height !== vH) {
+                sharedDetectionCanvas.width = vW;
+                sharedDetectionCanvas.height = vH;
+            }
+            const sCtx = sharedDetectionCanvas.getContext('2d', { willReadFrequently: true });
+            if (sCtx) {
+                sCtx.drawImage(inputElement, 0, 0, vW, vH);
+                sourceElement = sharedDetectionCanvas;
+            }
+        }
+
+        const detectorOptions = new faceapi.TinyFaceDetectorOptions({
+            inputSize: 320, // 320 is fast and optimal for high FPS face tracking
+            scoreThreshold: 0.20 // forgiving detection threshold
+        });
+
+        let query = faceapi.detectAllFaces(sourceElement, detectorOptions).withFaceLandmarks();
+        if (extractDescriptor) {
+            query = query.withFaceDescriptor();
+        }
+
+        const detections = await query;
+
+        if (!detections || detections.length === 0) {
+            return {
+                status: 'NO_FACE',
+                message: 'NO FACE DETECTED. Move closer to the camera and make sure your face is clearly visible.',
+                faceCount: 0
+            };
+        }
+
+        if (detections.length > 1) {
+            return {
+                status: 'MULTIPLE_FACES',
+                message: 'MULTIPLE FACES DETECTED. Only one person should be visible. Please make sure nobody else is inside the camera frame.',
+                faceCount: detections.length
+            };
+        }
+
+        const primary = detections[0];
+        const pose = estimateHeadPose(primary.landmarks);
+        const quality = analyzeImageQuality(sourceElement, primary);
+
+        let descriptor = null;
+        if (primary.descriptor) {
+            descriptor = Array.from(primary.descriptor);
+        }
+
         return {
-            status: 'INITIALIZING',
-            message: 'Initializing video stream...',
+            status: 'FACE_DETECTED',
+            detection: primary,
+            descriptor,
+            pose,
+            quality,
+            faceCount: 1
+        };
+    } catch (err) {
+        console.error("detectSingleFace error:", err);
+        return {
+            status: 'ERROR',
+            message: 'Biometric evaluation error: ' + (err.message || err),
             faceCount: 0
         };
     }
-
-    const options = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416,
-        scoreThreshold: 0.25
-    });
-
-    const detections = await faceapi
-        .detectAllFaces(inputElement, options)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-    if (!detections || detections.length === 0) {
-        return {
-            status: 'NO_FACE',
-            message: 'NO FACE DETECTED. Move closer to the camera and make sure your face is clearly visible.',
-            faceCount: 0
-        };
-    }
-
-    if (detections.length > 1) {
-        return {
-            status: 'MULTIPLE_FACES',
-            message: 'MULTIPLE FACES DETECTED. Only one person should be visible. Please make sure nobody else is inside the camera frame.',
-            faceCount: detections.length
-        };
-    }
-
-    const primary = detections[0];
-    const pose = estimateHeadPose(primary.landmarks);
-    const quality = analyzeImageQuality(inputElement, primary);
-
-    return {
-        status: 'FACE_DETECTED',
-        detection: primary,
-        descriptor: Array.from(primary.descriptor),
-        pose,
-        quality,
-        faceCount: 1
-    };
 }
 
 /**
