@@ -103,6 +103,12 @@ export async function saveBiometricProfileToAccount({ uid, profileId, biometricP
         throw new Error("Biometric enrollment incomplete: Front, Left, and Right facial views must all be captured.");
     }
 
+    if (isPseudoEmbedding(biometricProfile.frontTemplate.descriptor) ||
+        isPseudoEmbedding(biometricProfile.leftTemplate.descriptor) ||
+        isPseudoEmbedding(biometricProfile.rightTemplate.descriptor)) {
+        throw new Error("Biometric enrollment rejected: Synthetic pseudo-embeddings are not allowed. Genuine deep neural facial features required.");
+    }
+
     const payload = {
         uid,
         profileId,
@@ -112,14 +118,17 @@ export async function saveBiometricProfileToAccount({ uid, profileId, biometricP
         leftTemplate: biometricProfile.leftTemplate,
         rightTemplate: biometricProfile.rightTemplate,
         frontPhotoSnapshot: biometricProfile.frontPhotoSnapshot || biometricProfile.frontTemplate?.snapshot || null,
-        templateVersion: TEMPLATE_VERSION,
+        templateVersion: '2.0',
         createdAt: biometricProfile.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
 
     const updates = {};
-    // Store under isolated biometric collection
+    // Store under isolated biometric collection for public emergency gate lookup
     updates[`biometricProfiles/${profileId}`] = payload;
+    if (uid && uid !== profileId) {
+        updates[`biometricProfiles/${uid}`] = payload;
+    }
     // Store under user's private biometric vault
     updates[`users/${uid}/biometricProfiles/${profileId}`] = payload;
     // Record enrollment state on user account
@@ -230,31 +239,68 @@ export function estimateHeadPose(landmarks) {
 }
 
 /**
- * Computes a normalized 128-dimensional geometric landmark embedding.
- * Ensures an enrollment biometric vector can always be extracted accurately from 68 landmarks.
+ * Detects whether a 128-d descriptor is a synthetic landmark pseudo-embedding
+ * (which matches all human faces) rather than a genuine deep ResNet-34 metric embedding.
  */
-export function generateLandmarkEmbedding(landmarks) {
-    if (!landmarks) return new Array(128).fill(0.01);
-    const points = landmarks.positions || landmarks;
-    if (!points || !points.length) return new Array(128).fill(0.01);
-
-    const nose = points[30] || { x: 0, y: 0 };
-    const leftEye = points[36] || { x: 0, y: 0 };
-    const rightEye = points[45] || { x: 0, y: 0 };
-    const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y) || 100;
-
-    const vec = new Float32Array(128);
-    for (let i = 0; i < 64 && i < points.length; i++) {
-        vec[i * 2] = (points[i].x - nose.x) / eyeDist;
-        vec[i * 2 + 1] = (points[i].y - nose.y) / eyeDist;
+export function isPseudoEmbedding(desc) {
+    if (!desc || !Array.isArray(desc) || desc.length !== 128) return true;
+    // 1. Check for identical filled dummy values
+    if (desc[0] === 0.01 && desc[1] === 0.01 && desc[2] === 0.01) return true;
+    // 2. Check nose-centered landmark anchor points:
+    // In landmark pseudo-embeddings, points[30] (nose tip) was placed at indices 60 and 61
+    if (desc[60] === 0 && desc[61] === 0) return true;
+    // 3. ResNet-34 128-d face descriptors have L2 norm of ~1.0 with virtually zero exact 0.0 values
+    let sum = 0;
+    let zeroCount = 0;
+    for (let i = 0; i < 128; i++) {
+        sum += desc[i] * desc[i];
+        if (desc[i] === 0) zeroCount++;
     }
-    // L2 normalize
-    let norm = 0;
-    for (let i = 0; i < 128; i++) norm += vec[i] * vec[i];
-    norm = Math.sqrt(norm) || 1;
-    for (let i = 0; i < 128; i++) vec[i] /= norm;
-    return Array.from(vec);
+    const norm = Math.sqrt(sum);
+    if (norm < 0.8 || norm > 1.2 || zeroCount > 5) return true;
+    return false;
 }
+
+/**
+ * Extracts a genuine 128-dimensional ResNet-34 deep facial descriptor from an image URL / base64 snapshot.
+ * Used for self-healing legacy biometric profiles and cross-verification.
+ */
+export async function extractDeepDescriptorFromImage(imageUrl) {
+    if (!imageUrl || typeof window === 'undefined') return null;
+    try {
+        await loadBiometricModels();
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+                try {
+                    const detectorOptions = new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.15 });
+                    const detection = await faceapi.detectSingleFace(img, detectorOptions)
+                        .withFaceLandmarks()
+                        .withFaceDescriptor();
+
+                    if (detection?.descriptor && detection.descriptor.length === 128) {
+                        const arr = Array.from(detection.descriptor);
+                        if (!isPseudoEmbedding(arr)) {
+                            resolve(arr);
+                            return;
+                        }
+                    }
+                    resolve(null);
+                } catch (e) {
+                    console.warn("Could not extract descriptor from snapshot image:", e);
+                    resolve(null);
+                }
+            };
+            img.onerror = () => resolve(null);
+            img.src = imageUrl;
+        });
+    } catch (err) {
+        console.warn("Model initialization error during snapshot descriptor extraction:", err);
+        return null;
+    }
+}
+
 
 /**
  * Analyzes image quality (brightness, blur, frame boundary, multiple faces).
@@ -448,21 +494,34 @@ export async function detectSingleFace(inputElement, options = {}) {
         const quality = analyzeImageQuality(sourceElement, primary);
 
         let descriptor = null;
-        if (primary.descriptor) {
+        if (primary.descriptor && primary.descriptor.length === 128) {
             descriptor = Array.from(primary.descriptor);
-        } else if (extractDescriptor) {
+        }
+
+        // If descriptor is needed but not yet computed, run direct single face descriptor pipeline
+        if (extractDescriptor && (!descriptor || descriptor.length !== 128)) {
             try {
-                if (faceapi.nets?.faceRecognitionNet?.isLoaded && typeof faceapi.computeFaceDescriptor === 'function') {
-                    const desc = await faceapi.computeFaceDescriptor(sourceElement, primary.landmarks);
-                    if (desc) descriptor = Array.from(desc);
+                const singleRes = await faceapi.detectSingleFace(sourceElement, detectorOptions)
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+                if (singleRes?.descriptor && singleRes.descriptor.length === 128) {
+                    descriptor = Array.from(singleRes.descriptor);
                 }
             } catch (descErr) {
-                console.warn("Direct descriptor extraction warning:", descErr);
+                console.warn("Direct single face descriptor extraction warning:", descErr);
             }
+        }
 
-            if (!descriptor && primary.landmarks) {
-                descriptor = generateLandmarkEmbedding(primary.landmarks);
-            }
+        // Under NO circumstances allow fake pseudo-embeddings
+        if (extractDescriptor && (!descriptor || descriptor.length !== 128 || isPseudoEmbedding(descriptor))) {
+            return {
+                status: 'NO_DESCRIPTOR',
+                message: 'Could not extract deep biometric identity. Please ensure face is centered with clear lighting and look directly at the camera.',
+                faceCount: 1,
+                detection: primary,
+                pose,
+                quality
+            };
         }
 
         return {
@@ -549,25 +608,25 @@ export function euclideanDistance(desc1, desc2) {
  * Does NOT lower the security threshold for emergencies.
  */
 export function matchAgainstEnrolledTemplates(probeDescriptor, biometricProfile) {
-    if (!probeDescriptor || !biometricProfile) {
-        return { isMatch: false, minDistance: 1.0, matchedView: null, error: 'Missing biometric reference' };
+    if (!probeDescriptor || !biometricProfile || isPseudoEmbedding(probeDescriptor)) {
+        return { isMatch: false, minDistance: 1.0, matchedView: null, error: 'Invalid or missing biometric probe' };
     }
 
     const { frontTemplate, leftTemplate, rightTemplate } = biometricProfile;
     const comparisons = [];
 
-    if (frontTemplate?.descriptor) {
+    if (frontTemplate?.descriptor && !isPseudoEmbedding(frontTemplate.descriptor)) {
         comparisons.push({ view: 'FRONT', dist: euclideanDistance(probeDescriptor, frontTemplate.descriptor) });
     }
-    if (leftTemplate?.descriptor) {
+    if (leftTemplate?.descriptor && !isPseudoEmbedding(leftTemplate.descriptor)) {
         comparisons.push({ view: 'LEFT', dist: euclideanDistance(probeDescriptor, leftTemplate.descriptor) });
     }
-    if (rightTemplate?.descriptor) {
+    if (rightTemplate?.descriptor && !isPseudoEmbedding(rightTemplate.descriptor)) {
         comparisons.push({ view: 'RIGHT', dist: euclideanDistance(probeDescriptor, rightTemplate.descriptor) });
     }
 
     if (comparisons.length === 0) {
-        return { isMatch: false, minDistance: 1.0, matchedView: null, error: 'No enrolled views found' };
+        return { isMatch: false, minDistance: 1.0, matchedView: null, error: 'No valid enrolled templates available' };
     }
 
     comparisons.sort((a, b) => a.dist - b.dist);

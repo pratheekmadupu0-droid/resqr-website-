@@ -12,7 +12,7 @@ import {
     loadBiometricModels, 
     saveBiometricProfileToAccount,
     checkBiometricEnrollmentStatus,
-    generateLandmarkEmbedding,
+    isPseudoEmbedding,
     TEMPLATE_VERSION 
 } from '../../lib/biometrics';
 import toast from 'react-hot-toast';
@@ -393,34 +393,27 @@ export default function FaceEnrollmentWizard({
         setIsCapturing(true);
 
         try {
-            // Extract full biometric descriptor on demand
+            // Snapshot dedicated frame canvas for isolated descriptor extraction
+            const snapCanvas = document.createElement('canvas');
+            const vW = video.videoWidth || 640;
+            const vH = video.videoHeight || 480;
+            snapCanvas.width = vW;
+            snapCanvas.height = vH;
+            const sCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
+            sCtx.drawImage(video, 0, 0, vW, vH);
+
+            // Extract high-precision biometric descriptor directly from the snapshot
             let bio = null;
             try {
-                bio = await detectSingleFace(video, { extractDescriptor: true });
+                bio = await detectSingleFace(snapCanvas, { extractDescriptor: true });
             } catch (e) {
                 console.warn("On-demand detection exception:", e);
             }
 
-            // If on-demand detection missed frame, fallback immediately to cached detection from tracking loop
-            if (!bio || bio.status !== 'FACE_DETECTED') {
-                if (video._latestBiometric && video._latestBiometric.status === 'FACE_DETECTED') {
-                    bio = video._latestBiometric;
-                }
-            }
-
-            if (!bio || bio.status !== 'FACE_DETECTED') {
+            if (!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor || bio.descriptor.length !== 128 || isPseudoEmbedding(bio.descriptor)) {
                 setIsCapturing(false);
-                toast.error("Face not clearly detected. Please ensure your face is inside the oval frame.");
+                toast.error(bio?.message || "Could not extract high-precision biometric features. Please hold steady with good lighting.");
                 return;
-            }
-
-            // Guarantee 128-d biometric descriptor is populated
-            if (!bio.descriptor) {
-                if (bio.detection?.landmarks) {
-                    bio.descriptor = generateLandmarkEmbedding(bio.detection.landmarks);
-                } else {
-                    bio.descriptor = new Array(128).fill(0.01);
-                }
             }
 
             const angleCheck = verifyAngleTarget(bio.pose, currentStep, firstSideSignRef.current);
@@ -449,26 +442,24 @@ export default function FaceEnrollmentWizard({
                 }
             }
 
-            let frontSnapshot = null;
-            if (currentStep === 'FRONT') {
-                try {
-                    const snapCanvas = document.createElement('canvas');
-                    snapCanvas.width = 320;
-                    snapCanvas.height = 320;
-                    const ctx = snapCanvas.getContext('2d');
-                    const vW = video.videoWidth || 640;
-                    const vH = video.videoHeight || 480;
-                    const minDim = Math.min(vW, vH);
-                    const sx = (vW - minDim) / 2;
-                    const sy = (vH - minDim) / 2;
-                    // Mirror snapshot for user's natural selfie perspective
-                    ctx.translate(320, 0);
-                    ctx.scale(-1, 1);
-                    ctx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 320, 320);
-                    frontSnapshot = snapCanvas.toDataURL('image/jpeg', 0.85);
-                } catch (e) {
-                    console.warn("Snapshot capture error:", e);
+            // Create high-clarity snapshot for verification fallback & visual audit
+            let stepSnapshot = null;
+            try {
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = 320;
+                cropCanvas.height = 320;
+                const cropCtx = cropCanvas.getContext('2d');
+                const minDim = Math.min(vW, vH);
+                const sx = (vW - minDim) / 2;
+                const sy = (vH - minDim) / 2;
+                if (facingMode === 'user') {
+                    cropCtx.translate(320, 0);
+                    cropCtx.scale(-1, 1);
                 }
+                cropCtx.drawImage(video, sx, sy, minDim, minDim, 0, 0, 320, 320);
+                stepSnapshot = cropCanvas.toDataURL('image/jpeg', 0.85);
+            } catch (e) {
+                console.warn("Snapshot capture error:", e);
             }
 
             const template = {
@@ -476,7 +467,7 @@ export default function FaceEnrollmentWizard({
                 qualityScore: Number(((bio.detection?.detection?.score || 0.9) * 100).toFixed(1)),
                 yaw: bio.pose.yaw,
                 pitch: bio.pose.pitch,
-                snapshot: frontSnapshot,
+                snapshot: stepSnapshot,
                 capturedAt: new Date().toISOString()
             };
 

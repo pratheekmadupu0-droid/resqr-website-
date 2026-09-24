@@ -341,11 +341,28 @@ export default function QRScanPage() {
 
             <div className="max-w-xl mx-auto space-y-8 pb-40 px-5 pt-12">
                 {/* Brand Header */}
-                <div className="flex flex-col items-center mb-10 text-center animate-in fade-in duration-700">
+                <div className="flex flex-col items-center mb-6 text-center animate-in fade-in duration-700">
                     <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
                     <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
                         Verified Rescue Identity
                     </Badge>
+                </div>
+
+                {/* Identity Verification Control Badge */}
+                <div className="flex items-center justify-between px-2 pb-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                        <CheckCircle2 size={13} /> Biometrically Verified Citizen
+                    </span>
+                    <button
+                        onClick={() => {
+                            sessionStorage.removeItem(`resqr_emergency_token_${resolvedPatientId}`);
+                            setIsIdentityVerified(false);
+                            toast("Profile locked. Face verification required.");
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-all cursor-pointer"
+                    >
+                        <Lock size={12} /> Lock & Re-Verify
+                    </button>
                 </div>
 
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">

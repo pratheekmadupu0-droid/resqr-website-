@@ -9,7 +9,7 @@ import {
     detectSingleFace, 
     loadBiometricModels, 
     PassivePADAnalyzer,
-    generateLandmarkEmbedding
+    isPseudoEmbedding
 } from '../../lib/biometrics';
 import { 
     verifyPublicEmergencyAccess,
@@ -214,23 +214,26 @@ export default function QRScanIdentityGate({
         setGateStage('VERIFYING');
 
         try {
-            // Extract high-resolution probe descriptor
+            // Snapshot dedicated frame canvas for isolated descriptor extraction
+            const snapCanvas = document.createElement('canvas');
+            const vW = video.videoWidth || 640;
+            const vH = video.videoHeight || 480;
+            snapCanvas.width = vW;
+            snapCanvas.height = vH;
+            const sCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
+            sCtx.drawImage(video, 0, 0, vW, vH);
+
+            // Extract high-resolution probe descriptor directly from snapshot
             let probe = null;
             try {
-                probe = await detectSingleFace(video, { extractDescriptor: true });
+                probe = await detectSingleFace(snapCanvas, { extractDescriptor: true });
             } catch (e) {
                 console.warn("Probe extraction warning:", e);
             }
 
-            if (!probe || probe.status !== 'FACE_DETECTED') {
-                if (video._latestProbe && video._latestProbe.status === 'FACE_DETECTED') {
-                    probe = video._latestProbe;
-                }
-            }
-
-            if (!probe || probe.status !== 'FACE_DETECTED') {
+            if (!probe || probe.status !== 'FACE_DETECTED' || !probe.descriptor || probe.descriptor.length !== 128 || isPseudoEmbedding(probe.descriptor)) {
                 setGateStage('CAMERA');
-                toast.error("FACE NOT CLEAR. Move closer and make sure the person's face is clearly visible.");
+                toast.error(probe?.message || "Could not extract facial features. Please ensure your face is clearly visible inside the oval frame.");
                 return;
             }
 
@@ -241,17 +244,7 @@ export default function QRScanIdentityGate({
                 return;
             }
 
-            // Ensure probe 128-d descriptor vector
-            let probeDescriptor = probe.descriptor;
-            if (!probeDescriptor && probe.detection?.landmarks) {
-                probeDescriptor = generateLandmarkEmbedding(probe.detection.landmarks);
-            }
-
-            if (!probeDescriptor) {
-                setGateStage('CAMERA');
-                toast.error("Could not extract facial representation. Please try again.");
-                return;
-            }
+            const probeDescriptor = probe.descriptor;
 
             // Passive Presentation Attack Detection (PAD)
             const padResult = padAnalyzerRef.current.evaluatePassiveLiveness();
