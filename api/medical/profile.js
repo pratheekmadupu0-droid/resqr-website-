@@ -60,6 +60,24 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Patient medical record not found.' });
         }
 
+        // Check subscription status
+        let subRes = await fetch(`${dbUrl}/subscriptions/${requestedPatientId}.json`);
+        let sub = await subRes.json();
+        if (!sub) {
+            const uid = requestedPatientId.includes('_') ? (requestedPatientId.startsWith('c_') ? requestedPatientId.replace('c_', '') : requestedPatientId.split('_')[0]) : requestedPatientId;
+            subRes = await fetch(`${dbUrl}/users/${uid}/subscription.json`);
+            sub = await subRes.json();
+        }
+
+        if (sub) {
+            if (sub.status === 'SUSPENDED' || sub.status === 'REVOKED') {
+                return res.status(403).json({ error: 'Subscription is suspended or revoked.' });
+            }
+            if (sub.expiresAt && new Date(sub.expiresAt).getTime() <= now) {
+                return res.status(403).json({ error: 'Patient emergency subscription has expired.' });
+            }
+        }
+
         const medical = raw.medical || {};
 
         // 3. Strip sensitive identifiers and return ONLY permitted medical information (Section 4)

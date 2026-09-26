@@ -93,11 +93,26 @@ export default function AdminPanel() {
     const [medicalAudits, setMedicalAudits] = useState([]);
     const [auditResultFilter, setAuditResultFilter] = useState('ALL');
 
+    // Subscription Operations & Revenue Analytics States (Section 12, 13, 14)
+    const [subscriptionsList, setSubscriptionsList] = useState([]);
+    const [paymentsList, setPaymentsList] = useState([]);
+    const [subscriptionAuditsList, setSubscriptionAuditsList] = useState([]);
+    const [subStatusFilter, setSubStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED'
+    const [subSearchTerm, setSubSearchTerm] = useState('');
+    const [selectedSubForHistory, setSelectedSubForHistory] = useState(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [selectedSubForExtend, setSelectedSubForExtend] = useState(null);
+    const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+    const [extendMonths, setExtendMonths] = useState(3);
+    const [isUpdatingSub, setIsUpdatingSub] = useState(false);
+
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
     const safeProducts = Array.isArray(products) ? products.filter(Boolean) : [];
     const safeAds = Array.isArray(ads) ? ads.filter(Boolean) : [];
     const safeContacts = Array.isArray(contacts) ? contacts.filter(Boolean) : [];
+    const safeSubscriptions = Array.isArray(subscriptionsList) ? subscriptionsList.filter(Boolean) : [];
+    const safePayments = Array.isArray(paymentsList) ? paymentsList.filter(Boolean) : [];
 
     // Helper to evaluate login recency and activity telemetry from Firebase
     const getLoginTelemetry = (lastLogin) => {
@@ -342,6 +357,33 @@ export default function AdminPanel() {
             setMedicalAudits([]);
         });
 
+        // Subscriptions listener (Section 12)
+        const subscriptionsRef = ref(db, 'subscriptions');
+        const unsubSubscriptions = onValue(subscriptionsRef, (snapshot) => {
+            setSubscriptionsList(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB subscriptions read warning:", error);
+            setSubscriptionsList([]);
+        });
+
+        // Payment History listener (Section 13)
+        const paymentsRef = ref(db, 'paymentHistory');
+        const unsubPayments = onValue(paymentsRef, (snapshot) => {
+            setPaymentsList(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB paymentHistory read warning:", error);
+            setPaymentsList([]);
+        });
+
+        // Subscription Audits listener (Section 14)
+        const subAuditsRef = ref(db, 'subscriptionAudits');
+        const unsubSubAudits = onValue(subAuditsRef, (snapshot) => {
+            setSubscriptionAuditsList(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB subscriptionAudits read warning:", error);
+            setSubscriptionAuditsList([]);
+        });
+
         return () => {
             unsubscribeAuth();
             unsubUsers();
@@ -350,6 +392,9 @@ export default function AdminPanel() {
             unsubAds();
             unsubContacts();
             unsubAudits();
+            unsubSubscriptions();
+            unsubPayments();
+            unsubSubAudits();
         };
     }, [navigate]);
 
@@ -653,6 +698,161 @@ export default function AdminPanel() {
             remove(ref(db, path))
                 .then(() => toast.success('Deleted successfully'))
                 .catch(() => toast.error('Delete failed'));
+        }
+    };
+
+    // ==========================================
+    // SUBSCRIPTION & REVENUE MANAGEMENT (Section 12, 13, 14)
+    // ==========================================
+    const handleAdminExtendValidity = async (sub, durationMonths) => {
+        setIsUpdatingSub(true);
+        try {
+            const qrId = sub.qrId || sub.id;
+            const currentExp = sub.expiresAt;
+            const now = new Date();
+            const baseDate = (currentExp && new Date(currentExp).getTime() > now.getTime()) 
+                ? new Date(currentExp) 
+                : now;
+            const newExpiry = new Date(baseDate.getTime() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+            const nowIso = now.toISOString();
+
+            const updates = {};
+            updates[`subscriptions/${qrId}/expiresAt`] = newExpiry;
+            updates[`subscriptions/${qrId}/status`] = 'ACTIVE';
+            updates[`subscriptions/${qrId}/durationMonths`] = (sub.durationMonths || 3) + durationMonths;
+            updates[`subscriptions/${qrId}/lastUpdated`] = nowIso;
+
+            if (sub.userId) {
+                updates[`users/${sub.userId}/subscription/expiresAt`] = newExpiry;
+                updates[`users/${sub.userId}/subscription/status`] = 'ACTIVE';
+            }
+
+            // Audit Log (Section 14)
+            const auditRef = push(ref(db, `subscriptionAudits/${qrId}`));
+            const auditRecord = {
+                id: auditRef.key,
+                qrId,
+                userId: sub.userId || 'unknown',
+                action: 'ADMIN_EXTEND_VALIDITY',
+                previousExpiry: currentExp || null,
+                newExpiry: newExpiry,
+                extendedByMonths: durationMonths,
+                adminEmail: auth.currentUser?.email || 'admin@resqr.co.in',
+                timestamp: nowIso
+            };
+            updates[`subscriptionAudits/${qrId}/${auditRef.key}`] = auditRecord;
+
+            await update(ref(db), updates);
+            toast.success(`Extended validity by ${durationMonths} months until ${new Date(newExpiry).toLocaleDateString('en-IN')}`);
+            setIsExtendModalOpen(false);
+            setSelectedSubForExtend(null);
+        } catch (e) {
+            console.error("Failed to extend validity:", e);
+            toast.error("Extension failed: " + e.message);
+        } finally {
+            setIsUpdatingSub(false);
+        }
+    };
+
+    const handleAdminSuspend = async (sub) => {
+        const qrId = sub.qrId || sub.id;
+        if (!confirm(`Suspend subscription for QR ${qrId}? Emergency access will be restricted.`)) return;
+        setIsUpdatingSub(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const updates = {};
+            updates[`subscriptions/${qrId}/status`] = 'SUSPENDED';
+            updates[`subscriptions/${qrId}/suspendedAt`] = nowIso;
+            if (sub.userId) {
+                updates[`users/${sub.userId}/subscription/status`] = 'SUSPENDED';
+            }
+
+            const auditRef = push(ref(db, `subscriptionAudits/${qrId}`));
+            updates[`subscriptionAudits/${qrId}/${auditRef.key}`] = {
+                id: auditRef.key,
+                qrId,
+                userId: sub.userId || 'unknown',
+                action: 'ADMIN_SUSPEND',
+                adminEmail: auth.currentUser?.email || 'admin@resqr.co.in',
+                timestamp: nowIso
+            };
+
+            await update(ref(db), updates);
+            toast.success(`Subscription for QR ${qrId} has been suspended.`);
+        } catch (e) {
+            toast.error("Failed to suspend subscription: " + e.message);
+        } finally {
+            setIsUpdatingSub(false);
+        }
+    };
+
+    const handleAdminReactivate = async (sub) => {
+        const qrId = sub.qrId || sub.id;
+        setIsUpdatingSub(true);
+        try {
+            const nowIso = new Date().toISOString();
+            const isPastExpiry = sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now();
+            const newStatus = isPastExpiry ? 'EXPIRED' : 'ACTIVE';
+            const updates = {};
+            updates[`subscriptions/${qrId}/status`] = newStatus;
+            updates[`subscriptions/${qrId}/reactivatedAt`] = nowIso;
+            if (sub.userId) {
+                updates[`users/${sub.userId}/subscription/status`] = newStatus;
+            }
+
+            const auditRef = push(ref(db, `subscriptionAudits/${qrId}`));
+            updates[`subscriptionAudits/${qrId}/${auditRef.key}`] = {
+                id: auditRef.key,
+                qrId,
+                userId: sub.userId || 'unknown',
+                action: 'ADMIN_REACTIVATE',
+                newStatus,
+                adminEmail: auth.currentUser?.email || 'admin@resqr.co.in',
+                timestamp: nowIso
+            };
+
+            await update(ref(db), updates);
+            toast.success(`Subscription reactivated (${newStatus})!`);
+        } catch (e) {
+            toast.error("Failed to reactivate: " + e.message);
+        } finally {
+            setIsUpdatingSub(false);
+        }
+    };
+
+    const handleTriggerReminder = async (sub) => {
+        const qrId = sub.qrId || sub.id;
+        const nowIso = new Date().toISOString();
+        try {
+            const user = safeUsers.find(u => u.uid === sub.userId || u.id === sub.userId) || {};
+            const phone = user.phone || sub.phone || '';
+            const name = user.name || sub.userName || 'Valued Citizen';
+
+            if (phone) {
+                const message = encodeURIComponent(`🚨 *RESQR SAFETY ALERT*\n\nHello ${name},\nYour RESQR Emergency QR subscription is expiring on ${sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString('en-IN') : 'soon'}.\n\nPlease renew your plan to ensure continuous 24/7 emergency response coverage.\n\nRenew here: https://resqr.co.in/pricing`);
+                window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+            }
+
+            const auditRef = push(ref(db, `subscriptionAudits/${qrId}`));
+            await update(ref(db), {
+                [`subscriptions/${qrId}/remindersSent/${Date.now()}`]: {
+                    type: 'MANUAL_ADMIN_REMINDER',
+                    timestamp: nowIso,
+                    adminEmail: auth.currentUser?.email || 'admin@resqr.co.in'
+                },
+                [`subscriptionAudits/${qrId}/${auditRef.key}`]: {
+                    id: auditRef.key,
+                    qrId,
+                    userId: sub.userId || 'unknown',
+                    action: 'REMINDER_SENT',
+                    channel: phone ? 'WHATSAPP' : 'EMAIL',
+                    adminEmail: auth.currentUser?.email || 'admin@resqr.co.in',
+                    timestamp: nowIso
+                }
+            });
+            toast.success(`Renewal reminder dispatched for QR ${qrId}!`);
+        } catch (e) {
+            toast.error("Failed to log reminder: " + e.message);
         }
     };
 
@@ -1232,6 +1432,101 @@ export default function AdminPanel() {
         { label: 'Active Ads', value: safeAds.filter(a => a?.active).length, change: '+15%', icon: <Megaphone /> },
     ];
 
+    // Helper calculations for Subscriptions & Revenue Operations (Section 12 & 13)
+    const getSubDisplayStatus = (sub) => {
+        if (!sub) return { label: 'UNKNOWN', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' };
+        if (sub.status === 'REVOKED') return { label: 'REVOKED', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30' };
+        if (sub.status === 'SUSPENDED') return { label: 'SUSPENDED', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' };
+        if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
+            return { label: 'EXPIRED', color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
+        }
+        if (sub.expiresAt) {
+            const days = Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            if (days <= 7) return { label: 'EXPIRING SOON', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+        }
+        return { label: 'ACTIVE', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+    };
+
+    const getDaysLeft = (expiresAt) => {
+        if (!expiresAt) return 0;
+        const diff = new Date(expiresAt).getTime() - Date.now();
+        return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    };
+
+    const getSubUserInfo = (sub) => {
+        const qrId = sub.qrId || sub.id;
+        const user = safeUsers.find(u => u.uid === sub.userId || u.id === sub.userId || u.uid === qrId) || {};
+        const profile = safeProfiles.find(p => p.id === qrId || p.uid === sub.userId) || {};
+        return {
+            name: sub.userName || profile.name || user.name || 'Valued Citizen',
+            email: sub.userEmail || user.email || profile.email || 'N/A',
+            phone: sub.userPhone || user.phone || profile.phone || (profile.emergencyContacts?.[0]?.phone) || 'N/A',
+            role: user.role || 'citizen'
+        };
+    };
+
+    const filteredSubscriptions = safeSubscriptions.filter(sub => {
+        const info = getSubUserInfo(sub);
+        const qrId = (sub.qrId || sub.id || '').toLowerCase();
+        const query = subSearchTerm.toLowerCase();
+        const matchesSearch = !query || 
+            qrId.includes(query) || 
+            info.name.toLowerCase().includes(query) || 
+            info.email.toLowerCase().includes(query) || 
+            info.phone.toLowerCase().includes(query) ||
+            (sub.planName || '').toLowerCase().includes(query);
+
+        if (!matchesSearch) return false;
+
+        const statusObj = getSubDisplayStatus(sub);
+        if (subStatusFilter === 'ALL') return true;
+        if (subStatusFilter === 'ACTIVE') return statusObj.label === 'ACTIVE';
+        if (subStatusFilter === 'EXPIRING_SOON') return statusObj.label === 'EXPIRING SOON';
+        if (subStatusFilter === 'EXPIRED') return statusObj.label === 'EXPIRED';
+        if (subStatusFilter === 'SUSPENDED') return statusObj.label === 'SUSPENDED';
+        if (subStatusFilter === 'REVOKED') return statusObj.label === 'REVOKED';
+        return true;
+    });
+
+    const registrationPayments = safePayments.filter(p => p.type === 'registration' || p.planId === 'initial_3m' || p.type === 'registration_expansion');
+    const renewalPayments = safePayments.filter(p => p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')));
+    const regRevenue = registrationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const renRevenue = renewalPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const totalPlatformRevenue = regRevenue + renRevenue;
+
+    const activeSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'ACTIVE' || getSubDisplayStatus(s).label === 'EXPIRING SOON').length;
+    const expiredSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'EXPIRED').length;
+    const expiringThisMonthCount = safeSubscriptions.filter(s => {
+        if (!s.expiresAt) return false;
+        const expDate = new Date(s.expiresAt);
+        const now = new Date();
+        return expDate.getFullYear() === now.getFullYear() && expDate.getMonth() === now.getMonth();
+    }).length;
+
+    const renewalRate = registrationPayments.length > 0 
+        ? ((renewalPayments.length / registrationPayments.length) * 100).toFixed(1)
+        : '0.0';
+
+    const planStats = {
+        'initial_3m': { name: 'Initial Registration (3M)', price: 149, count: 0, revenue: 0 },
+        'renewal_3m': { name: 'Renewal 3 Months', price: 299, count: 0, revenue: 0 },
+        'renewal_6m': { name: 'Renewal 6 Months', price: 599, count: 0, revenue: 0 },
+        'renewal_12m': { name: 'Renewal 12 Months', price: 1199, count: 0, revenue: 0 },
+        'renewal_18m': { name: 'Renewal 18 Months', price: 1799, count: 0, revenue: 0 },
+        'renewal_24m': { name: 'Renewal 24 Months', price: 2399, count: 0, revenue: 0 }
+    };
+
+    safePayments.forEach(p => {
+        const pId = p.planId || (p.type === 'registration' ? 'initial_3m' : null);
+        if (pId && planStats[pId]) {
+            planStats[pId].count += 1;
+            planStats[pId].revenue += (Number(p.amount) || planStats[pId].price);
+        }
+    });
+
+    const mostPopularPlanEntry = Object.entries(planStats).filter(([id]) => id.startsWith('renewal_')).sort((a,b) => b[1].count - a[1].count)[0];
+    const mostPopularPlanName = mostPopularPlanEntry && mostPopularPlanEntry[1].count > 0 ? mostPopularPlanEntry[1].name : '12 Months (₹1,199)';
+
     return (
         <div className="min-h-screen bg-medical-bg flex flex-col md:flex-row text-white font-manrope">
             {/* Sidebar */}
@@ -1246,6 +1541,8 @@ export default function AdminPanel() {
                 <nav className="space-y-2">
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+                        { id: 'subscriptions', label: 'Subscriptions', icon: <CreditCard size={20} /> },
+                        { id: 'revenue', label: 'Revenue & Plans', icon: <ArrowUpRight size={20} /> },
                         { id: 'users', label: 'Auth Users', icon: <Users size={20} /> },
                         { id: 'profiles', label: 'Medical Profiles', icon: <Activity size={20} /> },
                         { id: 'medical_scan', label: 'Secure QR Scanner', icon: <QrCode size={20} /> },
@@ -1289,7 +1586,9 @@ export default function AdminPanel() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold capitalize">
-                            {activeTab === 'whatsapp' ? 'WhatsApp Messages' :
+                            {activeTab === 'subscriptions' ? 'Emergency QR Subscription Operations' :
+                                activeTab === 'revenue' ? 'Subscription Revenue & Plan Analytics' :
+                                    activeTab === 'whatsapp' ? 'WhatsApp Messages' :
                                 activeTab === 'users' ? 'Registered Accounts' :
                                 activeTab === 'profiles' ? 'Medical QR Profiles' :
                                     activeTab === 'medical_scan' ? 'Secure Medical QR Scanner' :
@@ -3102,9 +3401,550 @@ export default function AdminPanel() {
                         </Card>
                     </div>
                 )}
+
+                {/* Section 12: Subscriptions Management Tab */}
+                {activeTab === 'subscriptions' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* Executive Subscriptions Telemetry Cards */}
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                            <div 
+                                onClick={() => setSubStatusFilter('ALL')}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${subStatusFilter === 'ALL' ? 'bg-primary/10 border-primary/40 shadow-lg shadow-primary/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic block mb-2">Total Subscriptions</span>
+                                <div className="text-3xl font-black italic text-white font-poppins">{safeSubscriptions.length}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase mt-1 block">Registered Emergency QRs</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setSubStatusFilter('ACTIVE')}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${subStatusFilter === 'ACTIVE' ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block mb-2">Active Service</span>
+                                <div className="text-3xl font-black italic text-emerald-400 font-poppins">{activeSubCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase mt-1 block">Full Medical Access</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setSubStatusFilter('EXPIRING_SOON')}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${subStatusFilter === 'EXPIRING_SOON' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic block mb-2">Expiring Soon</span>
+                                <div className="text-3xl font-black italic text-amber-400 font-poppins">
+                                    {safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'EXPIRING SOON').length}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase mt-1 block">&lt; 7 Days Remaining</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setSubStatusFilter('EXPIRED')}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${subStatusFilter === 'EXPIRED' ? 'bg-rose-500/10 border-rose-500/40 shadow-lg shadow-rose-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 italic block mb-2">Expired</span>
+                                <div className="text-3xl font-black italic text-rose-400 font-poppins">{expiredSubCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase mt-1 block">Emergency Call Only</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setSubStatusFilter('SUSPENDED')}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${subStatusFilter === 'SUSPENDED' ? 'bg-orange-500/10 border-orange-500/40 shadow-lg shadow-orange-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 italic block mb-2">Suspended / Revoked</span>
+                                <div className="text-3xl font-black italic text-orange-400 font-poppins">
+                                    {safeSubscriptions.filter(s => s.status === 'SUSPENDED' || s.status === 'REVOKED').length}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase mt-1 block">Restricted by Admin</span>
+                            </div>
+                        </div>
+
+                        {/* Search & Filter Bar */}
+                        <Card className="bg-medical-card border-white/5 p-6 rounded-[30px] flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="relative w-full md:w-96">
+                                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input 
+                                    type="text"
+                                    placeholder="Search by Citizen Name, Phone, Email, QR Token..."
+                                    value={subSearchTerm}
+                                    onChange={(e) => setSubSearchTerm(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/10 rounded-2xl pl-11 pr-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary"
+                                />
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                {['ALL', 'ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'SUSPENDED', 'REVOKED'].map(f => (
+                                    <button
+                                        key={f}
+                                        onClick={() => setSubStatusFilter(f)}
+                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                            subStatusFilter === f
+                                                ? 'bg-primary text-white shadow-md shadow-primary/20'
+                                                : 'bg-slate-950/60 text-slate-400 hover:text-white border border-white/5'
+                                        }`}
+                                    >
+                                        {f.replace('_', ' ')}
+                                    </button>
+                                ))}
+                            </div>
+                        </Card>
+
+                        {/* Subscription Management Table */}
+                        <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs font-mono">
+                                    <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                        <tr>
+                                            <th className="p-6">Citizen / Account</th>
+                                            <th className="p-6">QR Token / Node</th>
+                                            <th className="p-6">Plan Name</th>
+                                            <th className="p-6">Fee Paid</th>
+                                            <th className="p-6">Validity Window</th>
+                                            <th className="p-6">Days Left</th>
+                                            <th className="p-6">Status</th>
+                                            <th className="p-6 text-right">Admin Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {filteredSubscriptions.map(sub => {
+                                            const info = getSubUserInfo(sub);
+                                            const status = getSubDisplayStatus(sub);
+                                            const days = getDaysLeft(sub.expiresAt);
+                                            const qrId = sub.qrId || sub.id;
+
+                                            return (
+                                                <tr key={qrId} className="hover:bg-white/5 transition-colors">
+                                                    <td className="p-6 font-sans">
+                                                        <div className="font-bold text-white text-sm">{info.name}</div>
+                                                        <div className="text-[11px] text-slate-400 font-mono mt-0.5">{info.phone} • {info.email}</div>
+                                                    </td>
+                                                    <td className="p-6 font-mono text-primary font-bold">
+                                                        <span className="bg-primary/10 border border-primary/20 px-2 py-1 rounded-lg text-xs">
+                                                            {qrId}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-6 font-sans">
+                                                        <div className="font-bold text-slate-200">{sub.planName || 'RESQR Registration'}</div>
+                                                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-wider">{sub.durationMonths || 3} Months Plan</div>
+                                                    </td>
+                                                    <td className="p-6 font-sans font-black text-white text-sm">
+                                                        ₹{sub.amount ? Number(sub.amount).toLocaleString('en-IN') : '149'}
+                                                    </td>
+                                                    <td className="p-6 font-sans text-[11px]">
+                                                        <div className="text-slate-400">
+                                                            {sub.startedAt ? new Date(sub.startedAt).toLocaleDateString('en-IN') : 'Active'} →
+                                                        </div>
+                                                        <div className="font-bold text-white">
+                                                            {sub.expiresAt ? new Date(sub.expiresAt).toLocaleDateString('en-IN') : 'Lifetime'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-6 font-sans">
+                                                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black ${
+                                                            days <= 7 ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20' : 'text-slate-300 bg-white/5'
+                                                        }`}>
+                                                            {days} Days
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-6 font-sans">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${status.color}`}>
+                                                            ● {status.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-6 text-right font-sans">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {/* Extend Validity */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedSubForExtend(sub);
+                                                                    setExtendMonths(3);
+                                                                    setIsExtendModalOpen(true);
+                                                                }}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                title="Extend Validity"
+                                                            >
+                                                                Extend
+                                                            </button>
+
+                                                            {/* Suspend / Reactivate */}
+                                                            {sub.status === 'SUSPENDED' ? (
+                                                                <button
+                                                                    onClick={() => handleAdminReactivate(sub)}
+                                                                    disabled={isUpdatingSub}
+                                                                    className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                >
+                                                                    Reactivate
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleAdminSuspend(sub)}
+                                                                    disabled={isUpdatingSub}
+                                                                    className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                >
+                                                                    Suspend
+                                                                </button>
+                                                            )}
+
+                                                            {/* Reminder */}
+                                                            <button
+                                                                onClick={() => handleTriggerReminder(sub)}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                title="Dispatch Reminder via WhatsApp"
+                                                            >
+                                                                Remind
+                                                            </button>
+
+                                                            {/* View History */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedSubForHistory(sub);
+                                                                    setIsHistoryModalOpen(true);
+                                                                }}
+                                                                className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 text-[10px] font-black uppercase tracking-wider transition-all"
+                                                            >
+                                                                History
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+
+                                        {filteredSubscriptions.length === 0 && (
+                                            <tr>
+                                                <td colSpan="8" className="p-12 text-center text-slate-500 text-xs uppercase font-sans font-bold">
+                                                    No subscription records found matching your filter criteria.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Section 13: Revenue & Plans Analytics Tab */}
+                {activeTab === 'revenue' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* Executive Financial Metrics */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Total Platform Revenue</span>
+                                <div className="text-4xl font-black italic text-primary font-poppins">
+                                    ₹{totalPlatformRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">Gross Platform Intake</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic">Registration Revenue</span>
+                                <div className="text-4xl font-black italic text-emerald-400 font-poppins">
+                                    ₹{regRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                    {registrationPayments.length} Initial Registrations (₹149)
+                                </span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic">Renewal Revenue</span>
+                                <div className="text-4xl font-black italic text-blue-400 font-poppins">
+                                    ₹{renRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                    {renewalPayments.length} Renewals Completed
+                                </span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic">Renewal Rate (%)</span>
+                                <div className="text-4xl font-black italic text-amber-400 font-poppins">
+                                    {renewalRate}%
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                    Top Plan: {mostPopularPlanName}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Revenue by Plan Breakdown */}
+                        <Card className="bg-medical-card border-white/5 rounded-[40px] p-8 shadow-2xl space-y-6">
+                            <div>
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                    Revenue Distribution by Plan
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Performance analytics breakdown across all initial registration and renewal tiers.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(planStats).map(([pId, stat]) => {
+                                    const share = totalPlatformRevenue > 0 ? ((stat.revenue / totalPlatformRevenue) * 100).toFixed(1) : '0';
+                                    return (
+                                        <div key={pId} className="p-5 rounded-2xl bg-slate-950/60 border border-white/5 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <span className="text-xs font-black text-white italic uppercase">{stat.name}</span>
+                                                    <span className="text-[10px] text-slate-500 block">Unit Price: ₹{stat.price}</span>
+                                                </div>
+                                                <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] font-black">
+                                                    {stat.count} Orders
+                                                </Badge>
+                                            </div>
+
+                                            <div className="flex justify-between items-baseline pt-2 border-t border-white/5">
+                                                <span className="text-xl font-black italic text-white font-poppins">
+                                                    ₹{stat.revenue.toLocaleString('en-IN')}
+                                                </span>
+                                                <span className="text-xs font-bold text-slate-400">{share}% of Total</span>
+                                            </div>
+
+                                            {/* Progress bar */}
+                                            <div className="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                                <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${Math.min(100, Number(share))}%` }} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </Card>
+
+                        {/* Recent Transactions Feed */}
+                        <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                            <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-black italic uppercase text-white font-poppins">
+                                        Recent Subscription Transactions
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">Real-time ledger of Razorpay verified subscriptions.</p>
+                                </div>
+                                <span className="text-xs font-black text-slate-500 uppercase">{safePayments.length} Total Records</span>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-xs font-mono">
+                                    <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                        <tr>
+                                            <th className="p-5">Transaction ID</th>
+                                            <th className="p-5">QR ID / User</th>
+                                            <th className="p-5">Plan Description</th>
+                                            <th className="p-5">Amount</th>
+                                            <th className="p-5">Status</th>
+                                            <th className="p-5 text-right">Timestamp</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {safePayments.slice(0, 15).map(pay => (
+                                            <tr key={pay.id || pay.paymentId} className="hover:bg-white/5">
+                                                <td className="p-5 font-mono text-primary font-bold">
+                                                    {pay.paymentId || pay.id}
+                                                </td>
+                                                <td className="p-5 font-mono text-slate-300">
+                                                    {pay.qrId || pay.userId || 'N/A'}
+                                                </td>
+                                                <td className="p-5 font-sans font-bold text-white">
+                                                    {pay.planName || 'RESQR Plan'}
+                                                </td>
+                                                <td className="p-5 font-sans font-black text-emerald-400">
+                                                    ₹{pay.amount ? Number(pay.amount).toLocaleString('en-IN') : '0'}
+                                                </td>
+                                                <td className="p-5 font-sans">
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                        ● {pay.status || 'SUCCESSFUL'}
+                                                    </span>
+                                                </td>
+                                                <td className="p-5 text-right font-sans text-slate-400 text-[11px]">
+                                                    {pay.timestamp ? new Date(pay.timestamp).toLocaleString('en-IN') : 'Just now'}
+                                                </td>
+                                            </tr>
+                                        ))}
+
+                                        {safePayments.length === 0 && (
+                                            <tr>
+                                                <td colSpan="6" className="p-10 text-center text-slate-500 font-sans text-xs uppercase font-bold">
+                                                    No payment transactions recorded in database yet.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    </div>
+                )}
             </main>
 
             {/* Modals */}
+            {/* Modal: Manual Subscription Extension (Section 12) */}
+            {isExtendModalOpen && selectedSubForExtend && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-lg bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <Badge className="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-[9px] font-black uppercase tracking-widest mb-2">
+                                    ADMIN OVERRIDE
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Extend Validity
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Target QR: <span className="font-mono text-primary font-bold">{selectedSubForExtend.qrId || selectedSubForExtend.id}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsExtendModalOpen(false)}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-2 text-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Citizen</span>
+                                    <span className="text-white font-bold">{getSubUserInfo(selectedSubForExtend).name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Current Expiry</span>
+                                    <span className="text-slate-300">
+                                        {selectedSubForExtend.expiresAt ? new Date(selectedSubForExtend.expiresAt).toLocaleDateString('en-IN') : 'Expired'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Select Extension Duration
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {[3, 6, 12].map(m => (
+                                        <button
+                                            key={m}
+                                            type="button"
+                                            onClick={() => setExtendMonths(m)}
+                                            className={`py-4 rounded-2xl border text-center transition-all ${
+                                                extendMonths === m
+                                                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                                                    : 'bg-slate-950 text-slate-300 border-white/10 hover:border-white/20'
+                                            }`}
+                                        >
+                                            <div className="text-lg font-black italic font-poppins">+{m}M</div>
+                                            <div className="text-[9px] uppercase font-bold text-slate-300">{m * 30} Days</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs flex items-center justify-between">
+                                <span className="text-emerald-400 font-bold uppercase tracking-wider">Calculated Expiry</span>
+                                <span className="text-emerald-300 font-bold font-mono">
+                                    {(() => {
+                                        const now = new Date();
+                                        const curExp = selectedSubForExtend.expiresAt;
+                                        const base = (curExp && new Date(curExp).getTime() > now.getTime()) ? new Date(curExp) : now;
+                                        const next = new Date(base.getTime() + extendMonths * 30 * 24 * 60 * 60 * 1000);
+                                        return next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+                                    })()}
+                                </span>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => setIsExtendModalOpen(false)}
+                                    className="flex-1 py-4 text-xs font-bold uppercase tracking-wider"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={() => handleAdminExtendValidity(selectedSubForExtend, extendMonths)}
+                                    disabled={isUpdatingSub}
+                                    className="flex-1 py-4 bg-primary hover:bg-red-700 text-white font-black italic uppercase tracking-wider text-xs shadow-lg shadow-primary/20"
+                                >
+                                    {isUpdatingSub ? 'Extending...' : 'Confirm Extension'}
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Modal: Payment History Inspector (Section 12) */}
+            {isHistoryModalOpen && selectedSubForHistory && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-2xl bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative max-h-[85vh] overflow-y-auto">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase tracking-widest mb-2">
+                                    PAYMENT AUDIT LOG
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Subscription Payment History
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Target QR: <span className="font-mono text-primary font-bold">{selectedSubForHistory.qrId || selectedSubForHistory.id}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {(() => {
+                                const targetQr = selectedSubForHistory.qrId || selectedSubForHistory.id;
+                                const targetUser = selectedSubForHistory.userId;
+                                const userPayments = safePayments.filter(p => 
+                                    (p.qrId && p.qrId === targetQr) || 
+                                    (p.userId && p.userId === targetUser) ||
+                                    (p.paymentId && p.paymentId === selectedSubForHistory.lastPaymentId)
+                                );
+
+                                if (userPayments.length === 0) {
+                                    return (
+                                        <div className="p-8 text-center text-slate-500 text-xs uppercase font-bold bg-slate-950/60 rounded-2xl border border-white/5">
+                                            No payment transaction records found specifically tagged to this QR.
+                                        </div>
+                                    );
+                                }
+
+                                return userPayments.map(p => (
+                                    <div key={p.id || p.paymentId} className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <div className="font-mono text-xs text-primary font-bold">{p.paymentId || p.id}</div>
+                                            <div className="text-xs font-bold text-white mt-1">{p.planName || 'RESQR Subscription'}</div>
+                                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                                {p.timestamp ? new Date(p.timestamp).toLocaleString('en-IN') : 'Date not recorded'}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-base font-black italic text-emerald-400 font-poppins">
+                                                ₹{p.amount ? Number(p.amount).toLocaleString('en-IN') : '149'}
+                                            </div>
+                                            <span className="text-[9px] font-black uppercase text-slate-400 bg-white/5 px-2 py-0.5 rounded-full">
+                                                {p.status || 'PAID'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
+                        </div>
+
+                        <div className="mt-8 flex justify-end">
+                            <Button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="h-12 px-6 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black italic uppercase tracking-widest text-[10px]"
+                            >
+                                Close Ledger
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
             {isProductModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
                     <Card className="w-full max-w-xl bg-medical-card border-white/5 p-12 rounded-[50px] shadow-[0_0_100px_rgba(0,0,0,0.5)] relative overflow-hidden">

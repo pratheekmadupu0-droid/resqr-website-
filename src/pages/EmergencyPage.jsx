@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Phone, MapPin, AlertCircle, Heart, Activity as ActivityIcon, Info, Loader2, 
     Lock, Navigation, Building2, Shield, ChevronRight, ShieldAlert, CheckCircle2, 
-    Key, Siren, Droplet, HeartPulse, Pill, Scissors, CreditCard, X, Stethoscope, Unlock, Clock
+    Key, Siren, Droplet, HeartPulse, Pill, Scissors, CreditCard, X, Stethoscope, Unlock, Clock, AlertTriangle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -13,6 +13,7 @@ import { ref, get, push, serverTimestamp } from 'firebase/database';
 import toast from 'react-hot-toast';
 import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
 import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
+import RenewalModal from '../components/subscription/RenewalModal';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
 
 export default function EmergencyPage() {
@@ -23,6 +24,11 @@ export default function EmergencyPage() {
     const [coords, setCoords] = useState(null);
     const [isTransmitting, setIsTransmitting] = useState(false);
     
+    // Subscription status: 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED'
+    const [subscriptionStatus, setSubscriptionStatus] = useState('ACTIVE');
+    const [subscriptionData, setSubscriptionData] = useState(null);
+    const [showRenewalModal, setShowRenewalModal] = useState(false);
+
     // Public Emergency Profile State (STRICTLY SANITIZED - ZERO MEDICAL DATA)
     const [publicUser, setPublicUser] = useState({
         name: "REGISTERED CITIZEN",
@@ -138,6 +144,39 @@ export default function EmergencyPage() {
                         }
                     } catch (err) {
                         console.warn("Could not preload biometric profile:", err);
+                    }
+
+                    // Fetch and evaluate subscription status
+                    try {
+                        let sub = raw.subscription || null;
+                        if (!sub) {
+                            const subSnap = await get(ref(db, `subscriptions/${actualPid}`));
+                            if (subSnap.exists()) {
+                                sub = subSnap.val();
+                            } else if (actualUid) {
+                                const uSubSnap = await get(ref(db, `users/${actualUid}/subscription`));
+                                if (uSubSnap.exists()) sub = uSubSnap.val();
+                            }
+                        }
+                        if (sub) {
+                            setSubscriptionData(sub);
+                            if (sub.status === 'REVOKED') {
+                                setSubscriptionStatus('REVOKED');
+                            } else if (sub.status === 'SUSPENDED') {
+                                setSubscriptionStatus('SUSPENDED');
+                            } else if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
+                                setSubscriptionStatus('EXPIRED');
+                            } else if (sub.expiresAt) {
+                                const days = Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                if (days <= 7) {
+                                    setSubscriptionStatus('EXPIRING_SOON');
+                                } else {
+                                    setSubscriptionStatus('ACTIVE');
+                                }
+                            }
+                        }
+                    } catch (subErr) {
+                        console.warn("Could not load subscription details:", subErr);
                     }
                 }
             } catch (error) {
@@ -300,6 +339,151 @@ export default function EmergencyPage() {
         );
     }
 
+    // Section 6: Emergency Scan Subscription Check
+    if (subscriptionStatus === 'EXPIRED') {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-red-600/30">
+                <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest sticky top-0 z-50 shadow-xl italic">
+                    <AlertTriangle size={16} />
+                    QR SUBSCRIPTION EXPIRED — ACCESS RESTRICTED
+                </div>
+
+                <div className="max-w-xl mx-auto px-5 py-12 text-center">
+                    <div className="flex flex-col items-center mb-6">
+                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                        <div className="w-20 h-20 bg-red-600/10 border-2 border-red-500/30 rounded-full flex items-center justify-center mb-4">
+                            <ShieldAlert size={40} className="text-red-500" />
+                        </div>
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-red-500/20 text-red-400 border border-red-500/30 mb-3">
+                            ● EXPIRED
+                        </span>
+                        <h1 className="text-3xl font-black italic uppercase tracking-tight text-white mb-2">
+                            QR Subscription Expired
+                        </h1>
+                        <p className="text-slate-400 text-sm leading-relaxed max-w-md">
+                            Please renew subscription to access emergency services and full medical details.
+                        </p>
+                    </div>
+
+                    {/* Emergency Contact Calling (Only phone call available) */}
+                    <div className="p-6 bg-slate-900/60 border border-white/10 rounded-3xl mb-6 text-left space-y-4">
+                        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 italic">
+                            Designated Emergency Contact
+                        </h3>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Citizen Name</span>
+                            <span className="text-sm font-bold text-white uppercase">{publicUser.name}</span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Contact</span>
+                            <span className="text-sm font-bold text-white">{publicUser.emergencyContact.name} ({publicUser.emergencyContact.relation})</span>
+                        </div>
+
+                        {publicUser.emergencyContact.phone ? (
+                            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <a 
+                                    href={`tel:${publicUser.emergencyContact.phone.replace(/[^0-9+]/g, '')}`}
+                                    className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
+                                >
+                                    <Phone size={16} /> Call Kin ({publicUser.emergencyContact.phone})
+                                </a>
+                                <button
+                                    onClick={handleSendLocation}
+                                    className="w-full py-4 px-6 bg-primary hover:bg-red-700 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
+                                >
+                                    <Navigation size={16} /> Send Location
+                                </button>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-slate-500 italic">No emergency phone number recorded.</p>
+                        )}
+                    </div>
+
+                    {/* Option to renew */}
+                    <div className="p-6 bg-gradient-to-br from-red-950/40 via-slate-900/60 to-slate-950 border border-red-500/20 rounded-3xl mb-8">
+                        <h3 className="text-base font-black uppercase italic tracking-tight text-white mb-2">
+                            Continuous Protection Required
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-6">
+                            Renew your subscription to reactivate 1:1 facial verification and emergency responder clinical dossiers immediately.
+                        </p>
+                        <Button 
+                            onClick={() => setShowRenewalModal(true)}
+                            className="w-full py-5 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
+                        >
+                            Renew Subscription (Starting ₹299)
+                        </Button>
+                    </div>
+
+                    <Link to="/" className="text-xs font-bold text-slate-500 uppercase tracking-widest hover:text-white transition-colors">
+                        Return to RESQR Homepage
+                    </Link>
+                </div>
+
+                <RenewalModal 
+                    isOpen={showRenewalModal}
+                    onClose={() => setShowRenewalModal(false)}
+                    qrId={resolvedPatientId}
+                    currentExpiry={subscriptionData?.expiresAt}
+                    holderName={publicUser.name}
+                    onRenewalComplete={() => window.location.reload()}
+                />
+            </div>
+        );
+    }
+
+    if (subscriptionStatus === 'SUSPENDED') {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white font-manrope flex items-center justify-center p-6 text-center">
+                <div className="max-w-md w-full bg-slate-900/80 border border-amber-500/30 p-8 rounded-3xl space-y-6">
+                    <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black uppercase italic tracking-tight text-white">Account Suspended - Contact Support</h2>
+                        <p className="text-slate-400 text-xs mt-2">
+                            This RESQR account has been suspended. Please contact customer support for assistance.
+                        </p>
+                    </div>
+                    <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 text-xs text-slate-300">
+                        <p className="font-bold">Support Email:</p>
+                        <a href="mailto:support@resqr.co.in" className="text-primary underline">support@resqr.co.in</a>
+                    </div>
+                    {publicUser.emergencyContact.phone && (
+                        <a 
+                            href={`tel:${publicUser.emergencyContact.phone.replace(/[^0-9+]/g, '')}`}
+                            className="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg"
+                        >
+                            <Phone size={16} /> Call Emergency Contact
+                        </a>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    if (subscriptionStatus === 'REVOKED') {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white font-manrope flex items-center justify-center p-6 text-center">
+                <div className="max-w-md w-full bg-slate-900/80 border border-red-500/30 p-8 rounded-3xl space-y-6">
+                    <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center mx-auto text-red-500">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black uppercase italic tracking-tight text-white">QR Code Invalid / Deactivated</h2>
+                        <p className="text-slate-400 text-xs mt-2">
+                            This emergency QR token has been revoked or deactivated by system administrators.
+                        </p>
+                    </div>
+                    <div className="p-4 bg-slate-950/60 rounded-2xl border border-white/5 text-xs text-slate-300">
+                        <p className="font-bold">Contact Support:</p>
+                        <a href="mailto:support@resqr.co.in" className="text-primary underline">support@resqr.co.in</a>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     // MANDATORY BIOMETRIC SECURITY GATE: Profile data completely locked until identity verified
     if (!isIdentityVerified) {
         return (
@@ -330,6 +514,12 @@ export default function EmergencyPage() {
 
     return (
         <div className="min-h-screen bg-[#040812] text-white font-manrope selection:bg-red-600/30">
+            {subscriptionStatus === 'EXPIRING_SOON' && (
+                <div className="bg-amber-600 text-white px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider sticky top-0 z-50 shadow-md">
+                    <AlertTriangle size={15} />
+                    <span>QR Subscription Expiring Soon ({subscriptionData?.expiresAt ? new Date(subscriptionData.expiresAt).toLocaleDateString('en-IN') : 'Within 7 days'}). Continuous protection recommended.</span>
+                </div>
+            )}
             {/* FRAUD PREVENTION & TELEMETRY BANNER */}
             <div className="bg-red-600 text-white px-6 py-3 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest sticky top-0 z-50 shadow-xl italic">
                 <ShieldAlert size={16} />

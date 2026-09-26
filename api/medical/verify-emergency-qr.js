@@ -63,6 +63,30 @@ export default async function handler(req, res) {
     }
 
     try {
+        // 1.5. Backend Subscription Validity Check
+        let subRes = await fetch(`${DB_URL}/subscriptions/${cleanId}.json`);
+        let sub = await subRes.json();
+        if (!sub) {
+            const uid = cleanId.includes('_') ? (cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0]) : cleanId;
+            subRes = await fetch(`${DB_URL}/users/${uid}/subscription.json`);
+            sub = await subRes.json();
+        }
+
+        if (sub) {
+            if (sub.status === 'SUSPENDED' || sub.status === 'REVOKED') {
+                return res.status(403).json({
+                    error: 'SUBSCRIPTION_INACTIVE',
+                    message: `This RESQR identity service is currently ${sub.status.toLowerCase()}. Please contact support.`
+                });
+            }
+            if (sub.expiresAt && new Date(sub.expiresAt).getTime() <= now) {
+                return res.status(403).json({
+                    error: 'SUBSCRIPTION_EXPIRED',
+                    message: 'The RESQR emergency protection subscription has expired. Please renew the subscription to reactivate emergency access.'
+                });
+            }
+        }
+
         // 2. 1:1 Retrieval of the specific QR owner's biometric profile
         let bioUrl = `${DB_URL}/biometricProfiles/${cleanId}.json`;
         let bioRes = await fetch(bioUrl);

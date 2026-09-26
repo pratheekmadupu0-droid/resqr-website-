@@ -15,6 +15,7 @@ import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 export default function SuccessPage() {
     const qrRef = useRef();
     const [profile, setProfile] = useState(null);
+    const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -47,8 +48,26 @@ export default function SuccessPage() {
                 if (snap && snap.exists()) {
                     const data = snap.val();
                     setProfile(data);
+                    if (data.subscription) {
+                        setSubscription(data.subscription);
+                    }
                 } else {
                     console.error("Profile node not found, displaying active session fallback");
+                }
+
+                // Fetch dedicated subscription record
+                try {
+                    const subSnap = await get(ref(db, `subscriptions/${slug}`));
+                    if (subSnap.exists()) {
+                        setSubscription(subSnap.val());
+                    } else if (uid) {
+                        const userSubSnap = await get(ref(db, `users/${uid}/subscription`));
+                        if (userSubSnap.exists()) {
+                            setSubscription(userSubSnap.val());
+                        }
+                    }
+                } catch (subErr) {
+                    console.warn("Subscription lookup error:", subErr);
                 }
             } catch (err) {
                 console.error("Success context load failed:", err);
@@ -227,6 +246,40 @@ export default function SuccessPage() {
                                 <span className="text-blue-400 font-bold">{profile.insurance.insuranceCompany}</span>
                             </div>
                         )}
+
+                        {/* Subscription Validity Information */}
+                        <div className="mt-6 pt-4 border-t border-white/10 bg-slate-900/60 -mx-6 -mb-6 p-6 rounded-b-[40px] text-left space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Subscription Plan</span>
+                                <span className="text-xs font-black text-white">{subscription?.planName || 'RESQR Registration (3M)'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>
+                                <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                                    ● {subscription?.status || 'ACTIVE'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Valid Until</span>
+                                <span className="text-xs font-bold text-slate-200">
+                                    {subscription?.expiresAt 
+                                        ? new Date(subscription.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : '3 Months Validity'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Days Remaining</span>
+                                <span className="text-xs font-black text-primary">
+                                    {subscription?.expiresAt 
+                                        ? Math.max(0, Math.ceil((new Date(subscription.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))) + ' Days'
+                                        : '90 Days'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Physical Deliverable</span>
+                                <span className="text-[11px] font-bold text-amber-400">2 Reflective Stickers Dispatched</span>
+                            </div>
+                        </div>
                     </div>
                 </Card>
 

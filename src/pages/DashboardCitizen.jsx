@@ -19,6 +19,8 @@ import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
+import SubscriptionCard from '../components/subscription/SubscriptionCard';
+import RenewalModal from '../components/subscription/RenewalModal';
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -31,8 +33,48 @@ export default function DashboardCitizen() {
     const [editTab, setEditTab] = useState('personal'); // 'personal', 'medical', 'insurance', 'biometrics'
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isFaceEnrollModalOpen, setIsFaceEnrollModalOpen] = useState(false);
+    const [subscription, setSubscription] = useState(null);
+    const [isRenewalModalOpen, setIsRenewalModalOpen] = useState(false);
 
     const activeProfile = profiles.find(p => p.id === selectedProfileId) || profiles[0];
+
+    useEffect(() => {
+        if (!auth.currentUser || !activeProfile?.id) return;
+        const uid = auth.currentUser.uid;
+        const pid = activeProfile.id;
+
+        const subRef = ref(db, `subscriptions/${pid}`);
+        const unsub = onValue(subRef, async (snap) => {
+            if (snap.exists()) {
+                setSubscription(snap.val());
+            } else {
+                const userSubSnap = await get(ref(db, `users/${uid}/subscription`));
+                if (userSubSnap.exists()) {
+                    setSubscription(userSubSnap.val());
+                } else if (activeProfile.subscription) {
+                    setSubscription(activeProfile.subscription);
+                } else if (activeProfile.payment_status === 'paid' || activeProfile.qrPackage?.paymentStatus === 'paid') {
+                    // Fallback synthesis for existing paid accounts
+                    const actDate = activeProfile.payment_date || activeProfile.createdAt || new Date().toISOString();
+                    const expDate = new Date(new Date(actDate).getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
+                    setSubscription({
+                        id: `sub_${pid}`,
+                        userId: uid,
+                        qrId: pid,
+                        planId: 'initial_3m',
+                        planName: 'RESQR Registration (3 Months)',
+                        amount: 149,
+                        status: new Date(expDate).getTime() > Date.now() ? 'ACTIVE' : 'EXPIRED',
+                        activatedAt: actDate,
+                        expiresAt: expDate
+                    });
+                } else {
+                    setSubscription(null);
+                }
+            }
+        });
+        return () => unsub();
+    }, [activeProfile?.id]);
 
     useEffect(() => {
         if (profiles.length > 0 && !selectedProfileId) {
@@ -387,6 +429,14 @@ export default function DashboardCitizen() {
                         </div>
                     </div>
                 </div>
+
+                {/* PROMINENT RESQR SUBSCRIPTION CARD (Section 6) */}
+                <SubscriptionCard
+                    subscription={subscription}
+                    activeProfile={activeProfile}
+                    onRenewClick={() => setIsRenewalModalOpen(true)}
+                    onDownloadQR={handleDownload}
+                />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2 bg-[#11192A] rounded-[50px] border border-white/5 overflow-hidden flex flex-col relative shadow-2xl">
@@ -867,6 +917,18 @@ export default function DashboardCitizen() {
                     </div>
                 </div>
             )}
+
+            {/* RESQR UPGRADE & RENEWAL MODAL (Section 4 & 7) */}
+            <RenewalModal
+                isOpen={isRenewalModalOpen}
+                onClose={() => setIsRenewalModalOpen(false)}
+                subscription={subscription}
+                activeProfile={activeProfile}
+                userId={auth.currentUser?.uid}
+                onSuccess={(newSub) => {
+                    setSubscription(newSub);
+                }}
+            />
         </div>
     );
 }

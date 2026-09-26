@@ -18,6 +18,9 @@ import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
 import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
+import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import { createSubscriptionOrder, verifySubscriptionPayment } from '../lib/subscriptionApi';
+import { addMonthsToDate } from '../lib/subscriptionConfig';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -289,8 +292,8 @@ export default function LoginPage() {
         }
     };
 
-    // Submit Citizen registration
-    const handleCitizenRegistrationSubmit = async () => {
+    // Submit Citizen registration with verified ₹149 payment and 3 months validity
+    const handleCitizenRegistrationSubmit = async (paymentResponse) => {
         setAuthLoading(true);
         try {
             const currentUser = auth.currentUser;
@@ -299,11 +302,39 @@ export default function LoginPage() {
             const uid = currentUser.uid;
             const profileId = `c_${uid}`;
 
+            const paymentId = paymentResponse?.razorpay_payment_id || `demo_pay_${Math.random().toString(36).substr(2, 9)}`;
+            const orderId = paymentResponse?.razorpay_order_id || `ord_${Date.now()}`;
+
             let scannerType = biometricEnrollment ? 'facial' : 'qr';
 
             const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
                 ? emergencyContacts[0] 
                 : { name: '', relationship: '', phone: '' };
+
+            const now = new Date();
+            const nowIso = now.toISOString();
+            // Exactly 3 months validity for initial registration
+            const expiryIso = addMonthsToDate(now, 3).toISOString();
+
+            const subscriptionData = {
+                id: `sub_${profileId}`,
+                userId: uid,
+                qrId: profileId,
+                planId: 'initial_3m',
+                planName: 'RESQR Registration + 2 QR Stickers',
+                durationMonths: 3,
+                amount: 149,
+                currency: 'INR',
+                status: 'ACTIVE',
+                activatedAt: nowIso,
+                expiresAt: expiryIso,
+                paymentId: paymentId,
+                orderId: orderId,
+                paymentStatus: 'paid',
+                createdAt: nowIso,
+                updatedAt: nowIso,
+                renewalCount: 0
+            };
 
             const profileData = {
                 id: profileId,
@@ -359,15 +390,36 @@ export default function LoginPage() {
                     cashlessFacility: hasInsurance === 'yes' ? cashlessFacility : false
                 },
                 qrPackage: {
-                    type: selectedPackage,
-                    price: selectedPackage === 'digital' ? 99 : 149,
-                    paymentStatus: 'paid' // Simulated Payment success
+                    type: 'stickers',
+                    name: 'RESQR Registration + 2 QR Stickers',
+                    price: 149,
+                    validityMonths: 3,
+                    paymentStatus: 'paid'
                 },
+                subscription: subscriptionData,
+                subscriptionStatus: 'ACTIVE',
+                subscriptionExpiresAt: expiryIso,
                 payment_status: 'paid',
-                payment_id: "demo_pay_" + Math.random().toString(36).substr(2, 9),
-                payment_date: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
+                payment_id: paymentId,
+                payment_date: nowIso,
+                createdAt: nowIso,
                 uid: uid
+            };
+
+            const paymentRecord = {
+                paymentId: paymentId,
+                orderId: orderId,
+                userId: uid,
+                qrId: profileId,
+                planId: 'initial_3m',
+                planName: 'RESQR Registration + 2 QR Stickers',
+                durationMonths: 3,
+                amount: 149,
+                currency: 'INR',
+                status: 'SUCCESSFUL',
+                timestamp: nowIso,
+                epoch: now.getTime(),
+                type: 'registration'
             };
 
             // Save to DB
@@ -380,13 +432,17 @@ export default function LoginPage() {
                 role: 'citizen',
                 status: 'approved',
                 profileCompleted: true,
-                createdAt: new Date().toISOString(),
-                lastLogin: new Date().toISOString(),
+                createdAt: nowIso,
+                lastLogin: nowIso,
+                subscription: subscriptionData,
                 profiles: {
                     [profileId]: profileData
                 }
             };
             updates[`profiles/${profileId}`] = profileData;
+            updates[`subscriptions/${profileId}`] = subscriptionData;
+            updates[`users/${uid}/subscription`] = subscriptionData;
+            updates[`paymentHistory/${paymentId}`] = paymentRecord;
             updates[`usernames/${chosenUsername.toLowerCase()}`] = `${uid}/profiles/${profileId}`;
 
             if (biometricEnrollment) {
@@ -397,7 +453,7 @@ export default function LoginPage() {
             await update(ref(db), updates);
             localStorage.setItem('resqr_active_slug', profileId);
 
-            toast.success("Citizen Emergency Profile Generated!");
+            toast.success("RESQR Registration & 3-Month Emergency Subscription Activated!");
             navigate('/success');
         } catch (error) {
             console.error("Error creating citizen profile:", error);
@@ -1170,15 +1226,16 @@ export default function LoginPage() {
                                     <div>
                                         <Badge className="bg-primary/20 text-primary border-none px-4 py-1 font-black italic tracking-widest text-[9px] mb-2">CITIZEN IDENTITY PROTOCOL</Badge>
                                         <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">
-                                            Step {citizenStep} of 5: {
-                                                citizenStep === 1 ? 'Face Verification' :
+                                            Step {citizenStep} of 6: {
+                                                citizenStep === 1 ? 'Face Registration' :
                                                 citizenStep === 2 ? 'Personal Details' :
                                                 citizenStep === 3 ? 'Medical Details' :
-                                                citizenStep === 4 ? 'Insurance Details' : 'Choose Your RESQR'
+                                                citizenStep === 4 ? 'Insurance Details' :
+                                                citizenStep === 5 ? 'QR Registration Preview' : 'Registration Payment'
                                             }
                                         </h2>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((citizenStep / 5) * 100)}% Completed</span>
+                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((citizenStep / 6) * 100)}% Completed</span>
                                 </div>
 
                                 {/* Step 1: Face Registration */}
@@ -1188,7 +1245,7 @@ export default function LoginPage() {
                                             uid={auth.currentUser?.uid}
                                             profileId={auth.currentUser?.uid ? `c_${auth.currentUser.uid}` : 'c_citizen'}
                                             stepNumber={1}
-                                            totalSteps={5}
+                                            totalSteps={6}
                                             onComplete={(bioProfile) => {
                                                 setBiometricEnrollment(bioProfile);
                                                 if (bioProfile?.frontPhotoSnapshot) {
@@ -1549,85 +1606,127 @@ export default function LoginPage() {
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
                                             <Button onClick={() => setCitizenStep(5)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
-                                                Choose Tag Package <ArrowRight size={16} className="ml-2" />
+                                                Continue to QR Preview <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Step 5: Package & Razorpay Payment */}
+                                {/* Step 5: QR Registration Preview */}
                                 {citizenStep === 5 && (
-                                    <div className="space-y-8 animate-in fade-in duration-300">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {/* Digital QR */}
-                                            <div 
-                                                onClick={() => setSelectedPackage('digital')}
-                                                className={`p-6 bg-slate-950 border rounded-3xl text-left cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden ${selectedPackage === 'digital' ? 'border-primary shadow-2xl' : 'border-white/5'}`}
-                                            >
-                                                <Badge className="bg-primary/20 text-primary border-none mb-4 font-black italic text-[8px] tracking-widest">BEST VALUE</Badge>
-                                                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-1 font-poppins">Digital QR Code</h3>
-                                                <p className="text-slate-500 text-xs leading-relaxed mb-6 font-bold">Lifetime access to your secure medical vault from any mobile web scanner.</p>
-                                                <div className="flex justify-between items-baseline">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">One-Time Fee</span>
-                                                    <span className="text-2xl font-black italic text-white font-poppins">₹99</span>
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        <div className="text-center space-y-2">
+                                            <h3 className="text-xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                                Emergency QR Identity Preview
+                                            </h3>
+                                            <p className="text-xs text-slate-400 font-medium">
+                                                Your official RESQR emergency tag design. 2 physical reflective stickers are included.
+                                            </p>
+                                        </div>
+
+                                        <div className="py-2 flex justify-center">
+                                            <RESQRQRCodeCard
+                                                qrValue={`${window.location.origin}/${chosenUsername || 'user'}`}
+                                                userName={citizenName || 'REGISTERED HOLDER'}
+                                                size={190}
+                                                showBorder={true}
+                                            />
+                                        </div>
+
+                                        <div className="p-4 bg-slate-950/70 rounded-2xl border border-white/5 space-y-1 text-center">
+                                            <p className="text-xs font-bold text-slate-300">
+                                                Personal Emergency URL: <span className="text-primary italic lowercase">resqr.co.in/{chosenUsername || 'user'}</span>
+                                            </p>
+                                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                                Permanent Secure Token • Preserved across all future renewals
+                                            </p>
+                                        </div>
+
+                                        <div className="pt-4 flex justify-between items-center">
+                                            <Button onClick={() => setCitizenStep(4)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                <ArrowLeft size={16} className="mr-2" /> Back
+                                            </Button>
+                                            <Button onClick={() => setCitizenStep(6)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                                Proceed to Payment <ArrowRight size={16} className="ml-2" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Step 6: Registration Payment — ₹149 */}
+                                {citizenStep === 6 && (
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        <div className="p-6 sm:p-8 bg-gradient-to-br from-primary/10 via-slate-950 to-slate-900 border-2 border-primary/40 rounded-[35px] shadow-2xl relative overflow-hidden">
+                                            <div className="flex justify-between items-start mb-6">
+                                                <div>
+                                                    <Badge className="bg-primary/20 text-primary border-none mb-2 font-black italic text-[9px] tracking-widest uppercase">
+                                                        INITIAL REGISTRATION
+                                                    </Badge>
+                                                    <h3 className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter text-white font-poppins">
+                                                        RESQR Registration
+                                                    </h3>
+                                                    <p className="text-xs text-slate-400 font-medium mt-1">
+                                                        Includes 2 QR stickers & 3 months service validity
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">One-Time Fee</span>
+                                                    <span className="text-3xl sm:text-4xl font-black italic text-primary font-poppins">₹149</span>
                                                 </div>
                                             </div>
 
-                                            {/* Digital QR + Stickers */}
-                                            <div 
-                                                onClick={() => setSelectedPackage('stickers')}
-                                                className={`p-6 bg-slate-950 border rounded-3xl text-left cursor-pointer transition-all hover:-translate-y-1 relative overflow-hidden ${selectedPackage === 'stickers' ? 'border-primary shadow-2xl' : 'border-white/5'}`}
-                                            >
-                                                <Badge className="bg-primary/20 text-primary border-none mb-4 font-black italic text-[8px] tracking-widest">POPULAR CHOICE</Badge>
-                                                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-1 font-poppins">Digital QR + 2 Stickers</h3>
-                                                <p className="text-slate-500 text-xs leading-relaxed mb-6 font-bold">Digital QR code plus 2 physical reflective emergency stickers delivered to your door.</p>
-                                                <div className="flex justify-between items-baseline">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">One-Time Fee</span>
-                                                    <span className="text-2xl font-black italic text-white font-poppins">₹149</span>
+                                            <div className="space-y-3 pt-4 border-t border-white/10">
+                                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 italic">
+                                                    Includes:
+                                                </p>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                    {[
+                                                        'Registration',
+                                                        'Face enrollment',
+                                                        'Emergency profile',
+                                                        '2 QR stickers',
+                                                        '3 months service validity'
+                                                    ].map((item, i) => (
+                                                        <div key={i} className="flex items-center gap-2 text-xs text-slate-200 font-semibold">
+                                                            <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+                                                                <Check size={12} />
+                                                            </div>
+                                                            <span>✓ {item}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-4 pt-4 border-t border-white/5">
-                                            <h4 className="text-[9px] font-black uppercase tracking-[0.25em] text-slate-500 italic">Coming Soon Products</h4>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 opacity-40">
-                                                {['QR Keychain', 'QR Bracelet', 'QR Ring', 'QR Band'].map((item) => (
-                                                    <div key={item} className="p-4 bg-slate-950 rounded-2xl border border-white/5 text-center">
-                                                        <span className="text-[9px] font-black uppercase tracking-widest block mb-1 text-slate-400">{item}</span>
-                                                        <span className="text-[8px] font-black text-primary uppercase tracking-[0.2em] italic">Coming Soon</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Checkout info */}
-                                        <div className="p-6 bg-slate-950/60 rounded-3xl border border-white/5 space-y-4">
+                                        {/* Cost details */}
+                                        <div className="p-6 bg-slate-950/60 rounded-3xl border border-white/5 space-y-3">
                                             <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                                                 <span>Subtotal</span>
-                                                <span>₹{selectedPackage === 'digital' ? '83.90' : '126.27'}</span>
+                                                <span>₹126.27</span>
                                             </div>
                                             <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                                                 <span>GST (18%)</span>
-                                                <span>₹{selectedPackage === 'digital' ? '15.10' : '22.73'}</span>
+                                                <span>₹22.73</span>
                                             </div>
-                                            <div className="flex justify-between items-center text-base font-black uppercase tracking-widest text-primary border-t border-white/5 pt-4">
-                                                <span>Total Amount</span>
-                                                <span>₹{selectedPackage === 'digital' ? '99.00' : '149.00'}</span>
+                                            <div className="flex justify-between items-center text-base font-black uppercase tracking-widest text-primary border-t border-white/5 pt-3">
+                                                <span>Total Payable</span>
+                                                <span>₹149.00</span>
                                             </div>
-                                                   <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                            <Button onClick={() => setCitizenStep(4)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
-                                                <ArrowLeft size={16} className="mr-2" /> Back
-                                            </Button>
 
+                                            <div className="pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                                <Button onClick={() => setCitizenStep(5)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
+                                                    <ArrowLeft size={16} className="mr-2" /> Back
+                                                </Button>
 
-                                            <Button 
-                                                onClick={() => setIsRazorpayOpen(true)}
-                                                disabled={authLoading}
-                                                className="w-full sm:flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20"
-                                            >
-                                                {authLoading ? 'Transacting Secure Checkout...' : 'Secure Pay via Razorpay'}
-                                            </Button>
-                                        </div>                                </div>
+                                                <Button 
+                                                    onClick={() => setIsRazorpayOpen(true)}
+                                                    disabled={authLoading}
+                                                    className="w-full sm:flex-1 py-6 bg-primary hover:bg-primary-dark text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20 flex items-center justify-center gap-2"
+                                                >
+                                                    {authLoading ? 'Activating RESQR Profile...' : 'PAY ₹149'}
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </Card>
