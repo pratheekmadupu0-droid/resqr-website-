@@ -502,7 +502,7 @@ export default function FaceEnrollmentWizard({
                     frontTemplate: completeTemplates.front,
                     leftTemplate: completeTemplates.left,
                     rightTemplate: template,
-                    frontPhotoSnapshot: completeTemplates.front?.snapshot || frontSnapshot || null,
+                    frontPhotoSnapshot: completeTemplates.front?.snapshot || null,
                     templateVersion: TEMPLATE_VERSION,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()

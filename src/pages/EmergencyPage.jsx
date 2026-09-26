@@ -113,6 +113,16 @@ export default function EmergencyPage() {
                 const existingToken = sessionStorage.getItem(`resqr_emergency_token_${actualPid}`);
                 if (existingToken && validatePublicEmergencySession(actualPid, existingToken)) {
                     setIsIdentityVerified(true);
+                    try {
+                        const clinicalData = await fetchAuthorizedMedicalProfile(actualPid, existingToken);
+                        if (clinicalData) {
+                            setAuthorizedMedicalData(clinicalData);
+                            setIsMedicalAuthorized(true);
+                            setSessionExpiresAt(clinicalData.authorizedUntil || (Date.now() + 15 * 60 * 1000));
+                        }
+                    } catch (e) {
+                        console.warn("Session restore medical fetch note:", e);
+                    }
                 }
 
                 if (snap.exists()) {
@@ -501,10 +511,20 @@ export default function EmergencyPage() {
                     <QRScanIdentityGate
                         patientId={resolvedPatientId}
                         qrId={id || resolvedPatientId}
-                        onVerificationSuccess={({ token }) => {
+                        onVerificationSuccess={async ({ token, expiresAt }) => {
                             sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
                             setIsIdentityVerified(true);
                             toast.success("✓ Identity confirmed. Emergency profile unlocked.");
+                            try {
+                                const clinicalData = await fetchAuthorizedMedicalProfile(resolvedPatientId, token);
+                                if (clinicalData) {
+                                    setAuthorizedMedicalData(clinicalData);
+                                    setIsMedicalAuthorized(true);
+                                    setSessionExpiresAt(expiresAt || (Date.now() + 15 * 60 * 1000));
+                                }
+                            } catch (e) {
+                                console.warn("Auto-decrypt medical profile note:", e);
+                            }
                         }}
                     />
                 </div>
@@ -544,6 +564,9 @@ export default function EmergencyPage() {
                         onClick={() => {
                             sessionStorage.removeItem(`resqr_emergency_token_${resolvedPatientId}`);
                             setIsIdentityVerified(false);
+                            setIsMedicalAuthorized(false);
+                            setAuthorizedMedicalData(null);
+                            setSessionExpiresAt(null);
                             toast("Profile locked. Face verification required.");
                         }}
                         className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 px-3.5 py-1.5 rounded-full border border-white/10 transition-all cursor-pointer"

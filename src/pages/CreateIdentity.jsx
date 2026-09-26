@@ -16,6 +16,7 @@ import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import { calculateAge } from '../lib/dateUtils';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
+import { isPseudoEmbedding } from '../lib/biometrics';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -302,11 +303,31 @@ export default function CreateIdentity() {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("Authentication context lost.");
 
+            // Mandatory Face Registration Security Verification
+            if (!biometricEnrollment || 
+                !biometricEnrollment.frontTemplate?.descriptor || 
+                !biometricEnrollment.leftTemplate?.descriptor || 
+                !biometricEnrollment.rightTemplate?.descriptor) {
+                toast.error("Face registration is mandatory. Please complete all 3 face angles (Front, Left, Right).");
+                setWizardStep(1);
+                setAuthLoading(false);
+                return;
+            }
+
+            if (isPseudoEmbedding(biometricEnrollment.frontTemplate.descriptor) ||
+                isPseudoEmbedding(biometricEnrollment.leftTemplate.descriptor) ||
+                isPseudoEmbedding(biometricEnrollment.rightTemplate.descriptor)) {
+                toast.error("Biometric enrollment rejected: Genuine deep neural embeddings required. Please re-enroll with camera.");
+                setWizardStep(1);
+                setAuthLoading(false);
+                return;
+            }
+
             const uid = currentUser.uid;
             // Use same profileId established during Step 1 biometric enrollment
             const profileId = expansionProfileId || `c_${uid}_${Math.random().toString(36).substr(2, 9)}`;
 
-            let scannerType = biometricEnrollment ? 'facial' : 'qr';
+            let scannerType = 'facial';
 
             const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
                 ? emergencyContacts[0] 

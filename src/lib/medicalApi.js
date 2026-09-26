@@ -169,8 +169,15 @@ export async function fetchAuthorizedMedicalProfile(patientId, verificationToken
         if (parts.length !== 3) throw new Error('Malformed authorization token.');
 
         const [header, body, signature] = parts;
-        const expectedSig = CryptoJS.HmacSHA256(`${header}.${body}`, MEDICAL_JWT_SECRET).toString(CryptoJS.enc.Base64);
-        if (signature !== expectedSig) {
+        const sigMed = CryptoJS.HmacSHA256(`${header}.${body}`, MEDICAL_JWT_SECRET).toString(CryptoJS.enc.Base64);
+        const sigQr = CryptoJS.HmacSHA256(`${header}.${body}`, PUBLIC_QR_JWT_SECRET).toString(CryptoJS.enc.Base64);
+        const toUrlSafe = (s) => s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const validSig = (
+            signature === sigMed || signature === toUrlSafe(sigMed) ||
+            signature === sigQr || signature === toUrlSafe(sigQr)
+        );
+
+        if (!validSig) {
             throw new Error('Cryptographic signature mismatch. Unauthorized access token.');
         }
 
@@ -485,9 +492,11 @@ export function validatePublicEmergencySession(patientId, token) {
         if (parts.length !== 3) return false;
         const [header, body, signature] = parts;
         const expectedSig = CryptoJS.HmacSHA256(`${header}.${body}`, PUBLIC_QR_JWT_SECRET).toString(CryptoJS.enc.Base64);
-        if (signature !== expectedSig) return false;
+        const toUrlSafe = (s) => s.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        if (signature !== expectedSig && signature !== toUrlSafe(expectedSig)) return false;
 
-        const payload = JSON.parse(atob(body));
+        const base64Body = body.replace(/-/g, '+').replace(/_/g, '/').padEnd(body.length + (4 - body.length % 4) % 4, '=');
+        const payload = JSON.parse(atob(base64Body));
         if (Date.now() > payload.exp) return false;
         if (payload.patientId !== patientId) return false;
         return true;

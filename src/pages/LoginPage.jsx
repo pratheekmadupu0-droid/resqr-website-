@@ -18,6 +18,7 @@ import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
 import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
+import { isPseudoEmbedding } from '../lib/biometrics';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../lib/subscriptionApi';
 import { addMonthsToDate } from '../lib/subscriptionConfig';
@@ -299,13 +300,33 @@ export default function LoginPage() {
             const currentUser = auth.currentUser;
             if (!currentUser) throw new Error("Authentication context lost.");
 
+            // Mandatory Face Registration Security Verification
+            if (!biometricEnrollment || 
+                !biometricEnrollment.frontTemplate?.descriptor || 
+                !biometricEnrollment.leftTemplate?.descriptor || 
+                !biometricEnrollment.rightTemplate?.descriptor) {
+                toast.error("Face registration is mandatory. Please complete all 3 face angles (Front, Left, Right).");
+                setCitizenStep(1);
+                setAuthLoading(false);
+                return;
+            }
+
+            if (isPseudoEmbedding(biometricEnrollment.frontTemplate.descriptor) ||
+                isPseudoEmbedding(biometricEnrollment.leftTemplate.descriptor) ||
+                isPseudoEmbedding(biometricEnrollment.rightTemplate.descriptor)) {
+                toast.error("Biometric enrollment rejected: Genuine deep neural embeddings required. Please re-enroll with camera.");
+                setCitizenStep(1);
+                setAuthLoading(false);
+                return;
+            }
+
             const uid = currentUser.uid;
             const profileId = `c_${uid}`;
 
             const paymentId = paymentResponse?.razorpay_payment_id || `demo_pay_${Math.random().toString(36).substr(2, 9)}`;
             const orderId = paymentResponse?.razorpay_order_id || `ord_${Date.now()}`;
 
-            let scannerType = biometricEnrollment ? 'facial' : 'qr';
+            let scannerType = 'facial';
 
             const firstEmergencyContact = emergencyContacts && emergencyContacts.length > 0 
                 ? emergencyContacts[0] 

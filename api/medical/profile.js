@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 
-const JWT_SECRET = process.env.MEDICAL_JWT_SECRET || 'resqr_trauma_medical_sec_key_2026';
+const MEDICAL_JWT_SECRET = process.env.MEDICAL_JWT_SECRET || 'resqr_trauma_medical_sec_key_2026';
+const PUBLIC_QR_JWT_SECRET = process.env.PUBLIC_QR_JWT_SECRET || 'resqr_public_emergency_access_sec_key_2026';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -22,12 +23,21 @@ export default async function handler(req, res) {
         }
 
         const [headerStr, payloadStr, signature] = parts;
-        const expectedSig = crypto
-            .createHmac('sha256', JWT_SECRET)
-            .update(`${headerStr}.${payloadStr}`)
-            .digest('base64url');
+        
+        // Verify against both clinical hospital key and emergency QR public key
+        const sigMedUrl = crypto.createHmac('sha256', MEDICAL_JWT_SECRET).update(`${headerStr}.${payloadStr}`).digest('base64url');
+        const sigQrUrl = crypto.createHmac('sha256', PUBLIC_QR_JWT_SECRET).update(`${headerStr}.${payloadStr}`).digest('base64url');
+        const sigMedBase = crypto.createHmac('sha256', MEDICAL_JWT_SECRET).update(`${headerStr}.${payloadStr}`).digest('base64');
+        const sigQrBase = crypto.createHmac('sha256', PUBLIC_QR_JWT_SECRET).update(`${headerStr}.${payloadStr}`).digest('base64');
 
-        if (signature !== expectedSig) {
+        const isValidSig = (
+            signature === sigMedUrl ||
+            signature === sigQrUrl ||
+            signature === sigMedBase ||
+            signature === sigQrBase
+        );
+
+        if (!isValidSig) {
             return res.status(403).json({ error: 'Invalid token signature. Access denied.' });
         }
 
