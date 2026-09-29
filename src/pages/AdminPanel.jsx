@@ -6,7 +6,8 @@ import {
     Package, Settings, LayoutDashboard, LogOut, ChevronRight, ExternalLink, Bell,
     Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
     QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle,
-    ShieldCheck, Key, Copy, Receipt, DollarSign, Calendar, FileText, Download
+    ShieldCheck, Key, Copy, Receipt, DollarSign, Calendar, FileText, Download,
+    Zap, ChevronLeft, History as HistoryIcon
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -132,6 +133,19 @@ export default function AdminPanel() {
     const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
     const [extendMonths, setExtendMonths] = useState(3);
     const [isUpdatingSub, setIsUpdatingSub] = useState(false);
+
+    // Razorpay Historical Sync & Enhanced Payment History States
+    const [isRazorpaySyncModalOpen, setIsRazorpaySyncModalOpen] = useState(false);
+    const [isRazorpaySyncing, setIsRazorpaySyncing] = useState(false);
+    const [razorpaySyncRange, setRazorpaySyncRange] = useState('all');
+    const [razorpayLastSync, setRazorpayLastSync] = useState(null);
+    const [razorpaySyncHistory, setRazorpaySyncHistory] = useState([]);
+    const [syncResultModalData, setSyncResultModalData] = useState(null);
+    const [isSyncResultModalOpen, setIsSyncResultModalOpen] = useState(false);
+    const [selectedPaymentForDetails, setSelectedPaymentForDetails] = useState(null);
+    const [paymentTypeFilter, setPaymentTypeFilter] = useState('ALL');
+    const [paymentsPerPage, setPaymentsPerPage] = useState(25);
+    const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -513,6 +527,23 @@ export default function AdminPanel() {
             setSubscriptionAuditsList([]);
         });
 
+        // Razorpay Last Sync listener
+        const lastSyncRef = ref(db, 'admin/razorpayLastSync');
+        const unsubLastSync = onValue(lastSyncRef, (snap) => {
+            if (snap.exists()) setRazorpayLastSync(snap.val());
+        });
+
+        // Razorpay Sync History listener
+        const syncHistoryRef = ref(db, 'admin/razorpaySyncHistory');
+        const unsubSyncHistory = onValue(syncHistoryRef, (snap) => {
+            if (snap.exists()) {
+                const data = snap.val();
+                const list = Object.entries(data).map(([id, val]) => (typeof val === 'object' ? { id, ...val } : { id, value: val }));
+                list.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                setRazorpaySyncHistory(list);
+            }
+        });
+
         return () => {
             unsubscribeAuth();
             unsubUsers();
@@ -526,6 +557,8 @@ export default function AdminPanel() {
             unsubPayments();
             unsubAttempts();
             unsubSubAudits();
+            unsubLastSync();
+            unsubSyncHistory();
         };
     }, [navigate]);
 
@@ -1639,13 +1672,20 @@ export default function AdminPanel() {
 
     // Verified Successful Payments (Source of truth for revenue)
     const verifiedSuccessPayments = allUnifiedPayments.filter(p => 
-        p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID'
+        p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID' || p.status === 'CAPTURED'
     );
-    const pendingPaymentsCount = safeAttempts.filter(a => a.status === 'PENDING').length + allUnifiedPayments.filter(p => p.status === 'PENDING' || p.status === 'PROCESSING').length;
+    const pendingPaymentsCount = safeAttempts.filter(a => a.status === 'PENDING').length + allUnifiedPayments.filter(p => p.status === 'PENDING' || p.status === 'PROCESSING' || p.status === 'AUTHORIZED').length;
     const failedPaymentsCount = safeAttempts.filter(a => a.status === 'FAILED').length + allUnifiedPayments.filter(p => p.status === 'FAILED').length;
-    const refundedPaymentsCount = allUnifiedPayments.filter(p => p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED').length;
+    const refundedPaymentsCount = allUnifiedPayments.filter(p => p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED' || Number(p.amountRefunded || 0) > 0).length;
 
     const totalVerifiedRevenue = verifiedSuccessPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const totalRefundAmount = allUnifiedPayments.reduce((acc, p) => {
+        const refAmt = Number(p.amountRefunded || (p.status === 'REFUNDED' ? (p.amountInRupees || p.amount) : 0)) || 0;
+        return acc + refAmt;
+    }, 0);
+    const netPlatformRevenue = Math.max(0, totalVerifiedRevenue - totalRefundAmount);
+    const unmatchedPaymentsCount = allUnifiedPayments.filter(p => p.userId === 'UNMATCHED' || !p.userId || p.userEmail === 'unmatched@razorpay.resqr').length;
+
     const registrationPayments = verifiedSuccessPayments.filter(p => p.type === 'registration' || p.planId === 'initial_3m' || p.type === 'registration_expansion');
     const renewalPayments = verifiedSuccessPayments.filter(p => p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')));
     const regRevenue = registrationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
@@ -1705,6 +1745,10 @@ export default function AdminPanel() {
             return (now.getTime() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
         } else if (paymentDateRange === '30days') {
             return (now.getTime() - d.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+        } else if (paymentDateRange === '90days') {
+            return (now.getTime() - d.getTime()) <= 90 * 24 * 60 * 60 * 1000;
+        } else if (paymentDateRange === '1year') {
+            return (now.getTime() - d.getTime()) <= 365 * 24 * 60 * 60 * 1000;
         } else if (paymentDateRange === 'this_month') {
             return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         } else if (paymentDateRange === 'custom') {
@@ -1734,25 +1778,93 @@ export default function AdminPanel() {
             if (!matches) return false;
         }
 
+        // Type Filter
+        if (paymentTypeFilter !== 'ALL') {
+            if (paymentTypeFilter === 'REGISTRATION') {
+                const isReg = p.type === 'registration' || p.planId === 'initial_3m' || (p.planName && p.planName.toLowerCase().includes('registration')) || (!p.type && (p.amount === 149 || p.amount === 99));
+                if (!isReg) return false;
+            } else if (paymentTypeFilter === 'RENEWAL') {
+                const isRen = p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')) || (p.planName && p.planName.toLowerCase().includes('renewal'));
+                if (!isRen) return false;
+            } else if (paymentTypeFilter === 'PRODUCT') {
+                const isProd = p.type === 'product' || p.type === 'order';
+                if (!isProd) return false;
+            }
+        }
+
         if (paymentFilterStatus === 'ALL') return true;
         const st = (p.status || '').toUpperCase();
-        if (paymentFilterStatus === 'PAID') {
-            return st === 'SUCCESS' || st === 'SUCCESSFUL' || st === 'PAID';
+        if (paymentFilterStatus === 'PAID' || paymentFilterStatus === 'SUCCESS') {
+            return st === 'SUCCESS' || st === 'SUCCESSFUL' || st === 'PAID' || st === 'CAPTURED';
         }
-        if (paymentFilterStatus === 'NOT PAID') {
-            return st !== 'SUCCESS' && st !== 'SUCCESSFUL' && st !== 'PAID';
+        if (paymentFilterStatus === 'NOT PAID' || paymentFilterStatus === 'UNPAID') {
+            return st !== 'SUCCESS' && st !== 'SUCCESSFUL' && st !== 'PAID' && st !== 'CAPTURED';
         }
         if (paymentFilterStatus === 'PENDING') {
-            return st === 'PENDING' || st === 'PROCESSING';
+            return st === 'PENDING' || st === 'PROCESSING' || st === 'AUTHORIZED';
         }
         if (paymentFilterStatus === 'FAILED') {
             return st === 'FAILED';
         }
         if (paymentFilterStatus === 'REFUNDED') {
-            return st === 'REFUNDED' || st === 'PARTIALLY_REFUNDED';
+            return st === 'REFUNDED' || st === 'PARTIALLY_REFUNDED' || Number(p.amountRefunded || 0) > 0;
+        }
+        if (paymentFilterStatus === 'UNMATCHED') {
+            return p.userId === 'UNMATCHED' || !p.userId || p.userEmail === 'unmatched@razorpay.resqr';
+        }
+        if (paymentFilterStatus === 'CANCELLED') {
+            return st === 'CANCELLED' || st === 'EXPIRED';
         }
         return true;
     });
+
+    // Pagination calculations
+    const totalFilteredPages = Math.max(1, Math.ceil(filteredPaymentsList.length / paymentsPerPage));
+    const paginatedPaymentsList = filteredPaymentsList.slice((paymentCurrentPage - 1) * paymentsPerPage, paymentCurrentPage * paymentsPerPage);
+
+    // Razorpay Historical Sync Handler
+    const handleSyncRazorpayHistory = async (rangeToSync = razorpaySyncRange, customStart = null, customEnd = null) => {
+        setIsRazorpaySyncing(true);
+        try {
+            const currentUser = auth.currentUser;
+            const token = currentUser ? await currentUser.getIdToken() : '';
+            const res = await fetch('/api/admin/payments/sync-razorpay', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    range: rangeToSync,
+                    startDate: customStart,
+                    endDate: customEnd
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Failed to sync Razorpay history');
+            }
+
+            if (data.dbUpdates && Object.keys(data.dbUpdates).length > 0) {
+                try {
+                    await update(ref(db), data.dbUpdates);
+                } catch (rtdbErr) {
+                    console.warn("Client RTDB update warning:", rtdbErr);
+                }
+            }
+
+            setSyncResultModalData(data);
+            setIsSyncResultModalOpen(true);
+            setIsRazorpaySyncModalOpen(false);
+            toast.success(`Synchronized ${data.summary?.totalPayments || 0} Razorpay records!`);
+        } catch (err) {
+            console.error("Razorpay sync error:", err);
+            toast.error(`Sync failed: ${err.message}`);
+        } finally {
+            setIsRazorpaySyncing(false);
+        }
+    };
 
     const activeSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'ACTIVE' || getSubDisplayStatus(s).label === 'EXPIRING SOON').length;
     const expiredSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'EXPIRED').length;
@@ -4099,34 +4211,65 @@ export default function AdminPanel() {
                 {/* Section 8, 9, 10, 11, 12, 18, 19: Razorpay Payment Gateway & Revenue Operations */}
                 {activeTab === 'payments' && (
                     <div className="space-y-8 animate-in fade-in duration-300">
-                        {/* Executive Telemetry KPI Cards (Section 8) */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic block">Total Users</span>
-                                <div className="text-3xl font-black italic text-white font-poppins">{safeUsers.length}</div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Registered Citizens</span>
+                        {/* Top Synchronization Header Bar */}
+                        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-slate-950/80 p-6 rounded-[32px] border border-white/5">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase tracking-widest">
+                                        RAZORPAY REVENUE ENGINE
+                                    </Badge>
+                                    {razorpayLastSync ? (
+                                        <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
+                                            Last synced: {new Date(razorpayLastSync.timestamp).toLocaleString('en-IN')} ({razorpayLastSync.range || 'all'}) • {razorpayLastSync.totalPayments || 0} records
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] font-mono text-amber-400/80 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                                            Sync required to fetch historical payments
+                                        </span>
+                                    )}
+                                </div>
+                                <h2 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Payment Gateway & Razorpay History
+                                </h2>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Complete historical ledger, verified live payments, refund status, and customer reconciliations.
+                                </p>
                             </div>
 
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    onClick={() => setIsRazorpaySyncModalOpen(true)}
+                                    disabled={isRazorpaySyncing}
+                                    className="h-12 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black italic uppercase tracking-wider text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer transition-all"
+                                >
+                                    <Zap size={16} className={isRazorpaySyncing ? "animate-spin" : "fill-current"} />
+                                    {isRazorpaySyncing ? 'Synchronizing...' : 'Sync Razorpay History'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Executive Telemetry KPI Cards */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                             <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic block">Total Payments</span>
                                 <div className="text-3xl font-black italic text-white font-poppins">{allUnifiedPayments.length}</div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Platform Transactions</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Platform & Historical</span>
                             </div>
 
                             <div 
                                 onClick={() => { setPaymentFilterStatus('PAID'); setActivePaymentSubTab('transactions'); }}
                                 className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'PAID' ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Successful Payments</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Successful</span>
                                 <div className="text-3xl font-black italic text-emerald-400 font-poppins">{verifiedSuccessPayments.length}</div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Verified & Activated</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Captured & Verified</span>
                             </div>
 
                             <div 
                                 onClick={() => { setPaymentFilterStatus('PENDING'); setActivePaymentSubTab('transactions'); }}
                                 className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'PENDING' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic block">Pending Payments</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic block">Pending</span>
                                 <div className="text-3xl font-black italic text-amber-400 font-poppins">{pendingPaymentsCount}</div>
                                 <span className="text-[9px] font-bold text-slate-500 uppercase block">Checkout In Progress</span>
                             </div>
@@ -4135,7 +4278,7 @@ export default function AdminPanel() {
                                 onClick={() => { setPaymentFilterStatus('FAILED'); setActivePaymentSubTab('transactions'); }}
                                 className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'FAILED' ? 'bg-rose-500/10 border-rose-500/40 shadow-lg shadow-rose-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 italic block">Failed Payments</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 italic block">Failed</span>
                                 <div className="text-3xl font-black italic text-rose-400 font-poppins">{failedPaymentsCount}</div>
                                 <span className="text-[9px] font-bold text-slate-500 uppercase block">Declined / Errors</span>
                             </div>
@@ -4149,28 +4292,45 @@ export default function AdminPanel() {
                                 <span className="text-[9px] font-bold text-slate-500 uppercase block">Reversals Handled</span>
                             </div>
 
-                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1 col-span-2 md:col-span-1 lg:col-span-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-primary italic block">Total Verified Revenue</span>
-                                <div className="text-4xl font-black italic text-primary font-poppins">
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Gross Revenue</span>
+                                <div className="text-2xl font-black italic text-emerald-400 font-poppins">
                                     ₹{totalVerifiedRevenue.toLocaleString('en-IN')}
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Counted Only from SUCCESS Payments</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Total Verified Inflow</span>
                             </div>
 
                             <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Today's Revenue</span>
-                                <div className="text-3xl font-black italic text-emerald-400 font-poppins">
-                                    ₹{todayRevenue.toLocaleString('en-IN')}
+                                <span className="text-[10px] font-black uppercase tracking-widest text-purple-400 italic block">Total Refunds</span>
+                                <div className="text-2xl font-black italic text-purple-400 font-poppins">
+                                    ₹{totalRefundAmount.toLocaleString('en-IN')}
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Settled Today</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Returned Capital</span>
                             </div>
 
                             <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic block">This Month's Revenue</span>
-                                <div className="text-3xl font-black italic text-blue-400 font-poppins">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary italic block">Net Revenue</span>
+                                <div className="text-2xl font-black italic text-primary font-poppins">
+                                    ₹{netPlatformRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Gross minus Refunds</span>
+                            </div>
+
+                            <div 
+                                onClick={() => { setPaymentFilterStatus('UNMATCHED'); setActivePaymentSubTab('transactions'); }}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'UNMATCHED' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic block">Unmatched</span>
+                                <div className="text-2xl font-black italic text-amber-400 font-poppins">{unmatchedPaymentsCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">No RESQR UID Found</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic block">This Month</span>
+                                <div className="text-2xl font-black italic text-blue-400 font-poppins">
                                     ₹{thisMonthRevenue.toLocaleString('en-IN')}
                                 </div>
-                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Current Month Total</span>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Current Month Volume</span>
                             </div>
                         </div>
 
@@ -4195,6 +4355,12 @@ export default function AdminPanel() {
                                 <Clock size={14} /> Payment Attempts ({safeAttempts.length})
                             </button>
                             <button
+                                onClick={() => setActivePaymentSubTab('sync_history')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'sync_history' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <HistoryIcon size={14} /> Razorpay Sync History ({razorpaySyncHistory.length})
+                            </button>
+                            <button
                                 onClick={() => setActivePaymentSubTab('analytics')}
                                 className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'analytics' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                             >
@@ -4202,26 +4368,26 @@ export default function AdminPanel() {
                             </button>
                         </div>
 
-                        {/* SUB-TAB 1: TRANSACTIONS LEDGER (Section 9, 10, 18) */}
+                        {/* SUB-TAB 1: TRANSACTIONS LEDGER */}
                         {activePaymentSubTab === 'transactions' && (
                             <div className="space-y-6">
                                 {/* Search & Filters Bar */}
                                 <Card className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl space-y-4">
-                                    <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                                    <div className="flex flex-col lg:flex-row gap-4 justify-between items-center">
                                         {/* Search Input */}
-                                        <div className="relative w-full md:w-96">
+                                        <div className="relative w-full lg:w-96">
                                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                                             <input
                                                 type="text"
                                                 value={paymentSearchQuery}
-                                                onChange={(e) => setPaymentSearchQuery(e.target.value)}
-                                                placeholder="Search name, phone, email, UID, payment ID, order ID, receipt..."
+                                                onChange={(e) => { setPaymentSearchQuery(e.target.value); setPaymentCurrentPage(1); }}
+                                                placeholder="Search name, phone, email, UID, payment ID, order ID..."
                                                 className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 outline-none focus:border-primary"
                                             />
                                         </div>
 
-                                        {/* Date Filters (Section 18) */}
-                                        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                                        {/* Date Filters */}
+                                        <div className="flex items-center gap-1.5 flex-wrap w-full lg:w-auto">
                                             <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-1">
                                                 <Calendar size={12} /> Period:
                                             </span>
@@ -4231,13 +4397,15 @@ export default function AdminPanel() {
                                                 { id: 'yesterday', label: 'Yesterday' },
                                                 { id: '7days', label: '7D' },
                                                 { id: '30days', label: '30D' },
+                                                { id: '90days', label: '90D' },
+                                                { id: '1year', label: '1Y' },
                                                 { id: 'this_month', label: 'Month' },
                                                 { id: 'custom', label: 'Custom' }
                                             ].map(d => (
                                                 <button
                                                     key={d.id}
-                                                    onClick={() => setPaymentDateRange(d.id)}
-                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${paymentDateRange === d.id ? 'bg-primary text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}
+                                                    onClick={() => { setPaymentDateRange(d.id); setPaymentCurrentPage(1); }}
+                                                    className={`px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${paymentDateRange === d.id ? 'bg-primary text-white shadow' : 'bg-slate-900 text-slate-400 hover:text-white'}`}
                                                 >
                                                     {d.label}
                                                 </button>
@@ -4247,42 +4415,76 @@ export default function AdminPanel() {
 
                                     {/* Custom Date Pickers */}
                                     {paymentDateRange === 'custom' && (
-                                        <div className="flex items-center gap-3 pt-2 border-t border-white/5 text-xs text-slate-400">
+                                        <div className="flex items-center gap-3 pt-2 border-t border-white/5 text-xs text-slate-400 flex-wrap">
                                             <span>From:</span>
                                             <input
                                                 type="date"
                                                 value={customStartDate}
-                                                onChange={(e) => setCustomStartDate(e.target.value)}
+                                                onChange={(e) => { setCustomStartDate(e.target.value); setPaymentCurrentPage(1); }}
                                                 className="px-3 py-1.5 bg-slate-950 border border-white/10 rounded-xl text-white outline-none"
                                             />
                                             <span>To:</span>
                                             <input
                                                 type="date"
                                                 value={customEndDate}
-                                                onChange={(e) => setCustomEndDate(e.target.value)}
+                                                onChange={(e) => { setCustomEndDate(e.target.value); setPaymentCurrentPage(1); }}
                                                 className="px-3 py-1.5 bg-slate-950 border border-white/10 rounded-xl text-white outline-none"
                                             />
                                         </div>
                                     )}
 
-                                    {/* Status Filters (Section 10) */}
-                                    <div className="flex items-center gap-2 pt-2 border-t border-white/5 flex-wrap">
-                                        <span className="text-[10px] font-black uppercase text-slate-500 mr-2 flex items-center gap-1">
-                                            <Filter size={12} /> Status:
-                                        </span>
-                                        {['ALL', 'PAID', 'NOT PAID', 'PENDING', 'FAILED', 'REFUNDED'].map(st => (
-                                            <button
-                                                key={st}
-                                                onClick={() => setPaymentFilterStatus(st)}
-                                                className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                                    paymentFilterStatus === st
-                                                        ? 'bg-white text-slate-950 shadow-md font-bold'
-                                                        : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-                                                }`}
-                                            >
-                                                {st}
-                                            </button>
-                                        ))}
+                                    {/* Plan Type & Status Filters */}
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-3 border-t border-white/5">
+                                        {/* Status Filters */}
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-1">
+                                                <Filter size={12} /> Status:
+                                            </span>
+                                            {[
+                                                { id: 'ALL', label: 'ALL' },
+                                                { id: 'PAID', label: 'SUCCESS' },
+                                                { id: 'PENDING', label: 'PENDING' },
+                                                { id: 'FAILED', label: 'FAILED' },
+                                                { id: 'REFUNDED', label: 'REFUNDED' },
+                                                { id: 'UNMATCHED', label: 'UNMATCHED' },
+                                                { id: 'NOT PAID', label: 'NOT PAID' }
+                                            ].map(st => (
+                                                <button
+                                                    key={st.id}
+                                                    onClick={() => { setPaymentFilterStatus(st.id); setPaymentCurrentPage(1); }}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                        paymentFilterStatus === st.id
+                                                            ? 'bg-white text-slate-950 shadow-md font-bold'
+                                                            : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    {st.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Plan Type Filter */}
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 mr-1">Type:</span>
+                                            {[
+                                                { id: 'ALL', label: 'ALL' },
+                                                { id: 'REGISTRATION', label: 'Registration' },
+                                                { id: 'RENEWAL', label: 'Renewal' },
+                                                { id: 'PRODUCT', label: 'Product' }
+                                            ].map(tp => (
+                                                <button
+                                                    key={tp.id}
+                                                    onClick={() => { setPaymentTypeFilter(tp.id); setPaymentCurrentPage(1); }}
+                                                    className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                                                        paymentTypeFilter === tp.id
+                                                            ? 'bg-primary/20 text-primary border border-primary/30'
+                                                            : 'bg-slate-900/60 text-slate-400 hover:text-white'
+                                                    }`}
+                                                >
+                                                    {tp.label}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </Card>
 
@@ -4291,14 +4493,16 @@ export default function AdminPanel() {
                                     <div className="p-6 border-b border-white/5 flex justify-between items-center">
                                         <div>
                                             <h3 className="text-xl font-black italic uppercase text-white font-poppins">
-                                                Verified Transactions Ledger
+                                                Unified Transactions Ledger
                                             </h3>
-                                            <p className="text-xs text-slate-400">Showing {filteredPaymentsList.length} recorded payments</p>
+                                            <p className="text-xs text-slate-400">
+                                                Showing {paginatedPaymentsList.length} of {filteredPaymentsList.length} filtered records (Total: {allUnifiedPayments.length})
+                                            </p>
                                         </div>
                                         <div className="text-right">
-                                            <span className="text-xs text-slate-500 uppercase font-black block">Matching Value</span>
+                                            <span className="text-xs text-slate-500 uppercase font-black block">Matching Gross Value</span>
                                             <span className="text-lg font-black italic text-emerald-400 font-poppins">
-                                                ₹{filteredPaymentsList.filter(p => p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID').reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toLocaleString('en-IN')}
+                                                ₹{filteredPaymentsList.filter(p => p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID' || p.status === 'CAPTURED').reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toLocaleString('en-IN')}
                                             </span>
                                         </div>
                                     </div>
@@ -4307,40 +4511,70 @@ export default function AdminPanel() {
                                         <table className="w-full text-left text-xs font-mono">
                                             <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
                                                 <tr>
+                                                    <th className="p-5">Date</th>
                                                     <th className="p-5">Customer</th>
                                                     <th className="p-5">Contact</th>
-                                                    <th className="p-5">RESQR UID</th>
+                                                    <th className="p-5">RESQR Citizen</th>
                                                     <th className="p-5">Plan</th>
                                                     <th className="p-5">Amount</th>
                                                     <th className="p-5">Status</th>
                                                     <th className="p-5">Method</th>
-                                                    <th className="p-5">Razorpay Order ID</th>
-                                                    <th className="p-5">Payment ID</th>
-                                                    <th className="p-5">Date</th>
+                                                    <th className="p-5">Razorpay Payment ID</th>
+                                                    <th className="p-5">Order ID</th>
+                                                    <th className="p-5">Source</th>
                                                     <th className="p-5 text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/5 text-slate-300">
-                                                {filteredPaymentsList.map((p) => {
+                                                {paginatedPaymentsList.map((p) => {
                                                     const badge = getPaymentStatusBadge(p.status);
+                                                    const isUnmatched = p.userId === 'UNMATCHED' || !p.userId || p.userEmail === 'unmatched@razorpay.resqr';
+                                                    const pId = p.paymentId || p.razorpayPaymentId || p.id;
+                                                    const oId = p.razorpayOrderId || p.orderId;
+                                                    const isRefunded = p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED' || Number(p.amountRefunded || 0) > 0;
+                                                    const refundAmount = Number(p.amountRefunded || (p.status === 'REFUNDED' ? p.amount : 0));
+
                                                     return (
-                                                        <tr key={p.paymentId} className="hover:bg-white/5 transition-colors">
+                                                        <tr key={pId || Math.random()} className="hover:bg-white/5 transition-colors">
+                                                            <td className="p-5 font-sans text-slate-400 text-[10px] whitespace-nowrap">
+                                                                <span className="text-white block font-bold">
+                                                                    {p.paidAt || p.createdAt || p.timestamp ? new Date(p.paidAt || p.createdAt || p.timestamp).toLocaleDateString('en-IN') : '—'}
+                                                                </span>
+                                                                <span className="text-slate-500 text-[9px]">
+                                                                    {p.paidAt || p.createdAt || p.timestamp ? new Date(p.paidAt || p.createdAt || p.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : ''}
+                                                                </span>
+                                                            </td>
                                                             <td className="p-5 font-sans">
-                                                                <span className="font-bold text-white block truncate max-w-[140px]">{p.userName || 'RESQR Citizen'}</span>
+                                                                <span className="font-bold text-white block truncate max-w-[140px]">{p.userName || 'RESQR Customer'}</span>
                                                                 <span className="text-[10px] text-slate-500 font-mono">{p.receiptNumber || '—'}</span>
                                                             </td>
                                                             <td className="p-5 font-sans">
                                                                 <span className="block truncate max-w-[150px]">{p.userEmail || '—'}</span>
                                                                 <span className="text-[10px] text-slate-500 font-mono">{p.userPhone || '—'}</span>
                                                             </td>
-                                                            <td className="p-5 font-mono text-primary text-[11px] truncate max-w-[100px]">
-                                                                {p.userId || p.qrId || '—'}
+                                                            <td className="p-5 font-sans">
+                                                                {isUnmatched ? (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                                                        UNMATCHED
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="font-mono text-primary text-[11px] font-bold truncate max-w-[100px] block">
+                                                                        {p.userId}
+                                                                    </span>
+                                                                )}
                                                             </td>
-                                                            <td className="p-5 font-sans font-bold text-white truncate max-w-[150px]">
-                                                                {p.planName || '3 Months Registration'}
+                                                            <td className="p-5 font-sans font-bold text-white truncate max-w-[140px]">
+                                                                {p.planName || 'Registration Plan'}
                                                             </td>
-                                                            <td className="p-5 font-sans font-black italic text-emerald-400 text-sm">
-                                                                ₹{p.amount || 149}
+                                                            <td className="p-5 font-sans">
+                                                                <div className="font-black italic text-emerald-400 text-sm">
+                                                                    ₹{p.amount || 149}
+                                                                </div>
+                                                                {isRefunded && refundAmount > 0 && (
+                                                                    <span className="text-[9px] text-purple-400 font-bold block">
+                                                                        -₹{refundAmount} Refund
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                             <td className="p-5 font-sans">
                                                                 <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${badge.className}`}>
@@ -4349,24 +4583,68 @@ export default function AdminPanel() {
                                                                 </span>
                                                             </td>
                                                             <td className="p-5 font-sans text-slate-400 uppercase text-[10px]">
-                                                                {p.paymentMethod || 'razorpay'}
+                                                                {p.paymentMethod || p.method || 'razorpay'}
                                                             </td>
-                                                            <td className="p-5 font-mono text-[10px] text-slate-400 truncate max-w-[110px]">
-                                                                {p.razorpayOrderId || p.orderId || '—'}
+                                                            <td className="p-5 font-mono text-[10px]">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-white truncate max-w-[100px]">{pId}</span>
+                                                                    {pId && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                navigator.clipboard?.writeText(pId);
+                                                                                toast.success('Payment ID copied');
+                                                                            }}
+                                                                            className="text-slate-500 hover:text-white transition-colors"
+                                                                            title="Copy Payment ID"
+                                                                        >
+                                                                            <Copy size={11} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </td>
-                                                            <td className="p-5 font-mono text-[10px] text-white truncate max-w-[110px]">
-                                                                {p.paymentId || p.razorpayPaymentId}
+                                                            <td className="p-5 font-mono text-[10px] text-slate-400">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="truncate max-w-[100px]">{oId || '—'}</span>
+                                                                    {oId && (
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                navigator.clipboard?.writeText(oId);
+                                                                                toast.success('Order ID copied');
+                                                                            }}
+                                                                            className="text-slate-500 hover:text-white transition-colors"
+                                                                            title="Copy Order ID"
+                                                                        >
+                                                                            <Copy size={11} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
                                                             </td>
-                                                            <td className="p-5 font-sans text-slate-400 text-[10px] whitespace-nowrap">
-                                                                {p.paidAt || p.createdAt || p.timestamp ? new Date(p.paidAt || p.createdAt || p.timestamp).toLocaleDateString('en-IN') : '—'}
+                                                            <td className="p-5 font-sans">
+                                                                {p.historicalImport || p.isHistorical ? (
+                                                                    <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                                        HISTORICAL
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                                        LIVE
+                                                                    </span>
+                                                                )}
                                                             </td>
-                                                            <td className="p-5 text-right font-sans">
-                                                                <button
-                                                                    onClick={() => setAdminReceiptPayment(p)}
-                                                                    className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-[10px] font-black uppercase tracking-wider transition-all"
-                                                                >
-                                                                    View Receipt
-                                                                </button>
+                                                            <td className="p-5 text-right font-sans whitespace-nowrap">
+                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                    <button
+                                                                        onClick={() => setSelectedPaymentForDetails(p)}
+                                                                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider transition-all"
+                                                                    >
+                                                                        Details
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => setAdminReceiptPayment(p)}
+                                                                        className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                    >
+                                                                        Receipt
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -4374,13 +4652,49 @@ export default function AdminPanel() {
 
                                                 {filteredPaymentsList.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="11" className="p-12 text-center text-slate-500 font-sans text-xs uppercase font-bold">
-                                                            No matching payment records found.
+                                                        <td colSpan="12" className="p-12 text-center text-slate-500 font-sans text-xs uppercase font-bold">
+                                                            No matching payment records found in database or Razorpay sync.
                                                         </td>
                                                     </tr>
                                                 )}
                                             </tbody>
                                         </table>
+                                    </div>
+
+                                    {/* Pagination Controls */}
+                                    <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-sans text-slate-400">
+                                        <div className="flex items-center gap-3">
+                                            <span>Show:</span>
+                                            {[25, 50, 100].map(cnt => (
+                                                <button
+                                                    key={cnt}
+                                                    onClick={() => { setPaymentsPerPage(cnt); setPaymentCurrentPage(1); }}
+                                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold ${paymentsPerPage === cnt ? 'bg-primary text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}
+                                                >
+                                                    {cnt}
+                                                </button>
+                                            ))}
+                                            <span>
+                                                Page {paymentCurrentPage} of {totalFilteredPages} ({filteredPaymentsList.length} items)
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => setPaymentCurrentPage(prev => Math.max(1, prev - 1))}
+                                                disabled={paymentCurrentPage <= 1}
+                                                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/5 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 font-bold flex items-center gap-1 text-[11px]"
+                                            >
+                                                <ChevronLeft size={14} /> Previous
+                                            </button>
+                                            <button
+                                                onClick={() => setPaymentCurrentPage(prev => Math.min(totalFilteredPages, prev + 1))}
+                                                disabled={paymentCurrentPage >= totalFilteredPages}
+                                                className="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/5 text-slate-300 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/5 font-bold flex items-center gap-1 text-[11px]"
+                                            >
+                                                Next <ChevronRight size={14} />
+                                            </button>
+                                        </div>
                                     </div>
                                 </Card>
                             </div>
@@ -4585,7 +4899,118 @@ export default function AdminPanel() {
                             </div>
                         )}
 
-                        {/* SUB-TAB 4: REVENUE ANALYTICS (Section 19) */}
+                        {/* SUB-TAB 4: RAZORPAY SYNC HISTORY */}
+                        {activePaymentSubTab === 'sync_history' && (
+                            <div className="space-y-6">
+                                <Card className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-black uppercase tracking-widest">
+                                                AUDIT LOG
+                                            </Badge>
+                                        </div>
+                                        <h3 className="text-xl font-black italic uppercase text-white font-poppins">
+                                            Razorpay Synchronization Ledger
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-0.5">
+                                            Audit trail of automated and manual Razorpay server API imports, date ranges, scanned payments, and customer reconciliations.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Button
+                                            onClick={() => setIsRazorpaySyncModalOpen(true)}
+                                            disabled={isRazorpaySyncing}
+                                            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black italic uppercase text-[10px] tracking-wider flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-500/20"
+                                        >
+                                            <Zap size={14} className={isRazorpaySyncing ? "animate-spin" : ""} />
+                                            {isRazorpaySyncing ? 'Syncing...' : 'Run New Sync'}
+                                        </Button>
+                                    </div>
+                                </Card>
+
+                                <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs font-mono">
+                                            <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                                <tr>
+                                                    <th className="p-5">Sync Timestamp</th>
+                                                    <th className="p-5">Initiated By</th>
+                                                    <th className="p-5">Range</th>
+                                                    <th className="p-5">Payments Scanned</th>
+                                                    <th className="p-5">Created / Updated</th>
+                                                    <th className="p-5">Orders Scanned</th>
+                                                    <th className="p-5">Unmatched</th>
+                                                    <th className="p-5">Duration</th>
+                                                    <th className="p-5 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-slate-300">
+                                                {razorpaySyncHistory.map((s) => (
+                                                    <tr key={s.id || s.timestamp} className="hover:bg-white/5 transition-colors">
+                                                        <td className="p-5 font-sans whitespace-nowrap">
+                                                            <span className="font-bold text-white block">
+                                                                {s.timestamp ? new Date(s.timestamp).toLocaleDateString('en-IN') : '—'}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-500 font-mono">
+                                                                {s.timestamp ? new Date(s.timestamp).toLocaleTimeString('en-IN') : ''}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-sans text-slate-300 truncate max-w-[150px]">
+                                                            {s.initiatedBy || 'Administrator'}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-900 text-slate-300 border border-white/10">
+                                                                {s.range || 'all'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-sans font-bold text-white">
+                                                            {s.totalPayments ?? s.paymentsFetched ?? '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans text-emerald-400 font-bold">
+                                                            +{s.paymentsCreated ?? 0} new / {s.paymentsUpdated ?? 0} upd
+                                                        </td>
+                                                        <td className="p-5 font-sans text-slate-300">
+                                                            {s.ordersFetched ?? '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            {(s.unmatchedCount || 0) > 0 ? (
+                                                                <span className="text-amber-400 font-bold">
+                                                                    {s.unmatchedCount} unmatched
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-500 font-bold">0</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-5 font-mono text-slate-400 text-[10px]">
+                                                            {s.executionDurationMs ? `${(s.executionDurationMs / 1000).toFixed(2)}s` : 'OK'}
+                                                        </td>
+                                                        <td className="p-5 text-right font-sans">
+                                                            <button
+                                                                onClick={() => handleSyncRazorpayHistory(s.range || 'all')}
+                                                                disabled={isRazorpaySyncing}
+                                                                className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider"
+                                                            >
+                                                                Re-sync
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+
+                                                {razorpaySyncHistory.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="9" className="p-12 text-center text-slate-500 font-sans text-xs uppercase font-bold">
+                                                            No sync history records recorded yet. Click "Sync Razorpay History" to perform initial synchronization.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB 5: REVENUE ANALYTICS (Section 19) */}
                         {activePaymentSubTab === 'analytics' && (
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -5374,6 +5799,392 @@ export default function AdminPanel() {
                 onClose={() => setAdminReceiptPayment(null)}
                 paymentData={adminReceiptPayment}
             />
+
+            {/* Modal: User Payment Attempts Audit (Section 11 & 12) */}
+            {/* Modal: Razorpay Historical Sync (Request 10) */}
+            {isRazorpaySyncModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-lg bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-black uppercase tracking-widest mb-2">
+                                    RAZORPAY API INTEGRATION
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Sync Razorpay History
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Fetch, reconcile, and import historical payment and order records directly from Razorpay.
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => !isRazorpaySyncing && setIsRazorpaySyncModalOpen(false)}
+                                disabled={isRazorpaySyncing}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white disabled:opacity-40"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    Select Historical Range
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[
+                                        { id: 'all', label: 'All History' },
+                                        { id: '1year', label: 'Last 1 Year' },
+                                        { id: '90days', label: 'Last 90 Days' },
+                                        { id: '30days', label: 'Last 30 Days' },
+                                        { id: '7days', label: 'Last 7 Days' },
+                                        { id: 'custom', label: 'Custom Range' }
+                                    ].map(r => (
+                                        <button
+                                            key={r.id}
+                                            type="button"
+                                            onClick={() => setRazorpaySyncRange(r.id)}
+                                            className={`p-3 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all text-center ${
+                                                razorpaySyncRange === r.id
+                                                    ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 font-black'
+                                                    : 'bg-slate-950 border border-white/5 text-slate-400 hover:text-white'
+                                            }`}
+                                        >
+                                            {r.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {razorpaySyncRange === 'custom' && (
+                                <div className="p-4 rounded-2xl bg-slate-950 border border-white/5 space-y-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400">From Date</label>
+                                        <input
+                                            type="date"
+                                            value={customStartDate}
+                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-xl text-white text-xs outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-400">To Date</label>
+                                        <input
+                                            type="date"
+                                            value={customEndDate}
+                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            className="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-xl text-white text-xs outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-2 text-xs text-slate-400">
+                                <div className="flex items-center gap-2 font-bold text-amber-300">
+                                    <ShieldCheck size={16} />
+                                    <span>Secure Reconciled Ingestion</span>
+                                </div>
+                                <p className="text-[11px] leading-relaxed">
+                                    • Queries official Razorpay API with server-side credentials.<br />
+                                    • Matches payments to RESQR citizens by metadata notes, phone, and email.<br />
+                                    • Records unmatched transactions with <span className="text-amber-300 font-bold">UNMATCHED</span> badge for manual review.<br />
+                                    • Duplicate-safe: Existing payment records are updated rather than duplicated.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-4 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setIsRazorpaySyncModalOpen(false)}
+                                    disabled={isRazorpaySyncing}
+                                    className="flex-1 h-14 rounded-2xl font-black italic uppercase tracking-widest text-[10px] text-slate-500 hover:text-white"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => handleSyncRazorpayHistory(razorpaySyncRange, customStartDate, customEndDate)}
+                                    disabled={isRazorpaySyncing}
+                                    className="flex-1 h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black italic uppercase tracking-widest text-[10px] shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2"
+                                >
+                                    <Zap size={16} className={isRazorpaySyncing ? "animate-spin" : "fill-current"} />
+                                    {isRazorpaySyncing ? 'Synchronizing...' : 'Start Historical Sync'}
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Modal: Razorpay Sync Result Summary */}
+            {isSyncResultModalOpen && syncResultModalData && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-lg bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase tracking-widest mb-2">
+                                    SYNC COMPLETE
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Razorpay Synchronization
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Range: <span className="font-bold text-white uppercase">{syncResultModalData.range || 'all'}</span> • Time: {new Date().toLocaleTimeString('en-IN')}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsSyncResultModalOpen(false)}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Payments Scanned</span>
+                                    <div className="text-2xl font-black text-white font-poppins">
+                                        {syncResultModalData.summary?.totalPayments ?? 0}
+                                    </div>
+                                    <span className="text-[9px] text-emerald-400 font-bold">
+                                        +{syncResultModalData.summary?.paymentsCreated ?? 0} new / {syncResultModalData.summary?.paymentsUpdated ?? 0} updated
+                                    </span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Orders Scanned</span>
+                                    <div className="text-2xl font-black text-white font-poppins">
+                                        {syncResultModalData.summary?.totalOrders ?? 0}
+                                    </div>
+                                    <span className="text-[9px] text-blue-400 font-bold">
+                                        +{syncResultModalData.summary?.ordersCreated ?? 0} new recorded
+                                    </span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Unmatched Payments</span>
+                                    <div className="text-2xl font-black text-amber-400 font-poppins">
+                                        {syncResultModalData.summary?.unmatchedPayments ?? 0}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500">Requires citizen matching</span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Execution Duration</span>
+                                    <div className="text-2xl font-black text-slate-300 font-poppins">
+                                        {syncResultModalData.executionDurationMs ? `${(syncResultModalData.executionDurationMs / 1000).toFixed(1)}s` : 'Done'}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500">Official API Latency</span>
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 space-y-1">
+                                <span className="font-bold flex items-center gap-1.5">
+                                    <CheckCircle2 size={16} /> All Database Records Reconciled
+                                </span>
+                                <p className="text-[11px] text-slate-300">
+                                    The Transactions Ledger and Revenue Analytics now reflect all scanned Razorpay historical and live payments.
+                                </p>
+                            </div>
+
+                            <Button
+                                type="button"
+                                onClick={() => setIsSyncResultModalOpen(false)}
+                                className="w-full h-14 rounded-2xl bg-primary hover:bg-primary-dark text-white font-black italic uppercase tracking-widest text-xs shadow-lg shadow-primary/20"
+                            >
+                                View Reconciled Ledger
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
+
+            {/* Modal: Detailed Payment Record Breakdown (Request 10) */}
+            {selectedPaymentForDetails && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-2xl bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                    <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase tracking-widest">
+                                        TRANSACTION AUDIT
+                                    </Badge>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${getPaymentStatusBadge(selectedPaymentForDetails.status).className}`}>
+                                        ● {selectedPaymentForDetails.status}
+                                    </span>
+                                    {selectedPaymentForDetails.historicalImport && (
+                                        <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                            HISTORICAL IMPORT
+                                        </span>
+                                    )}
+                                </div>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    {selectedPaymentForDetails.planName || 'RESQR Transaction'}
+                                </h3>
+                                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                    ID: <span className="text-white font-bold">{selectedPaymentForDetails.paymentId || selectedPaymentForDetails.razorpayPaymentId}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedPaymentForDetails(null)}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* Service Status vs Payment Notice */}
+                            <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-slate-300 space-y-1">
+                                <span className="font-bold text-blue-400 flex items-center gap-1.5">
+                                    <ShieldAlert size={14} /> Service Validity vs Payment Confirmation
+                                </span>
+                                <p className="text-[11px] leading-relaxed text-slate-400">
+                                    A status of <span className="text-emerald-400 font-bold">SUCCESS</span> confirms that funds were received by Razorpay. However, RESQR Emergency Profile activation depends on whether the user's service validity is currently active or expired. Expired historical subscriptions require renewal for live emergency profile visibility.
+                                </p>
+                            </div>
+
+                            {/* Financial Values */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[9px] uppercase font-bold text-slate-400">Gross Amount</span>
+                                    <div className="text-2xl font-black text-emerald-400 font-poppins">
+                                        ₹{selectedPaymentForDetails.amount || 149}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500">{selectedPaymentForDetails.currency || 'INR'}</span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[9px] uppercase font-bold text-slate-400">Payment Method</span>
+                                    <div className="text-lg font-bold text-white uppercase font-poppins mt-1">
+                                        {selectedPaymentForDetails.paymentMethod || selectedPaymentForDetails.method || 'Razorpay'}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500 font-mono truncate block">
+                                        {selectedPaymentForDetails.bank || selectedPaymentForDetails.wallet || selectedPaymentForDetails.vpa || 'Online'}
+                                    </span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[9px] uppercase font-bold text-slate-400">Gateway Fee</span>
+                                    <div className="text-lg font-bold text-slate-300 font-poppins mt-1">
+                                        ₹{selectedPaymentForDetails.fee ? (selectedPaymentForDetails.fee / 100).toFixed(2) : '—'}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500">
+                                        Tax: {selectedPaymentForDetails.tax ? `₹${(selectedPaymentForDetails.tax / 100).toFixed(2)}` : '—'}
+                                    </span>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-1">
+                                    <span className="text-[9px] uppercase font-bold text-slate-400">Refund Status</span>
+                                    <div className="text-lg font-bold text-purple-400 font-poppins mt-1">
+                                        {selectedPaymentForDetails.amountRefunded > 0 ? `₹${selectedPaymentForDetails.amountRefunded}` : 'None'}
+                                    </div>
+                                    <span className="text-[9px] text-slate-500">
+                                        {selectedPaymentForDetails.refundStatus || 'No reversals'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Customer & Linked Citizen Details */}
+                            <div className="p-5 rounded-3xl bg-slate-950/60 border border-white/5 space-y-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                                    Customer & RESQR Citizen Account Link
+                                </span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                                    <div>
+                                        <span className="text-slate-500 block text-[10px]">Customer Name</span>
+                                        <span className="text-white font-bold">{selectedPaymentForDetails.userName || 'RESQR Citizen'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[10px]">Customer Contact</span>
+                                        <span className="text-slate-300">{selectedPaymentForDetails.userEmail || '—'}</span>
+                                        <span className="text-slate-400 font-mono block text-[11px]">{selectedPaymentForDetails.userPhone || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[10px]">Linked RESQR User ID</span>
+                                        {selectedPaymentForDetails.userId === 'UNMATCHED' || !selectedPaymentForDetails.userId ? (
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                UNMATCHED RECORD
+                                            </span>
+                                        ) : (
+                                            <span className="font-mono text-primary font-bold">{selectedPaymentForDetails.userId}</span>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[10px]">Receipt Number</span>
+                                        <span className="font-mono text-slate-300">{selectedPaymentForDetails.receiptNumber || '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Razorpay Identifiers & Timestamps */}
+                            <div className="p-5 rounded-3xl bg-slate-950/60 border border-white/5 space-y-3 font-mono text-xs">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block font-sans">
+                                    Gateway Technical Identifiers
+                                </span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                                    <div>
+                                        <span className="text-slate-500 block text-[9px]">Razorpay Payment ID</span>
+                                        <span className="text-white font-bold">{selectedPaymentForDetails.razorpayPaymentId || selectedPaymentForDetails.paymentId}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[9px]">Razorpay Order ID</span>
+                                        <span className="text-slate-300">{selectedPaymentForDetails.razorpayOrderId || selectedPaymentForDetails.orderId || '—'}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[9px]">Payment Timestamp</span>
+                                        <span className="text-slate-300 font-sans">
+                                            {selectedPaymentForDetails.paidAt || selectedPaymentForDetails.createdAt || selectedPaymentForDetails.timestamp
+                                                ? new Date(selectedPaymentForDetails.paidAt || selectedPaymentForDetails.createdAt || selectedPaymentForDetails.timestamp).toLocaleString('en-IN')
+                                                : '—'}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 block text-[9px]">Last Synced Timestamp</span>
+                                        <span className="text-slate-300 font-sans">
+                                            {selectedPaymentForDetails.lastSyncedAt
+                                                ? new Date(selectedPaymentForDetails.lastSyncedAt).toLocaleString('en-IN')
+                                                : 'Realtime Webhook'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Failure Reason if Failed */}
+                            {selectedPaymentForDetails.errorDescription && (
+                                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 space-y-1">
+                                    <span className="font-bold uppercase tracking-wider block text-[10px]">Failure Reason</span>
+                                    <p>{selectedPaymentForDetails.errorDescription} ({selectedPaymentForDetails.errorCode || 'FAILED'})</p>
+                                </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setSelectedPaymentForDetails(null)}
+                                    className="flex-1 h-12 rounded-xl text-slate-400 hover:text-white uppercase font-bold text-xs"
+                                >
+                                    Close
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={() => {
+                                        setAdminReceiptPayment(selectedPaymentForDetails);
+                                        setSelectedPaymentForDetails(null);
+                                    }}
+                                    className="flex-1 h-12 rounded-xl bg-primary hover:bg-primary-dark text-white font-bold uppercase text-xs shadow-lg shadow-primary/20"
+                                >
+                                    View Printable Receipt
+                                </Button>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             {/* Modal: User Payment Attempts Audit (Section 11 & 12) */}
             {selectedUserAttempts && (

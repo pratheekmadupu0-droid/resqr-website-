@@ -135,14 +135,16 @@ export default async function handler(req, res) {
             const receiptNumber = `REC-${cleanUserId.slice(-4).toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
             const paymentRecord = {
+                internalPaymentId: `pay_resqr_${paymentId}`,
                 paymentId,
+                razorpayPaymentId: paymentId,
+                razorpayOrderId: orderId,
+                razorpayInvoiceId: paymentEntity.invoice_id || null,
                 userId: cleanUserId,
                 userName: notes.userName || paymentEntity.contact || '',
                 userEmail: paymentEntity.email || '',
                 userPhone: paymentEntity.contact || '',
                 qrId: cleanQrId,
-                razorpayOrderId: orderId,
-                razorpayPaymentId: paymentId,
                 planId,
                 planName: plan.name,
                 amount: (paymentEntity.amount ? paymentEntity.amount / 100 : plan.amount),
@@ -152,9 +154,13 @@ export default async function handler(req, res) {
                 updatedAt: nowIso,
                 paidAt: nowIso,
                 paymentMethod: paymentEntity.method || 'razorpay',
+                description: plan.name,
                 receiptNumber,
                 subscriptionStartDate: activatedAtIso,
                 subscriptionExpiryDate: newExpiryIso,
+                source: 'RAZORPAY',
+                historicalImport: false,
+                lastSyncedAt: nowIso,
                 webhookVerified: true,
                 signatureVerified: true,
                 type: plan.type

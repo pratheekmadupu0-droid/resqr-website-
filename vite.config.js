@@ -24,6 +24,8 @@ function apiMiddlewarePlugin() {
             modulePath = './api/verify.js';
           } else if (pathname === '/api/admin/emergency-profile') {
             modulePath = './api/admin/emergency-profile.js';
+          } else if (pathname === '/api/admin/payments/sync-razorpay') {
+            modulePath = './api/admin/payments/sync-razorpay.js';
           } else if (pathname.startsWith('/api/admin/users/') && pathname.endsWith('/emergency-profile')) {
             const match = pathname.match(/^\/api\/admin\/users\/([^/]+)\/emergency-profile$/);
             if (match) {

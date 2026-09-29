@@ -514,6 +514,7 @@ export function getPaymentStatusBadge(status) {
         case 'SUCCESS':
         case 'PAID':
         case 'SUCCESSFUL':
+        case 'CAPTURED':
             return {
                 label: 'SUCCESS',
                 className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
@@ -521,8 +522,9 @@ export function getPaymentStatusBadge(status) {
             };
         case 'PENDING':
         case 'PROCESSING':
+        case 'AUTHORIZED':
             return {
-                label: s || 'PENDING',
+                label: s === 'AUTHORIZED' ? 'AUTHORIZED' : (s || 'PENDING'),
                 className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
                 dotClass: 'bg-amber-400'
             };
@@ -533,8 +535,9 @@ export function getPaymentStatusBadge(status) {
                 dotClass: 'bg-rose-400'
             };
         case 'CANCELLED':
+        case 'EXPIRED':
             return {
-                label: 'CANCELLED',
+                label: s,
                 className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20',
                 dotClass: 'bg-slate-400'
             };
@@ -544,6 +547,12 @@ export function getPaymentStatusBadge(status) {
                 label: s.replace('_', ' '),
                 className: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
                 dotClass: 'bg-purple-400'
+            };
+        case 'UNMATCHED':
+            return {
+                label: 'UNMATCHED',
+                className: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+                dotClass: 'bg-amber-400'
             };
         default:
             return {
