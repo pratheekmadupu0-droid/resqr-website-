@@ -13,6 +13,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.7",
     "firebase": "^10.11.1",
     "framer-motion": "^11.1.7",
     "html5-qrcode": "^2.3.8",

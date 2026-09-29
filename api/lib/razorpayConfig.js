@@ -1,12 +1,31 @@
-import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-// 1. Ensure environment variables are loaded
+// 1. Ensure environment variables are loaded (zero-dependency native loader)
 try {
-    dotenv.config();
+    if (typeof process.loadEnvFile === 'function') {
+        process.loadEnvFile();
+    } else {
+        const envPath = path.join(process.cwd(), '.env');
+        if (fs.existsSync(envPath)) {
+            const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed && !trimmed.startsWith('#')) {
+                    const eqIdx = trimmed.indexOf('=');
+                    if (eqIdx > 0) {
+                        const k = trimmed.slice(0, eqIdx).trim();
+                        const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+                        if (!process.env[k]) {
+                            process.env[k] = v;
+                        }
+                    }
+                }
+            }
+        }
+    }
 } catch (e) {
-    console.warn('[Razorpay] dotenv.config warning:', e.message);
+    // Non-fatal if .env is missing or already loaded in production
 }
 
 /**

@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import crypto from 'crypto';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
