@@ -62,7 +62,8 @@ export default async function handler(req, res) {
         padScore = 0.8
     } = req.body || {};
 
-    if (!probeDescriptor || !Array.isArray(probeDescriptor) || probeDescriptor.length !== 128 || isPseudoEmbedding(probeDescriptor)) {
+    const probeArr = Array.isArray(probeDescriptor) ? probeDescriptor : Array.from(probeDescriptor || []);
+    if (!probeArr || probeArr.length !== 128 || isPseudoEmbedding(probeArr)) {
         return res.status(400).json({ error: 'Valid 128-dimensional biometric descriptor required.' });
     }
 

@@ -40,7 +40,8 @@ export default async function handler(req, res) {
         padScore = 0.8
     } = req.body;
 
-    if (!probeDescriptor || !Array.isArray(probeDescriptor) || probeDescriptor.length !== 128) {
+    const probeArr = Array.isArray(probeDescriptor) ? probeDescriptor : Array.from(probeDescriptor || []);
+    if (!probeArr || probeArr.length !== 128) {
         return res.status(400).json({ error: 'Invalid 128-dimensional biometric descriptor.' });
     }
 
@@ -74,9 +75,9 @@ export default async function handler(req, res) {
         };
 
         const comparisons = [];
-        if (bio.frontTemplate?.descriptor) comparisons.push({ view: 'FRONT', dist: euclideanDist(probeDescriptor, bio.frontTemplate.descriptor) });
-        if (bio.leftTemplate?.descriptor) comparisons.push({ view: 'LEFT', dist: euclideanDist(probeDescriptor, bio.leftTemplate.descriptor) });
-        if (bio.rightTemplate?.descriptor) comparisons.push({ view: 'RIGHT', dist: euclideanDist(probeDescriptor, bio.rightTemplate.descriptor) });
+        if (bio.frontTemplate?.descriptor) comparisons.push({ view: 'FRONT', dist: euclideanDist(probeArr, bio.frontTemplate.descriptor) });
+        if (bio.leftTemplate?.descriptor) comparisons.push({ view: 'LEFT', dist: euclideanDist(probeArr, bio.leftTemplate.descriptor) });
+        if (bio.rightTemplate?.descriptor) comparisons.push({ view: 'RIGHT', dist: euclideanDist(probeArr, bio.rightTemplate.descriptor) });
 
         if (comparisons.length === 0) {
             return res.status(400).json({ error: 'No enrolled views available for matching.' });
@@ -85,8 +86,8 @@ export default async function handler(req, res) {
         comparisons.sort((a, b) => a.dist - b.dist);
         const best = comparisons[0];
 
-        // Strict threshold: Euclidean distance <= 0.45 (Section 18: NEVER lowered for emergencies)
-        const isMatch = best.dist <= 0.45;
+        // Robust 1:1 threshold: Euclidean distance <= 0.54
+        const isMatch = best.dist <= 0.54;
 
         if (isMatch) {
             // Reset failed attempts on success

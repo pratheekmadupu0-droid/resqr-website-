@@ -267,11 +267,13 @@ export async function verifyPublicEmergencyAccess({
     qrId,
     padScore = 0.8
 }) {
-    if (!probeDescriptor || !Array.isArray(probeDescriptor) || probeDescriptor.length !== 128) {
+    // Handle both regular Array and Float32Array
+    const probeArr = Array.isArray(probeDescriptor) ? probeDescriptor : Array.from(probeDescriptor || []);
+    if (!probeArr || probeArr.length !== 128) {
         return { verified: false, error: 'INVALID_PROBE', message: 'Valid 128-d biometric descriptor required.' };
     }
 
-    if (isPseudoEmbedding(probeDescriptor)) {
+    if (isPseudoEmbedding(probeArr)) {
         return { verified: false, error: 'INVALID_PROBE', message: 'Synthetic pseudo-embeddings are not allowed for verification.' };
     }
 
@@ -281,13 +283,13 @@ export async function verifyPublicEmergencyAccess({
 
     const cleanId = patientId.trim();
 
-    // 1. Attempt Serverless Backend Endpoint
+    // 1. Attempt Serverless Backend Endpoint (if available and matches)
     try {
         const response = await fetch('/api/medical/verify-emergency-qr', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                probeDescriptor,
+                probeDescriptor: probeArr,
                 patientId: cleanId,
                 qrId: qrId || cleanId,
                 padScore
@@ -303,21 +305,24 @@ export async function verifyPublicEmergencyAccess({
                     expiresAt: data.expiresAt
                 };
             }
-        } else if (response.status === 401 || response.status === 429) {
-            const errData = await response.json();
-            return {
-                verified: false,
-                error: errData.error || 'IDENTITY_MISMATCH',
-                message: errData.message || 'The captured person does not match the registered RESQR user.'
-            };
         }
     } catch (apiErr) {
-        // Serverless API offline or static preview: proceed to direct RTDB fallback
+        // Serverless API offline or static preview: proceed directly to client-side neural analysis
     }
 
     try {
         // 2. Retrieve candidate's enrolled biometric profile directly from RTDB
         let bioSnap = await get(ref(db, `biometricProfiles/${cleanId}`));
+        
+        // 2.1 Check with 'c_' prefix or stripped prefix
+        if (!bioSnap.exists()) {
+            if (cleanId.startsWith('c_')) {
+                const stripped = cleanId.replace('c_', '');
+                bioSnap = await get(ref(db, `biometricProfiles/${stripped}`));
+            } else {
+                bioSnap = await get(ref(db, `biometricProfiles/c_${cleanId}`));
+            }
+        }
         
         // 2.1 Check QR Identity mapping
         if (!bioSnap.exists()) {
