@@ -149,17 +149,43 @@ export default async function handler(req, res) {
             }
         }
 
-        // If found in users, but profileData not yet resolved, check users/{uid}/profiles/{cleanTargetId}
+        // If found in users, but profileData not yet resolved, check qrId, profiles, or users/{uid}/profiles
         if (userData && !profileData) {
-            if (userData.profiles) {
-                if (userData.profiles[cleanTargetId]) {
-                    profileData = userData.profiles[cleanTargetId];
-                } else {
-                    const firstProfileKey = Object.keys(userData.profiles)[0];
-                    if (firstProfileKey) {
-                        profileData = userData.profiles[firstProfileKey];
-                        resolvedQrId = firstProfileKey;
+            if (userData.qrId) {
+                const qrRes = await fetch(`${DB_URL}/profiles/${userData.qrId}.json`);
+                const qp = await qrRes.json();
+                if (qp) {
+                    profileData = qp;
+                    resolvedQrId = userData.qrId;
+                }
+            }
+            if (!profileData) {
+                const allProfRes = await fetch(`${DB_URL}/profiles.json`);
+                const allProf = await allProfRes.json();
+                if (allProf) {
+                    const match = Object.entries(allProf).find(([k, p]) => p && (
+                        p.uid === cleanTargetId || 
+                        p.id === cleanTargetId ||
+                        (userData.email && p.email && p.email.toLowerCase() === userData.email.toLowerCase()) ||
+                        (userData.name && p.name && p.name.toLowerCase() === userData.name.toLowerCase())
+                    ));
+                    if (match) {
+                        profileData = match[1];
+                        resolvedQrId = match[0];
                     }
+                }
+            }
+            if (!profileData && userData.profiles) {
+                const pVals = Object.entries(userData.profiles);
+                const completeP = pVals.find(([k, p]) => p && (p.bloodGroup || p.emergencyContactName || p.contacts || p.name));
+                if (completeP) {
+                    profileData = completeP[1];
+                    resolvedQrId = completeP[0];
+                } else if (userData.profiles[cleanTargetId]) {
+                    profileData = userData.profiles[cleanTargetId];
+                } else if (pVals[0]) {
+                    profileData = pVals[0][1];
+                    resolvedQrId = pVals[0][0];
                 }
             } else if (cleanTargetId.startsWith('c_') || cleanTargetId.includes('_')) {
                 const subProfRes = await fetch(`${DB_URL}/users/${cleanTargetId}/profiles/${cleanTargetId}.json`);
@@ -249,14 +275,31 @@ export default async function handler(req, res) {
         // 3.5. EXACT ACTIVATION ELIGIBILITY CHECK (Sections 3, 12, 13)
         // An Emergency Profile exists and is accessible ONLY when:
         // registrationStatus == "COMPLETED" && paymentStatus == "SUCCESS" && serviceStatus == "ACTIVE" && emergencyProfileStatus == "ACTIVE"
-        const expiry = rawUser.serviceExpiryDate || rawProfile.serviceExpiryDate || rawProfile.subscriptionExpiresAt || subscription?.expiresAt || null;
-        const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+        const targetEmail = (rawUser.email || rawProfile.email || subscription?.email || '').toLowerCase().trim();
+        const isAdminAccount = Boolean(
+            (targetEmail && [
+                'pratheekmadupu2006@gmail.com',
+                'pratheekmadupu0@gmail.com',
+                'resqr.official@gmail.com',
+                'admin@resqr.co.in'
+            ].includes(targetEmail)) ||
+            rawUser.role === 'admin'
+        );
 
-        let paymentStatus = rawUser.paymentStatus || rawProfile.paymentStatus || (rawProfile.payment_status === 'paid' ? 'SUCCESS' : (subscription?.paymentStatus === 'paid' ? 'SUCCESS' : 'PENDING'));
-        if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
+        const expiry = rawUser.serviceExpiryDate || rawProfile.serviceExpiryDate || rawProfile.subscriptionExpiresAt || subscription?.expiresAt || (isAdminAccount ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);
+        const isExpired = !isAdminAccount && expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+
+        let paymentStatus = rawUser.paymentStatus || rawProfile.paymentStatus || (
+            isAdminAccount || rawProfile.payment_status === 'paid' || subscription?.paymentStatus === 'paid' || (subscription?.status === 'ACTIVE' && !isExpired)
+                ? 'SUCCESS' 
+                : 'PENDING'
+        );
+        if (isAdminAccount || paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
 
         let registrationStatus = rawUser.registrationStatus || rawProfile.registrationStatus;
-        if (!registrationStatus) {
+        if (isAdminAccount) {
+            registrationStatus = 'COMPLETED';
+        } else if (!registrationStatus) {
             if (paymentStatus === 'SUCCESS' && (rawUser.profileCompleted || rawProfile.name)) {
                 registrationStatus = 'COMPLETED';
             } else if (rawUser.profileCompleted || rawProfile.name) {
@@ -267,7 +310,9 @@ export default async function handler(req, res) {
         }
 
         let serviceStatus = rawUser.serviceStatus || rawProfile.serviceStatus;
-        if (!serviceStatus) {
+        if (isAdminAccount) {
+            serviceStatus = 'ACTIVE';
+        } else if (!serviceStatus) {
             if (isExpired) {
                 serviceStatus = 'EXPIRED';
             } else if (paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
@@ -280,7 +325,9 @@ export default async function handler(req, res) {
         }
 
         let emergencyProfileStatus = rawUser.emergencyProfileStatus || rawProfile.emergencyProfileStatus;
-        if (!emergencyProfileStatus) {
+        if (isAdminAccount) {
+            emergencyProfileStatus = 'ACTIVE';
+        } else if (!emergencyProfileStatus) {
             if (isExpired) {
                 emergencyProfileStatus = 'EXPIRED';
             } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {

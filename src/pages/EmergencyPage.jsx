@@ -15,6 +15,7 @@ import HospitalFaceVerificationModal from '../components/biometrics/HospitalFace
 import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
 import RenewalModal from '../components/subscription/RenewalModal';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
+import { ADMIN_EMAILS } from '../lib/subscriptionConfig';
 
 export default function EmergencyPage() {
     const { id } = useParams();
@@ -107,6 +108,46 @@ export default function EmergencyPage() {
                     snap = await get(ref(db, resolvedPath));
                 }
 
+                if (!snap || !snap.exists()) {
+                    try {
+                        const userSnap = await get(ref(db, `users/${id}`));
+                        if (userSnap.exists()) {
+                            actualUid = id;
+                            const uData = userSnap.val() || {};
+                            if (uData.qrId) {
+                                const pSnap = await get(ref(db, `profiles/${uData.qrId}`));
+                                if (pSnap.exists()) {
+                                    snap = pSnap;
+                                    actualPid = uData.qrId;
+                                }
+                            }
+                            if (!snap || !snap.exists()) {
+                                const pListSnap = await get(ref(db, 'profiles'));
+                                if (pListSnap.exists()) {
+                                    const allP = pListSnap.val();
+                                    for (const [pk, pv] of Object.entries(allP)) {
+                                        if (pv && (pv.uid === id || (uData.email && pv.email?.toLowerCase() === uData.email.toLowerCase()))) {
+                                            snap = { exists: () => true, val: () => pv };
+                                            actualPid = pk;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if ((!snap || !snap.exists()) && uData.profiles) {
+                                const subKeys = Object.keys(uData.profiles);
+                                const bestKey = subKeys.find(k => uData.profiles[k]?.bloodGroup || uData.profiles[k]?.emergencyContactName) || subKeys[0];
+                                if (bestKey) {
+                                    snap = { exists: () => true, val: () => uData.profiles[bestKey] };
+                                    actualPid = bestKey;
+                                }
+                            }
+                        }
+                    } catch (uErr) {
+                        console.warn("Could not check user node fallback:", uErr);
+                    }
+                }
+
                 setResolvedPatientId(actualPid);
 
                 // Check for valid unexpired emergency verification session in current browser tab
@@ -125,7 +166,7 @@ export default function EmergencyPage() {
                     }
                 }
 
-                if (snap.exists()) {
+                if (snap && snap.exists()) {
                     const raw = snap.val();
                     const fallbackEmergency = raw.emergencyContacts?.[0] || {};
 
@@ -158,36 +199,51 @@ export default function EmergencyPage() {
 
                     // Fetch and evaluate subscription status
                     try {
-                        let sub = raw.subscription || null;
-                        if (!sub) {
-                            const subSnap = await get(ref(db, `subscriptions/${actualPid}`));
-                            if (subSnap.exists()) {
-                                sub = subSnap.val();
-                            } else if (actualUid) {
-                                const uSubSnap = await get(ref(db, `users/${actualUid}/subscription`));
-                                if (uSubSnap.exists()) sub = uSubSnap.val();
-                            }
-                        }
-                        if (sub) {
-                            setSubscriptionData(sub);
-                            if (sub.status === 'REVOKED' || raw.serviceStatus === 'REVOKED') {
-                                setSubscriptionStatus('REVOKED');
-                            } else if (sub.status === 'SUSPENDED' || raw.serviceStatus === 'SUSPENDED') {
-                                setSubscriptionStatus('SUSPENDED');
-                            } else if ((raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE') && raw.paymentStatus !== 'SUCCESS') {
-                                setSubscriptionStatus('NOT_ACTIVE');
-                            } else if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
-                                setSubscriptionStatus('EXPIRED');
-                            } else if (sub.expiresAt) {
-                                const days = Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                if (days <= 7) {
-                                    setSubscriptionStatus('EXPIRING_SOON');
-                                } else {
-                                    setSubscriptionStatus('ACTIVE');
+                        const userEmail = (raw.email || '').toLowerCase().trim();
+                        const isAdmin = (userEmail && ADMIN_EMAILS.some(e => e.toLowerCase() === userEmail)) || raw.role === 'admin';
+
+                        if (isAdmin) {
+                            setSubscriptionStatus('ACTIVE');
+                            setSubscriptionData({
+                                planId: 'admin_active',
+                                planName: 'Admin Full Access',
+                                status: 'ACTIVE',
+                                paymentStatus: 'SUCCESS',
+                                qrStatus: 'ACTIVE',
+                                serviceStatus: 'ACTIVE'
+                            });
+                        } else {
+                            let sub = raw.subscription || null;
+                            if (!sub) {
+                                const subSnap = await get(ref(db, `subscriptions/${actualPid}`));
+                                if (subSnap.exists()) {
+                                    sub = subSnap.val();
+                                } else if (actualUid) {
+                                    const uSubSnap = await get(ref(db, `users/${actualUid}/subscription`));
+                                    if (uSubSnap.exists()) sub = uSubSnap.val();
                                 }
                             }
-                        } else if (raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE' || raw.paymentStatus === 'PENDING') {
-                            setSubscriptionStatus('NOT_ACTIVE');
+                            if (sub) {
+                                setSubscriptionData(sub);
+                                if (sub.status === 'REVOKED' || raw.serviceStatus === 'REVOKED') {
+                                    setSubscriptionStatus('REVOKED');
+                                } else if (sub.status === 'SUSPENDED' || raw.serviceStatus === 'SUSPENDED') {
+                                    setSubscriptionStatus('SUSPENDED');
+                                } else if ((raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE') && raw.paymentStatus !== 'SUCCESS') {
+                                    setSubscriptionStatus('NOT_ACTIVE');
+                                } else if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
+                                    setSubscriptionStatus('EXPIRED');
+                                } else if (sub.expiresAt) {
+                                    const days = Math.ceil((new Date(sub.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                    if (days <= 7) {
+                                        setSubscriptionStatus('EXPIRING_SOON');
+                                    } else {
+                                        setSubscriptionStatus('ACTIVE');
+                                    }
+                                }
+                            } else if (raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE' || raw.paymentStatus === 'PENDING') {
+                                setSubscriptionStatus('NOT_ACTIVE');
+                            }
                         }
                     } catch (subErr) {
                         console.warn("Could not load subscription details:", subErr);

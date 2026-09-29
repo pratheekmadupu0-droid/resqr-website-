@@ -1,5 +1,6 @@
 import { auth, db } from './firebase';
 import { ref, get, push, set, serverTimestamp } from 'firebase/database';
+import { evaluateUserStatus } from './subscriptionConfig';
 
 export const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
@@ -104,11 +105,42 @@ export async function fetchAdminEmergencyProfile(userId) {
             }
         }
 
-        // If user has sub-profile
-        if (rawUser && !rawProfile && rawUser.profiles) {
-            const pKeys = Object.keys(rawUser.profiles);
-            if (pKeys.length > 0) {
-                rawProfile = rawUser.profiles[userId] || rawUser.profiles[pKeys[0]];
+        // If found user, resolve complete profile from qrId, profiles, or subprofiles
+        if (rawUser && !rawProfile) {
+            if (rawUser.qrId) {
+                const qrSnap = await get(ref(db, `profiles/${rawUser.qrId}`));
+                if (qrSnap.exists()) rawProfile = qrSnap.val();
+            }
+            if (!rawProfile) {
+                const allProfSnap = await get(ref(db, 'profiles'));
+                if (allProfSnap.exists()) {
+                    const allP = allProfSnap.val();
+                    const match = Object.entries(allP).find(([k, p]) => p && (
+                        p.uid === userId || 
+                        p.id === userId ||
+                        (rawUser?.email && p.email && p.email.toLowerCase() === rawUser.email.toLowerCase()) ||
+                        (rawUser?.name && p.name && p.name.toLowerCase() === rawUser.name.toLowerCase())
+                    ));
+                    if (match) rawProfile = match[1];
+                }
+            }
+            if (!rawProfile && rawUser.profiles) {
+                const pVals = Object.values(rawUser.profiles);
+                const completeP = pVals.find(p => p && (p.bloodGroup || p.emergencyContactName || p.contacts || p.name));
+                if (completeP) {
+                    rawProfile = completeP;
+                } else if (pVals.length > 0) {
+                    rawProfile = rawUser.profiles[userId] || pVals[0];
+                }
+            }
+        }
+
+        // If found profile, resolve linked user
+        if (!rawUser && rawProfile) {
+            const possibleUid = rawProfile.uid || rawProfile.userId;
+            if (possibleUid) {
+                const uSnap = await get(ref(db, `users/${possibleUid}`));
+                if (uSnap.exists()) rawUser = uSnap.val();
             }
         }
 
@@ -134,58 +166,12 @@ export async function fetchAdminEmergencyProfile(userId) {
         } catch (e) {}
 
         // EXACT ACTIVATION CONDITION CHECK (Section 3 & 12)
-        const expiry = rawUser?.serviceExpiryDate || rawProfile?.serviceExpiryDate || rawProfile?.subscriptionExpiresAt || subscription?.expiresAt || null;
-        const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+        const lifecycle = evaluateUserStatus(rawUser, rawProfile, subscription);
 
-        let paymentStatus = rawUser?.paymentStatus || rawProfile?.paymentStatus || (rawProfile?.payment_status === 'paid' ? 'SUCCESS' : (subscription?.paymentStatus === 'paid' ? 'SUCCESS' : 'PENDING'));
-        if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
-
-        let registrationStatus = rawUser?.registrationStatus || rawProfile?.registrationStatus;
-        if (!registrationStatus) {
-            if (paymentStatus === 'SUCCESS' && (rawUser?.profileCompleted || rawProfile?.name)) {
-                registrationStatus = 'COMPLETED';
-            } else if (rawUser?.profileCompleted || rawProfile?.name) {
-                registrationStatus = 'PAYMENT_PENDING';
-            } else {
-                registrationStatus = 'IN_PROGRESS';
-            }
-        }
-
-        let serviceStatus = rawUser?.serviceStatus || rawProfile?.serviceStatus;
-        if (!serviceStatus) {
-            if (isExpired) {
-                serviceStatus = 'EXPIRED';
-            } else if (paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
-                serviceStatus = 'ACTIVE';
-            } else {
-                serviceStatus = 'NOT_ACTIVE';
-            }
-        } else if (isExpired && serviceStatus === 'ACTIVE') {
-            serviceStatus = 'EXPIRED';
-        }
-
-        let emergencyProfileStatus = rawUser?.emergencyProfileStatus || rawProfile?.emergencyProfileStatus;
-        if (!emergencyProfileStatus) {
-            if (isExpired) {
-                emergencyProfileStatus = 'EXPIRED';
-            } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
-                emergencyProfileStatus = 'ACTIVE';
-            } else {
-                emergencyProfileStatus = 'NOT_CREATED';
-            }
-        } else if (isExpired && emergencyProfileStatus === 'ACTIVE') {
-            emergencyProfileStatus = 'EXPIRED';
-        }
-
-        if (
-            registrationStatus !== 'COMPLETED' ||
-            paymentStatus !== 'SUCCESS' ||
-            serviceStatus !== 'ACTIVE' ||
-            emergencyProfileStatus !== 'ACTIVE'
-        ) {
+        if (!lifecycle.isActive) {
             const err = new Error("Emergency Profile is not active. Citizen must complete registration and verified payment.");
             err.code = "EMERGENCY_PROFILE_INACTIVE";
-            err.lifecycle = { registrationStatus, paymentStatus, serviceStatus, emergencyProfileStatus };
+            err.lifecycle = lifecycle;
             throw err;
         }
 

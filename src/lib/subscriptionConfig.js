@@ -288,6 +288,13 @@ export const QR_STATUS = {
     REVOKED: 'REVOKED'
 };
 
+export const ADMIN_EMAILS = [
+    'pratheekmadupu2006@gmail.com',
+    'pratheekmadupu0@gmail.com',
+    'resqr.official@gmail.com',
+    'admin@resqr.co.in'
+];
+
 /**
  * Evaluates the full unified lifecycle state for a user/profile
  */
@@ -296,21 +303,29 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
     const p = profile || {};
     const s = subscription || u.subscription || p.subscription || null;
 
+    const email = (u.email || p.email || s?.email || '').toLowerCase().trim();
+    const isAdminAccount = Boolean(
+        (email && ADMIN_EMAILS.includes(email)) ||
+        u.role === 'admin'
+    );
+
     // Check expiration against current time
-    const expiry = u.serviceExpiryDate || p.serviceExpiryDate || p.subscriptionExpiresAt || s?.expiresAt || null;
-    const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+    const expiry = u.serviceExpiryDate || p.serviceExpiryDate || p.subscriptionExpiresAt || s?.expiresAt || (isAdminAccount ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);
+    const isExpired = !isAdminAccount && expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
 
     // 1. Payment status evaluation
     let paymentStatus = u.paymentStatus || p.paymentStatus || (
-        u.payment_status === 'paid' || p.payment_status === 'paid' || s?.paymentStatus === 'paid' || s?.payment_status === 'paid' || (s?.status === 'ACTIVE' && !isExpired)
+        isAdminAccount || u.payment_status === 'paid' || p.payment_status === 'paid' || s?.paymentStatus === 'paid' || s?.payment_status === 'paid' || (s?.status === 'ACTIVE' && !isExpired)
             ? 'SUCCESS' 
             : 'PENDING'
     );
-    if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
+    if (isAdminAccount || paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
 
     // 2. Registration status evaluation
     let registrationStatus = u.registrationStatus || p.registrationStatus;
-    if (!registrationStatus) {
+    if (isAdminAccount) {
+        registrationStatus = 'COMPLETED';
+    } else if (!registrationStatus) {
         if (paymentStatus === 'SUCCESS' && (u.profileCompleted || p.name || p.id)) {
             registrationStatus = 'COMPLETED';
         } else if (u.profileCompleted || p.name) {
@@ -324,7 +339,9 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
 
     // 3. Service status evaluation
     let serviceStatus = u.serviceStatus || p.serviceStatus;
-    if (!serviceStatus) {
+    if (isAdminAccount) {
+        serviceStatus = 'ACTIVE';
+    } else if (!serviceStatus) {
         if (isExpired) {
             serviceStatus = 'EXPIRED';
         } else if (s?.status === 'SUSPENDED' || u.status === 'suspended') {
@@ -342,7 +359,9 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
 
     // 4. Emergency profile status evaluation
     let emergencyProfileStatus = u.emergencyProfileStatus || p.emergencyProfileStatus;
-    if (!emergencyProfileStatus) {
+    if (isAdminAccount) {
+        emergencyProfileStatus = 'ACTIVE';
+    } else if (!emergencyProfileStatus) {
         if (isExpired) {
             emergencyProfileStatus = 'EXPIRED';
         } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
@@ -360,7 +379,9 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
 
     // 5. QR status evaluation
     let qrStatus = u.qrStatus || p.qrStatus;
-    if (!qrStatus) {
+    if (isAdminAccount) {
+        qrStatus = 'ACTIVE';
+    } else if (!qrStatus) {
         if (isExpired) {
             qrStatus = 'EXPIRED';
         } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS') {

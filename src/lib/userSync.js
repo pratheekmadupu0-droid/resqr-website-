@@ -55,11 +55,12 @@ export async function syncUserOnLogin(user, extraData = {}) {
             createdAt: existing.createdAt || extraData.createdAt || user.metadata?.creationTime || now,
             authProvider: authProvider,
             // User Lifecycle State Models (Section 2)
-            registrationStatus: existing.registrationStatus || extraData.registrationStatus || (existing.paymentStatus === 'SUCCESS' || existing.payment_status === 'paid' ? 'COMPLETED' : 'NOT_STARTED'),
-            paymentStatus: existing.paymentStatus || extraData.paymentStatus || (existing.payment_status === 'paid' ? 'SUCCESS' : 'PENDING'),
-            serviceStatus: existing.serviceStatus || extraData.serviceStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE'),
-            emergencyProfileStatus: existing.emergencyProfileStatus || extraData.emergencyProfileStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_CREATED'),
-            qrStatus: existing.qrStatus || extraData.qrStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE'),
+            registrationStatus: isAdmin ? 'COMPLETED' : (existing.registrationStatus || extraData.registrationStatus || (existing.paymentStatus === 'SUCCESS' || existing.payment_status === 'paid' ? 'COMPLETED' : 'NOT_STARTED')),
+            paymentStatus: isAdmin ? 'SUCCESS' : (existing.paymentStatus || extraData.paymentStatus || (existing.payment_status === 'paid' ? 'SUCCESS' : 'PENDING')),
+            serviceStatus: isAdmin ? 'ACTIVE' : (existing.serviceStatus || extraData.serviceStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE')),
+            emergencyProfileStatus: isAdmin ? 'ACTIVE' : (existing.emergencyProfileStatus || extraData.emergencyProfileStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_CREATED')),
+            qrStatus: isAdmin ? 'ACTIVE' : (existing.qrStatus || extraData.qrStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE')),
+            qrId: existing.qrId || (userEmail.includes('pratheek') ? 'pratheek' : null),
             // Detailed Firebase Authentication & Google Account parameters
             googleId: googleId,
             googleEmail: googleEmail,

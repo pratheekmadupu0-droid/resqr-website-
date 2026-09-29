@@ -235,16 +235,10 @@ export default function AdminPanel() {
         if (!userOrEmail) return null;
         const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail.email;
         const uid = typeof userOrEmail === 'object' ? (userOrEmail.uid || userOrEmail.id) : null;
-        const userProfiles = typeof userOrEmail === 'object' && userOrEmail.profiles ? userOrEmail.profiles : null;
-
-        if (userProfiles && typeof userProfiles === 'object') {
-            const firstP = Object.values(userProfiles)[0];
-            if (firstP) return firstP;
-        }
-
         const lowerEmail = email ? email.toLowerCase().trim() : null;
 
-        return safeProfiles.find(p => {
+        // 1. First look in global safeProfiles for an active match with real medical details
+        const matched = safeProfiles.find(p => {
             if (!p) return false;
             if (uid && (p.uid === uid || p.id === `c_${uid}` || p.id === uid)) return true;
             if (lowerEmail) {
@@ -253,6 +247,20 @@ export default function AdminPanel() {
             }
             return false;
         });
+        if (matched && (matched.bloodGroup || matched.emergencyContactName || matched.name)) {
+            return matched;
+        }
+
+        // 2. Check embedded user profiles (prefer the one with bloodGroup / contacts over empty drafts)
+        const userProfiles = typeof userOrEmail === 'object' && userOrEmail.profiles ? userOrEmail.profiles : null;
+        if (userProfiles && typeof userProfiles === 'object') {
+            const list = Object.values(userProfiles).filter(Boolean);
+            const completeP = list.find(p => p.bloodGroup || p.emergencyContactName || p.emergencyContactPhone || p.phone);
+            if (completeP) return completeP;
+            if (list[0]) return list[0];
+        }
+
+        return matched || null;
     };
 
     // Helper to evaluate comprehensive lifecycle status for any user (Section 3 & 4)
