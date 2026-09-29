@@ -196,10 +196,35 @@ export default async function handler(req, res) {
                 [`profiles/${cleanQrId}/payment_id`]: paymentId,
                 [`profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
                 [`profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso,
+                [`profiles/${cleanQrId}/registrationStatus`]: 'COMPLETED',
+                [`profiles/${cleanQrId}/paymentStatus`]: 'SUCCESS',
+                [`profiles/${cleanQrId}/serviceStatus`]: 'ACTIVE',
+                [`profiles/${cleanQrId}/emergencyProfileStatus`]: 'ACTIVE',
+                [`profiles/${cleanQrId}/qrStatus`]: 'ACTIVE',
+                [`profiles/${cleanQrId}/planId`]: planId,
+                [`profiles/${cleanQrId}/amountPaid`]: paymentRecord.amount,
+                [`profiles/${cleanQrId}/paymentId`]: paymentId,
+                [`profiles/${cleanQrId}/serviceStartDate`]: activatedAtIso,
+                [`profiles/${cleanQrId}/serviceExpiryDate`]: newExpiryIso,
+                [`users/${cleanUserId}/registrationStatus`]: 'COMPLETED',
+                [`users/${cleanUserId}/paymentStatus`]: 'SUCCESS',
+                [`users/${cleanUserId}/serviceStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/emergencyProfileStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/qrStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/planId`]: planId,
+                [`users/${cleanUserId}/amountPaid`]: paymentRecord.amount,
+                [`users/${cleanUserId}/paymentId`]: paymentId,
+                [`users/${cleanUserId}/serviceStartDate`]: activatedAtIso,
+                [`users/${cleanUserId}/serviceExpiryDate`]: newExpiryIso,
                 [`users/${cleanUserId}/profiles/${cleanQrId}/payment_status`]: 'paid',
                 [`users/${cleanUserId}/profiles/${cleanQrId}/payment_id`]: paymentId,
                 [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
-                [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso
+                [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso,
+                [`users/${cleanUserId}/profiles/${cleanQrId}/registrationStatus`]: 'COMPLETED',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/paymentStatus`]: 'SUCCESS',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/serviceStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/emergencyProfileStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/qrStatus`]: 'ACTIVE'
             };
 
             if (orderId) {
@@ -220,6 +245,9 @@ export default async function handler(req, res) {
             const orderId = paymentEntity.order_id;
             const paymentId = paymentEntity.id;
             const failureReason = paymentEntity.error_description || 'Payment Failed';
+            const notes = paymentEntity.notes || {};
+            const targetUid = notes.userId;
+            const targetQrId = notes.qrId;
 
             const failureRecord = {
                 paymentId: paymentId || `failed_${Date.now()}`,
@@ -238,6 +266,20 @@ export default async function handler(req, res) {
                 updates[`paymentAttempts/${orderId}/failureReason`] = failureReason;
                 updates[`paymentAttempts/${orderId}/updatedAt`] = nowIso;
             }
+            if (targetUid) {
+                updates[`users/${targetUid}/paymentStatus`] = 'FAILED';
+                updates[`users/${targetUid}/registrationStatus`] = 'PAYMENT_FAILED';
+                updates[`users/${targetUid}/serviceStatus`] = 'NOT_ACTIVE';
+                updates[`users/${targetUid}/emergencyProfileStatus`] = 'NOT_CREATED';
+                updates[`users/${targetUid}/qrStatus`] = 'NOT_ACTIVE';
+            }
+            if (targetQrId) {
+                updates[`profiles/${targetQrId}/paymentStatus`] = 'FAILED';
+                updates[`profiles/${targetQrId}/registrationStatus`] = 'PAYMENT_FAILED';
+                updates[`profiles/${targetQrId}/serviceStatus`] = 'NOT_ACTIVE';
+                updates[`profiles/${targetQrId}/emergencyProfileStatus`] = 'NOT_CREATED';
+                updates[`profiles/${targetQrId}/qrStatus`] = 'NOT_ACTIVE';
+            }
 
             if (Object.keys(updates).length > 0) {
                 await fetch(`${DB_URL}/.json`, {
@@ -251,6 +293,9 @@ export default async function handler(req, res) {
         } else if (eventType === 'refund.processed' || eventType === 'refund.created') {
             const refundEntity = eventData.payload?.refund?.entity || {};
             const paymentId = refundEntity.payment_id;
+            const notes = refundEntity.notes || {};
+            const targetUid = notes.userId;
+            const targetQrId = notes.qrId;
 
             if (paymentId) {
                 const updates = {
@@ -260,6 +305,19 @@ export default async function handler(req, res) {
                     [`payments/${paymentId}/refundAt`]: nowIso,
                     [`payments/${paymentId}/updatedAt`]: nowIso
                 };
+
+                if (targetUid) {
+                    updates[`users/${targetUid}/paymentStatus`] = 'REFUNDED';
+                    updates[`users/${targetUid}/serviceStatus`] = 'SUSPENDED';
+                    updates[`users/${targetUid}/emergencyProfileStatus`] = 'INACTIVE';
+                    updates[`users/${targetUid}/qrStatus`] = 'NOT_ACTIVE';
+                }
+                if (targetQrId) {
+                    updates[`profiles/${targetQrId}/paymentStatus`] = 'REFUNDED';
+                    updates[`profiles/${targetQrId}/serviceStatus`] = 'SUSPENDED';
+                    updates[`profiles/${targetQrId}/emergencyProfileStatus`] = 'INACTIVE';
+                    updates[`profiles/${targetQrId}/qrStatus`] = 'NOT_ACTIVE';
+                }
 
                 await fetch(`${DB_URL}/.json`, {
                     method: 'PATCH',

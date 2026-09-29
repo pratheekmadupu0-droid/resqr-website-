@@ -70,15 +70,16 @@ export async function fetchAdminEmergencyProfile(userId) {
                 return data.emergencyProfile;
             }
         }
-        // If 403, throw access denied immediately
+        // If 403, handle authorization and service inactivity
         if (res.status === 403) {
             const errData = await res.json().catch(() => ({}));
             const err = new Error(errData.error || "403 Forbidden: Administrator role verification failed.");
-            err.code = "FORBIDDEN_NOT_ADMIN";
+            err.code = errData.code || "FORBIDDEN_NOT_ADMIN";
+            err.lifecycle = errData.lifecycle || null;
             throw err;
         }
     } catch (apiErr) {
-        if (apiErr.code === "FORBIDDEN_NOT_ADMIN") {
+        if (apiErr.code === "FORBIDDEN_NOT_ADMIN" || apiErr.code === "EMERGENCY_PROFILE_INACTIVE") {
             throw apiErr;
         }
         console.warn("Backend API route unreachable, using authenticated client fallback:", apiErr);
@@ -131,6 +132,62 @@ export async function fetchAdminEmergencyProfile(userId) {
                 if (uSubSnap.exists()) subscription = uSubSnap.val();
             }
         } catch (e) {}
+
+        // EXACT ACTIVATION CONDITION CHECK (Section 3 & 12)
+        const expiry = rawUser?.serviceExpiryDate || rawProfile?.serviceExpiryDate || rawProfile?.subscriptionExpiresAt || subscription?.expiresAt || null;
+        const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+
+        let paymentStatus = rawUser?.paymentStatus || rawProfile?.paymentStatus || (rawProfile?.payment_status === 'paid' ? 'SUCCESS' : (subscription?.paymentStatus === 'paid' ? 'SUCCESS' : 'PENDING'));
+        if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
+
+        let registrationStatus = rawUser?.registrationStatus || rawProfile?.registrationStatus;
+        if (!registrationStatus) {
+            if (paymentStatus === 'SUCCESS' && (rawUser?.profileCompleted || rawProfile?.name)) {
+                registrationStatus = 'COMPLETED';
+            } else if (rawUser?.profileCompleted || rawProfile?.name) {
+                registrationStatus = 'PAYMENT_PENDING';
+            } else {
+                registrationStatus = 'IN_PROGRESS';
+            }
+        }
+
+        let serviceStatus = rawUser?.serviceStatus || rawProfile?.serviceStatus;
+        if (!serviceStatus) {
+            if (isExpired) {
+                serviceStatus = 'EXPIRED';
+            } else if (paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+                serviceStatus = 'ACTIVE';
+            } else {
+                serviceStatus = 'NOT_ACTIVE';
+            }
+        } else if (isExpired && serviceStatus === 'ACTIVE') {
+            serviceStatus = 'EXPIRED';
+        }
+
+        let emergencyProfileStatus = rawUser?.emergencyProfileStatus || rawProfile?.emergencyProfileStatus;
+        if (!emergencyProfileStatus) {
+            if (isExpired) {
+                emergencyProfileStatus = 'EXPIRED';
+            } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+                emergencyProfileStatus = 'ACTIVE';
+            } else {
+                emergencyProfileStatus = 'NOT_CREATED';
+            }
+        } else if (isExpired && emergencyProfileStatus === 'ACTIVE') {
+            emergencyProfileStatus = 'EXPIRED';
+        }
+
+        if (
+            registrationStatus !== 'COMPLETED' ||
+            paymentStatus !== 'SUCCESS' ||
+            serviceStatus !== 'ACTIVE' ||
+            emergencyProfileStatus !== 'ACTIVE'
+        ) {
+            const err = new Error("Emergency Profile is not active. Citizen must complete registration and verified payment.");
+            err.code = "EMERGENCY_PROFILE_INACTIVE";
+            err.lifecycle = { registrationStatus, paymentStatus, serviceStatus, emergencyProfileStatus };
+            throw err;
+        }
 
         // SANITIZED EMERGENCY PROFILE DATA ONLY
         // Biometrics, full medical history, insurance files, and passwords are never returned

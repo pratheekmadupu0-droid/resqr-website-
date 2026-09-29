@@ -196,7 +196,13 @@ export default async function handler(req, res) {
                 id: cleanTargetId,
                 name: 'John Doe',
                 email: 'john.doe@resqr.test',
-                role: 'citizen'
+                role: 'citizen',
+                registrationStatus: 'COMPLETED',
+                paymentStatus: 'SUCCESS',
+                serviceStatus: 'ACTIVE',
+                emergencyProfileStatus: 'ACTIVE',
+                qrStatus: 'ACTIVE',
+                amountPaid: 149
             };
             profileData = {
                 id: cleanTargetId,
@@ -205,7 +211,13 @@ export default async function handler(req, res) {
                 emergencyContactName: 'Jane Doe',
                 emergencyContactPhone: '+91 98765 43210',
                 emergencyContactRelation: 'Spouse',
-                allergies: 'Penicillin (Severe anaphylaxis risk)'
+                allergies: 'Penicillin (Severe anaphylaxis risk)',
+                registrationStatus: 'COMPLETED',
+                paymentStatus: 'SUCCESS',
+                serviceStatus: 'ACTIVE',
+                emergencyProfileStatus: 'ACTIVE',
+                qrStatus: 'ACTIVE',
+                amountPaid: 149
             };
         }
 
@@ -232,6 +244,72 @@ export default async function handler(req, res) {
             }
         } catch (subErr) {
             console.warn("Subscription lookup error:", subErr);
+        }
+
+        // 3.5. EXACT ACTIVATION ELIGIBILITY CHECK (Sections 3, 12, 13)
+        // An Emergency Profile exists and is accessible ONLY when:
+        // registrationStatus == "COMPLETED" && paymentStatus == "SUCCESS" && serviceStatus == "ACTIVE" && emergencyProfileStatus == "ACTIVE"
+        const expiry = rawUser.serviceExpiryDate || rawProfile.serviceExpiryDate || rawProfile.subscriptionExpiresAt || subscription?.expiresAt || null;
+        const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+
+        let paymentStatus = rawUser.paymentStatus || rawProfile.paymentStatus || (rawProfile.payment_status === 'paid' ? 'SUCCESS' : (subscription?.paymentStatus === 'paid' ? 'SUCCESS' : 'PENDING'));
+        if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
+
+        let registrationStatus = rawUser.registrationStatus || rawProfile.registrationStatus;
+        if (!registrationStatus) {
+            if (paymentStatus === 'SUCCESS' && (rawUser.profileCompleted || rawProfile.name)) {
+                registrationStatus = 'COMPLETED';
+            } else if (rawUser.profileCompleted || rawProfile.name) {
+                registrationStatus = 'PAYMENT_PENDING';
+            } else {
+                registrationStatus = 'IN_PROGRESS';
+            }
+        }
+
+        let serviceStatus = rawUser.serviceStatus || rawProfile.serviceStatus;
+        if (!serviceStatus) {
+            if (isExpired) {
+                serviceStatus = 'EXPIRED';
+            } else if (paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+                serviceStatus = 'ACTIVE';
+            } else {
+                serviceStatus = 'NOT_ACTIVE';
+            }
+        } else if (isExpired && serviceStatus === 'ACTIVE') {
+            serviceStatus = 'EXPIRED';
+        }
+
+        let emergencyProfileStatus = rawUser.emergencyProfileStatus || rawProfile.emergencyProfileStatus;
+        if (!emergencyProfileStatus) {
+            if (isExpired) {
+                emergencyProfileStatus = 'EXPIRED';
+            } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+                emergencyProfileStatus = 'ACTIVE';
+            } else {
+                emergencyProfileStatus = 'NOT_CREATED';
+            }
+        } else if (isExpired && emergencyProfileStatus === 'ACTIVE') {
+            emergencyProfileStatus = 'EXPIRED';
+        }
+
+        // Exact Condition check:
+        if (
+            registrationStatus !== 'COMPLETED' ||
+            paymentStatus !== 'SUCCESS' ||
+            serviceStatus !== 'ACTIVE' ||
+            emergencyProfileStatus !== 'ACTIVE'
+        ) {
+            return res.status(403).json({
+                error: 'Emergency Profile is not active for this user.',
+                code: 'EMERGENCY_PROFILE_INACTIVE',
+                message: 'Emergency Profile is available only for users with completed registration, verified payment, and active service.',
+                lifecycle: {
+                    registrationStatus,
+                    paymentStatus,
+                    serviceStatus,
+                    emergencyProfileStatus
+                }
+            });
         }
 
         // 4. Sanitize and retrieve ONLY permitted Emergency Profile fields (Section 4 & 14)

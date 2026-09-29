@@ -9,6 +9,12 @@ import {
 import { auth, db } from '../lib/firebase';
 import { ref, get, onValue } from 'firebase/database';
 import { fetchAdminEmergencyProfile, verifyAdminStatus, ADMIN_EMAILS } from '../lib/adminApi';
+import { 
+    getRegistrationStatusBadge, 
+    getPaymentStatusBadge, 
+    getServiceStatusBadge, 
+    getEmergencyProfileStatusBadge 
+} from '../lib/subscriptionConfig';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
@@ -27,6 +33,7 @@ export default function AdminEmergencyProfilePage() {
     // Profile & Tab states
     const [profileLoading, setProfileLoading] = useState(false);
     const [emergencyProfile, setEmergencyProfile] = useState(null);
+    const [inactiveError, setInactiveError] = useState(null);
     const [activeSection, setActiveSection] = useState('emergency'); // 'emergency' | 'medical' | 'insurance' | 'qr' | 'subscription' | 'logs'
     const [auditLogs, setAuditLogs] = useState([]);
     const [gpsLocation, setGpsLocation] = useState(null);
@@ -68,6 +75,7 @@ export default function AdminEmergencyProfilePage() {
         let isMounted = true;
         const loadProfile = async () => {
             setProfileLoading(true);
+            setInactiveError(null);
             try {
                 const profile = await fetchAdminEmergencyProfile(userId);
                 if (isMounted) {
@@ -78,6 +86,11 @@ export default function AdminEmergencyProfilePage() {
                 if (isMounted) {
                     if (err.code === "FORBIDDEN_NOT_ADMIN") {
                         setIsAuthorizedAdmin(false);
+                    } else if (err.code === "EMERGENCY_PROFILE_INACTIVE") {
+                        setInactiveError({
+                            message: err.message,
+                            lifecycle: err.lifecycle || {}
+                        });
                     } else {
                         toast.error(err.message || "Could not retrieve emergency profile.");
                     }
@@ -214,6 +227,106 @@ export default function AdminEmergencyProfilePage() {
                     >
                         Return to Citizen Dashboard
                     </Button>
+                </Card>
+            </div>
+        );
+    }
+
+    // 3.5. Inactive Emergency Profile State (Requirement 11 & Requirement 18)
+    if (inactiveError) {
+        const lc = inactiveError.lifecycle || {};
+        const regBadge = getRegistrationStatusBadge(lc.registrationStatus);
+        const payBadge = getPaymentStatusBadge(lc.paymentStatus);
+        const srvBadge = getServiceStatusBadge(lc.serviceStatus);
+        const profBadge = getEmergencyProfileStatusBadge(lc.emergencyProfileStatus);
+
+        return (
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white font-manrope">
+                <Card className="max-w-xl w-full bg-slate-900 border-amber-500/20 p-8 md:p-10 rounded-3xl text-center space-y-6 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500" />
+                    
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mx-auto">
+                        <AlertTriangle size={32} />
+                    </div>
+
+                    <div>
+                        <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-black uppercase tracking-widest mb-3">
+                            403 · EMERGENCY PROFILE NOT ACTIVE
+                        </Badge>
+                        <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                            Emergency Profile Inaccessible
+                        </h2>
+                        <p className="text-xs text-slate-400 mt-2 leading-relaxed max-w-md mx-auto">
+                            {inactiveError.message || "An Emergency Profile is created and displayed ONLY for users who have completed registration and verified payment."}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-mono mt-1">User ID: {userId}</p>
+                    </div>
+
+                    {/* Lifecycle Status Matrix */}
+                    <div className="grid grid-cols-2 gap-3 text-left p-4 rounded-2xl bg-slate-950/80 border border-white/5">
+                        <div className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-black">Registration</span>
+                            <div>
+                                <Badge className={`${regBadge.className} text-[8px] font-black uppercase`}>
+                                    {regBadge.label}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-black">Payment</span>
+                            <div>
+                                <Badge className={`${payBadge.className} text-[8px] font-black uppercase`}>
+                                    {payBadge.label}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-black">Service Status</span>
+                            <div>
+                                <Badge className={`${srvBadge.className} text-[8px] font-black uppercase`}>
+                                    {srvBadge.label}
+                                </Badge>
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <span className="text-[9px] uppercase tracking-wider text-slate-500 font-black">Profile Status</span>
+                            <div>
+                                <Badge className={`${profBadge.className} text-[8px] font-black uppercase`}>
+                                    {profBadge.label}
+                                </Badge>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-left">
+                        <p className="text-[11px] font-bold text-blue-300">
+                            Operational Policy:
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                            Emergency Profiles contain critical medical and responder dispatch directives. They are provisioned only when the RESQR subscription is active and verified. Unpaid or incomplete accounts do not have active emergency dossiers.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                        <Button 
+                            onClick={() => navigate('/admin')}
+                            className="w-full py-3.5 bg-primary hover:bg-primary/90 text-white font-bold uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-primary/20"
+                        >
+                            Return to Admin Console
+                        </Button>
+                        <Button 
+                            onClick={() => {
+                                navigator.clipboard.writeText(userId);
+                                toast.success("User ID copied to clipboard");
+                            }}
+                            className="w-full py-3.5 bg-white/5 hover:bg-white/10 text-white font-bold uppercase tracking-wider text-xs rounded-xl border border-white/10"
+                        >
+                            Copy User ID
+                        </Button>
+                    </div>
                 </Card>
             </div>
         );

@@ -387,6 +387,15 @@ export default function CreateIdentity() {
                     price: 149,
                     paymentStatus: 'paid'
                 },
+                registrationStatus: 'COMPLETED',
+                paymentStatus: 'SUCCESS',
+                serviceStatus: 'ACTIVE',
+                emergencyProfileStatus: 'ACTIVE',
+                qrStatus: 'ACTIVE',
+                planId: 'initial_3m',
+                amountPaid: 149,
+                serviceStartDate: nowIso,
+                serviceExpiryDate: expiresAt,
                 payment_status: 'paid',
                 payment_id: paymentId || "expansion_pay_" + Math.random().toString(36).substr(2, 9),
                 payment_date: new Date().toISOString(),
@@ -433,6 +442,15 @@ export default function CreateIdentity() {
 
             // Save to DB
             const updates = {};
+            updates[`users/${uid}/registrationStatus`] = 'COMPLETED';
+            updates[`users/${uid}/paymentStatus`] = 'SUCCESS';
+            updates[`users/${uid}/serviceStatus`] = 'ACTIVE';
+            updates[`users/${uid}/emergencyProfileStatus`] = 'ACTIVE';
+            updates[`users/${uid}/qrStatus`] = 'ACTIVE';
+            updates[`users/${uid}/planId`] = 'initial_3m';
+            updates[`users/${uid}/amountPaid`] = 149;
+            updates[`users/${uid}/serviceStartDate`] = nowIso;
+            updates[`users/${uid}/serviceExpiryDate`] = expiresAt;
             updates[`users/${uid}/profiles/${profileId}`] = profileData;
             updates[`profiles/${profileId}`] = profileData;
             updates[`subscriptions/${profileId}`] = subscriptionData;

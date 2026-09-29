@@ -23,7 +23,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAge } from '../lib/dateUtils';
 import WhatsAppMessaging from '../components/admin/WhatsAppMessaging';
 import PaymentReceiptModal from '../components/common/PaymentReceiptModal';
-import { PAYMENT_STATUS, getPaymentStatusBadge } from '../lib/subscriptionConfig';
+import { 
+    PAYMENT_STATUS, 
+    REGISTRATION_STATUS,
+    SERVICE_STATUS,
+    EMERGENCY_PROFILE_STATUS,
+    QR_STATUS,
+    evaluateUserStatus,
+    isEmergencyProfileActive,
+    getPaymentStatusBadge,
+    getRegistrationStatusBadge,
+    getServiceStatusBadge,
+    getEmergencyProfileStatusBadge,
+    getQrStatusBadge
+} from '../lib/subscriptionConfig';
 
 export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -83,8 +96,8 @@ export default function AdminPanel() {
     const [selectedUserForProfile, setSelectedUserForProfile] = useState(null);
     const [selectedUserForAuthModal, setSelectedUserForAuthModal] = useState(null);
     const [editingProduct, setEditingProduct] = useState(null);
-    const [editingAd, setEditingAd] = useState(null);
     const [loginFilter, setLoginFilter] = useState('all'); // 'all', 'recent', 'inactive', 'never'
+    const [userLifecycleFilter, setUserLifecycleFilter] = useState('ALL'); // 'ALL' | 'ACTIVE_RESQR' | 'REG_COMPLETED' | 'PAYMENT_SUCCESS' | 'PAYMENT_PENDING' | 'PAYMENT_FAILED' | 'INCOMPLETE' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED'
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
     const [syncEmailInput, setSyncEmailInput] = useState('');
     const [syncNameInput, setSyncNameInput] = useState('');
@@ -218,42 +231,6 @@ export default function AdminPanel() {
         }
     };
 
-    // Telemetry counts
-    const recentUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).isRecent).length;
-    const inactiveUsersCount = safeUsers.filter(u => {
-        const tele = getLoginTelemetry(u.lastLogin);
-        return !tele.isRecent && tele.status !== 'never';
-    }).length;
-    const neverUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).status === 'never').length;
-
-    // Sort users by most recent login (or createdAt as fallback)
-    const sortedUsers = [...safeUsers].sort((a, b) => {
-        const timeA = new Date(a.lastLogin && a.lastLogin !== 'Never' ? a.lastLogin : (a.createdAt || 0)).getTime();
-        const timeB = new Date(b.lastLogin && b.lastLogin !== 'Never' ? b.lastLogin : (b.createdAt || 0)).getTime();
-        return timeB - timeA;
-    });
-
-    const filteredUsers = sortedUsers.filter(u => {
-        if (!u) return false;
-        
-        const matchesSearch = (
-            (u.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.googleEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.googleId?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.uid?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.id?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (u.role?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-        );
-        if (!matchesSearch) return false;
-
-        const tele = getLoginTelemetry(u.lastLogin);
-        if (loginFilter === 'recent') return tele.isRecent;
-        if (loginFilter === 'inactive') return !tele.isRecent && tele.status !== 'never';
-        if (loginFilter === 'never') return tele.status === 'never';
-        return true;
-    });
-
     const getProfileForAuthUser = (userOrEmail) => {
         if (!userOrEmail) return null;
         const email = typeof userOrEmail === 'string' ? userOrEmail : userOrEmail.email;
@@ -277,6 +254,116 @@ export default function AdminPanel() {
             return false;
         });
     };
+
+    // Helper to evaluate comprehensive lifecycle status for any user (Section 3 & 4)
+    const getUserLifecycle = (u) => {
+        if (!u) return evaluateUserStatus({});
+        const profile = getProfileForAuthUser(u);
+        const sub = safeSubscriptions.find(s => s.userId === u.id || s.userId === u.uid || (s.email && s.email === u.email));
+        return evaluateUserStatus(u, profile, sub);
+    };
+
+    // Requirement 10: Distinct Telemetry Counts
+    const totalAccountsCount = safeUsers.length;
+    const completedRegCount = safeUsers.filter(u => getUserLifecycle(u).registrationStatus === 'COMPLETED').length;
+    const paidUsersCount = safeUsers.filter(u => getUserLifecycle(u).paymentStatus === 'SUCCESS').length;
+    const activeResqrUsersCount = safeUsers.filter(u => getUserLifecycle(u).isActive).length;
+    const paymentPendingCount = safeUsers.filter(u => getUserLifecycle(u).paymentStatus === 'PENDING').length;
+    const paymentFailedCount = safeUsers.filter(u => getUserLifecycle(u).paymentStatus === 'FAILED').length;
+    const incompleteRegCount = safeUsers.filter(u => getUserLifecycle(u).registrationStatus !== 'COMPLETED').length;
+    const expiredUsersCount = safeUsers.filter(u => getUserLifecycle(u).serviceStatus === 'EXPIRED').length;
+
+    // Login Telemetry counts
+    const recentUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).isRecent).length;
+    const inactiveUsersCount = safeUsers.filter(u => {
+        const tele = getLoginTelemetry(u.lastLogin);
+        return !tele.isRecent && tele.status !== 'never';
+    }).length;
+    const neverUsersCount = safeUsers.filter(u => getLoginTelemetry(u.lastLogin).status === 'never').length;
+
+    // Sort users by most recent login (or createdAt as fallback)
+    const sortedUsers = [...safeUsers].sort((a, b) => {
+        const timeA = new Date(a.lastLogin && a.lastLogin !== 'Never' ? a.lastLogin : (a.createdAt || 0)).getTime();
+        const timeB = new Date(b.lastLogin && b.lastLogin !== 'Never' ? b.lastLogin : (b.createdAt || 0)).getTime();
+        return timeB - timeA;
+    });
+
+    // Requirement 20 & 21: Enhanced Search & Filter
+    const filteredUsers = sortedUsers.filter(u => {
+        if (!u) return false;
+        const profile = getProfileForAuthUser(u);
+        const lifecycle = getUserLifecycle(u);
+        const sTerm = (searchTerm || '').trim().toLowerCase();
+
+        // Search across: Name, Phone, Email, RESQR ID, User ID, QR Token, Razorpay Order ID, Razorpay Payment ID
+        if (sTerm) {
+            const matchesSearch = (
+                (u.name?.toLowerCase() || "").includes(sTerm) ||
+                (u.email?.toLowerCase() || "").includes(sTerm) ||
+                (u.phone || "").toLowerCase().includes(sTerm) ||
+                (u.mobile || "").toLowerCase().includes(sTerm) ||
+                (u.resqrId || "").toLowerCase().includes(sTerm) ||
+                (u.qrId || "").toLowerCase().includes(sTerm) ||
+                (u.uid || "").toLowerCase().includes(sTerm) ||
+                (u.id || "").toLowerCase().includes(sTerm) ||
+                (u.googleEmail?.toLowerCase() || "").includes(sTerm) ||
+                (u.googleId || "").toLowerCase().includes(sTerm) ||
+                (u.orderId || "").toLowerCase().includes(sTerm) ||
+                (u.paymentId || "").toLowerCase().includes(sTerm) ||
+                (lifecycle.paymentId || "").toLowerCase().includes(sTerm) ||
+                (profile?.name?.toLowerCase() || "").includes(sTerm) ||
+                (profile?.id?.toLowerCase() || "").includes(sTerm) ||
+                (profile?.qrId?.toLowerCase() || "").includes(sTerm) ||
+                (profile?.emergencyContactPhone || "").toLowerCase().includes(sTerm)
+            );
+            if (!matchesSearch) return false;
+        }
+
+        // Login filter
+        if (loginFilter !== 'all') {
+            const tele = getLoginTelemetry(u.lastLogin);
+            if (loginFilter === 'recent' && !tele.isRecent) return false;
+            if (loginFilter === 'inactive' && (tele.isRecent || tele.status === 'never')) return false;
+            if (loginFilter === 'never' && tele.status !== 'never') return false;
+        }
+
+        // Lifecycle filter (Requirement 20)
+        if (userLifecycleFilter !== 'ALL') {
+            switch (userLifecycleFilter) {
+                case 'ACTIVE_RESQR':
+                    if (!lifecycle.isActive) return false;
+                    break;
+                case 'REG_COMPLETED':
+                    if (lifecycle.registrationStatus !== 'COMPLETED') return false;
+                    break;
+                case 'PAYMENT_SUCCESS':
+                    if (lifecycle.paymentStatus !== 'SUCCESS') return false;
+                    break;
+                case 'PAYMENT_PENDING':
+                    if (lifecycle.paymentStatus !== 'PENDING') return false;
+                    break;
+                case 'PAYMENT_FAILED':
+                    if (lifecycle.paymentStatus !== 'FAILED') return false;
+                    break;
+                case 'INCOMPLETE':
+                    if (lifecycle.registrationStatus === 'COMPLETED') return false;
+                    break;
+                case 'EXPIRED':
+                    if (lifecycle.serviceStatus !== 'EXPIRED') return false;
+                    break;
+                case 'SUSPENDED':
+                    if (lifecycle.serviceStatus !== 'SUSPENDED') return false;
+                    break;
+                case 'REVOKED':
+                    if (lifecycle.serviceStatus !== 'REVOKED') return false;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        return true;
+    });
 
     const handleAdminSignOut = async () => {
         try {
@@ -1913,108 +2000,171 @@ export default function AdminPanel() {
                     <Card className="bg-medical-card border-white/5 overflow-hidden p-0 rounded-[40px] shadow-2xl relative">
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
                         
-                        {/* Quick Telemetry Cards */}
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-8 md:p-10 pb-0">
+                        {/* Requirement 10: 8 Distinct Lifecycle Telemetry Cards */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 p-8 md:p-10 pb-0">
                             <div 
-                                onClick={() => setLoginFilter('all')} 
-                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'all' ? 'bg-primary/10 border-primary/40 shadow-lg shadow-primary/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                                onClick={() => setUserLifecycleFilter('ALL')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'ALL' ? 'bg-primary/10 border-primary/40 shadow-lg shadow-primary/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Total Registered Units</span>
-                                    <Users size={16} className={loginFilter === 'all' ? 'text-primary' : 'text-slate-500'} />
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 italic">Total Accounts</span>
+                                    <Users size={13} className={userLifecycleFilter === 'ALL' ? 'text-primary' : 'text-slate-500'} />
                                 </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black italic tracking-tight font-poppins">{safeUsers.length}</span>
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase">Accounts</span>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight font-poppins">{totalAccountsCount}</span>
+                                    <span className="text-[8px] text-slate-500 font-bold uppercase">Units</span>
                                 </div>
                             </div>
 
                             <div 
-                                onClick={() => setLoginFilter('recent')} 
-                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'recent' ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                                onClick={() => setUserLifecycleFilter('ACTIVE_RESQR')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'ACTIVE_RESQR' ? 'bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/15 ring-1 ring-emerald-500/30' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Logged In Recently
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 italic flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active RESQR
                                     </span>
-                                    <Activity size={16} className="text-emerald-400" />
+                                    <ShieldCheck size={13} className="text-emerald-400" />
                                 </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black italic tracking-tight text-emerald-400 font-poppins">{recentUsersCount}</span>
-                                    <span className="text-[10px] text-emerald-500/80 font-bold uppercase">Active &lt; 7 Days</span>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-emerald-400 font-poppins">{activeResqrUsersCount}</span>
+                                    <span className="text-[8px] text-emerald-500/80 font-bold uppercase">Ready</span>
                                 </div>
                             </div>
 
                             <div 
-                                onClick={() => setLoginFilter('inactive')} 
-                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'inactive' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                                onClick={() => setUserLifecycleFilter('REG_COMPLETED')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'REG_COMPLETED' ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-amber-400" /> Not Logged In Recently
-                                    </span>
-                                    <Clock size={16} className="text-amber-400" />
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-cyan-400 italic">Completed Reg</span>
+                                    <CheckCircle2 size={13} className="text-cyan-400" />
                                 </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black italic tracking-tight text-amber-400 font-poppins">{inactiveUsersCount}</span>
-                                    <span className="text-[10px] text-amber-500/80 font-bold uppercase">Inactive &gt; 7 Days</span>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-cyan-300 font-poppins">{completedRegCount}</span>
+                                    <span className="text-[8px] text-cyan-500/80 font-bold uppercase">Done</span>
                                 </div>
                             </div>
 
                             <div 
-                                onClick={() => setLoginFilter('never')} 
-                                className={`p-6 rounded-3xl border transition-all cursor-pointer ${loginFilter === 'never' ? 'bg-slate-800/60 border-slate-600/40 shadow-lg shadow-slate-900/20' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                                onClick={() => setUserLifecycleFilter('PAYMENT_SUCCESS')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'PAYMENT_SUCCESS' ? 'bg-blue-500/10 border-blue-500/40 shadow-lg shadow-blue-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
                             >
-                                <div className="flex justify-between items-center mb-3">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-slate-600" /> Never Logged In
-                                    </span>
-                                    <ShieldAlert size={16} className="text-slate-500" />
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-blue-400 italic">Paid Users</span>
+                                    <CreditCard size={13} className="text-blue-400" />
                                 </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-3xl font-black italic tracking-tight text-slate-300 font-poppins">{neverUsersCount}</span>
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase">No Telemetry</span>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-blue-400 font-poppins">{paidUsersCount}</span>
+                                    <span className="text-[8px] text-blue-500/80 font-bold uppercase">Paid</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setUserLifecycleFilter('PAYMENT_PENDING')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'PAYMENT_PENDING' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-amber-400 italic">Payment Pending</span>
+                                    <Clock size={13} className="text-amber-400" />
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-amber-400 font-poppins">{paymentPendingCount}</span>
+                                    <span className="text-[8px] text-amber-500/80 font-bold uppercase">Pending</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setUserLifecycleFilter('PAYMENT_FAILED')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'PAYMENT_FAILED' ? 'bg-rose-500/10 border-rose-500/40 shadow-lg shadow-rose-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-rose-400 italic">Payment Failed</span>
+                                    <AlertTriangle size={13} className="text-rose-400" />
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-rose-400 font-poppins">{paymentFailedCount}</span>
+                                    <span className="text-[8px] text-rose-500/80 font-bold uppercase">Failed</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setUserLifecycleFilter('INCOMPLETE')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'INCOMPLETE' ? 'bg-orange-500/10 border-orange-500/40 shadow-lg shadow-orange-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-orange-400 italic">Incomplete</span>
+                                    <FileText size={13} className="text-orange-400" />
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-orange-300 font-poppins">{incompleteRegCount}</span>
+                                    <span className="text-[8px] text-orange-500/80 font-bold uppercase">Draft</span>
+                                </div>
+                            </div>
+
+                            <div 
+                                onClick={() => setUserLifecycleFilter('EXPIRED')} 
+                                className={`p-4 rounded-2xl border transition-all cursor-pointer ${userLifecycleFilter === 'EXPIRED' ? 'bg-slate-800/80 border-rose-500/30 shadow-lg shadow-slate-900/20' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 italic">Expired</span>
+                                    <ShieldAlert size={13} className="text-slate-500" />
+                                </div>
+                                <div className="flex items-baseline gap-1.5">
+                                    <span className="text-2xl font-black italic tracking-tight text-slate-300 font-poppins">{expiredUsersCount}</span>
+                                    <span className="text-[8px] text-slate-500 font-bold uppercase">Renew</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-8 md:p-10 border-b border-white/5 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                            <div>
-                                <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">Authenticated Units</h2>
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">Firebase Login Telemetry & Global Responder Access Nodes</p>
+                        <div className="p-8 md:p-10 border-b border-white/5 flex flex-col gap-6">
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                <div>
+                                    <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">Authenticated Units</h2>
+                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mt-2 italic">
+                                        Active Lifecycle Verification · Subscription Gated Emergency Access
+                                    </p>
+                                </div>
+
+                                {/* Requirement 21: Enhanced Search Input */}
+                                <div className="relative group w-full lg:w-96">
+                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-primary group-hover:scale-110 transition-transform" size={18} />
+                                    <input
+                                        type="text"
+                                        placeholder="SEARCH NAME, PHONE, RESQR ID, QR TOKEN, UID..."
+                                        className="pl-12 pr-6 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[11px] font-black tracking-wider uppercase italic focus:outline-none focus:ring-2 focus:ring-primary/20 w-full transition-all"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
                             </div>
 
-                            {/* Filter Buttons */}
-                            <div className="flex flex-wrap items-center gap-2">
+                            {/* Requirement 20: 10 Filter Categories */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-white/5">
                                 {[
-                                    { id: 'all', label: `All Units (${safeUsers.length})` },
-                                    { id: 'recent', label: `🟢 Recent (${recentUsersCount})` },
-                                    { id: 'inactive', label: `🟡 Inactive (${inactiveUsersCount})` },
-                                    { id: 'never', label: `⚪ Never (${neverUsersCount})` },
-                                ].map(btn => (
+                                    { id: 'ALL', label: `ALL ACCOUNTS (${totalAccountsCount})` },
+                                    { id: 'ACTIVE_RESQR', label: `ACTIVE RESQR USERS (${activeResqrUsersCount})` },
+                                    { id: 'REG_COMPLETED', label: `REGISTRATION COMPLETED (${completedRegCount})` },
+                                    { id: 'PAYMENT_SUCCESS', label: `PAYMENT SUCCESS (${paidUsersCount})` },
+                                    { id: 'PAYMENT_PENDING', label: `PAYMENT PENDING (${paymentPendingCount})` },
+                                    { id: 'PAYMENT_FAILED', label: `PAYMENT FAILED (${paymentFailedCount})` },
+                                    { id: 'INCOMPLETE', label: `INCOMPLETE REGISTRATION (${incompleteRegCount})` },
+                                    { id: 'EXPIRED', label: `EXPIRED (${expiredUsersCount})` },
+                                    { id: 'SUSPENDED', label: `SUSPENDED` },
+                                    { id: 'REVOKED', label: `REVOKED` },
+                                ].map(f => (
                                     <button
-                                        key={btn.id}
-                                        onClick={() => setLoginFilter(btn.id)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase italic tracking-wider transition-all border ${
-                                            loginFilter === btn.id
+                                        key={f.id}
+                                        onClick={() => setUserLifecycleFilter(f.id)}
+                                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase italic tracking-wider transition-all border shrink-0 ${
+                                            userLifecycleFilter === f.id
                                                 ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
                                                 : 'bg-slate-950/60 text-slate-400 border-white/5 hover:text-white hover:border-white/20'
                                         }`}
                                     >
-                                        {btn.label}
+                                        {f.label}
                                     </button>
                                 ))}
-                            </div>
-
-                            <div className="relative group w-full lg:w-80">
-                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-primary group-hover:scale-110 transition-transform" size={18} />
-                                <input
-                                    type="text"
-                                    placeholder="SEARCH IDENTIFIER..."
-                                    className="pl-12 pr-6 py-4 bg-slate-950 border border-white/5 rounded-2xl text-[11px] font-black tracking-widest uppercase italic focus:outline-none focus:ring-2 focus:ring-primary/20 w-full transition-all"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
                             </div>
                         </div>
 
@@ -2047,33 +2197,39 @@ export default function AdminPanel() {
                             <table className="w-full text-left">
                                 <thead className="bg-slate-950/80 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] italic border-b border-white/5">
                                     <tr>
-                                        <th className="px-8 py-6 text-slate-400">Tactical User</th>
-                                        <th className="px-6 py-6 text-slate-400">Role & Status</th>
-                                        <th className="px-6 py-6 text-slate-400">Firebase Auth & Google ID</th>
-                                        <th className="px-6 py-6 text-slate-400">Firebase Login Telemetry</th>
-                                        <th className="px-6 py-6 text-slate-400">Vault Condition</th>
+                                        <th className="px-8 py-6 text-slate-400">Citizen Identity</th>
+                                        <th className="px-6 py-6 text-slate-400">Registration & Payment</th>
+                                        <th className="px-6 py-6 text-slate-400">RESQR Service & Profile</th>
+                                        <th className="px-6 py-6 text-slate-400">Auth & Login Telemetry</th>
                                         <th className="px-8 py-6 text-right text-slate-400">Operations</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {filteredUsers.length === 0 ? (
                                         <tr>
-                                            <td colSpan="6" className="px-10 py-12 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
-                                                No users found matching "{searchTerm || loginFilter}".
+                                            <td colSpan="5" className="px-10 py-12 text-center text-slate-500 font-bold uppercase tracking-widest text-xs italic">
+                                                No users found matching "{searchTerm || userLifecycleFilter}".
                                             </td>
                                         </tr>
                                     ) : (
                                         filteredUsers.map(user => {
                                             const profile = getProfileForAuthUser(user);
+                                            const lifecycle = getUserLifecycle(user);
                                             const tele = getLoginTelemetry(user.lastLogin);
                                             const isGoogle = user.isGoogleAuth || !!user.googleId || (user.authProvider === 'google.com') || (user.email && user.email.includes('@gmail.com'));
+                                            const regBadge = getRegistrationStatusBadge(lifecycle.registrationStatus);
+                                            const payBadge = getPaymentStatusBadge(lifecycle.paymentStatus);
+                                            const srvBadge = getServiceStatusBadge(lifecycle.serviceStatus);
+                                            const profBadge = getEmergencyProfileStatusBadge(lifecycle.emergencyProfileStatus);
+
                                             return (
                                                 <tr key={user.id} className="hover:bg-white/5 transition-all group">
+                                                    {/* Column 1: Citizen Identity */}
                                                     <td className="px-8 py-8">
                                                         <div className="flex items-center gap-4">
                                                             <div className="relative shrink-0">
-                                                                {user.photo ? (
-                                                                    <img src={user.photo} alt={user.name} className="w-11 h-11 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" />
+                                                                {user.photo || profile?.photo ? (
+                                                                    <img src={user.photo || profile?.photo} alt={user.name} className="w-11 h-11 rounded-2xl object-cover border border-white/10 group-hover:scale-105 transition-transform" />
                                                                 ) : (
                                                                     <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-white/10 flex items-center justify-center font-black text-primary text-base group-hover:scale-105 transition-transform">
                                                                         {user.name?.[0]?.toUpperCase() || 'U'}
@@ -2082,183 +2238,178 @@ export default function AdminPanel() {
                                                                 <span className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${tele.dotClass}`} title={tele.label} />
                                                             </div>
                                                             <div className="flex flex-col min-w-0">
-                                                                <span className="font-black text-white italic tracking-tight text-base truncate">{user.name || 'Member'}</span>
-                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{user.email || 'No Email'}</span>
-                                                                <span className="text-[8px] text-slate-600 font-mono tracking-wider truncate">{user.id}</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-black text-white italic tracking-tight text-base truncate">{user.name || profile?.name || 'Member'}</span>
+                                                                    {lifecycle.isActive && (
+                                                                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Active RESQR Protection" />
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[10px] text-slate-500 font-black uppercase tracking-wider truncate">{user.email || profile?.email || 'No Email'}</span>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="text-[8px] text-slate-600 font-mono tracking-wider truncate">UID: {user.id}</span>
+                                                                    {(user.phone || profile?.emergencyContactPhone) && (
+                                                                        <span className="text-[8px] text-slate-500 font-mono tracking-wider truncate">· {user.phone || profile?.emergencyContactPhone}</span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </td>
+
+                                                    {/* Column 2: Registration & Payment Status */}
                                                     <td className="px-6 py-8">
                                                         <div className="flex flex-col gap-1.5 items-start">
-                                                            <Badge className={`${user.role === 'admin' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : user.role === 'hospital' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : user.role === 'agent' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'} px-3 py-0.5 font-black italic text-[9px]`}>
-                                                                {user.role?.toUpperCase() || 'CITIZEN'}
-                                                            </Badge>
-                                                            {user.status === 'pending' && (
-                                                                <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 px-2.5 py-0.5 font-black italic text-[8px] animate-pulse">PENDING AUDIT</Badge>
-                                                            )}
-                                                            {user.authProvider && (
-                                                                <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">{user.authProvider.replace('.com', '')}</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Badge className={`${regBadge.className} px-2.5 py-0.5 font-black italic text-[8px]`}>
+                                                                    REG: {regBadge.label}
+                                                                </Badge>
+                                                                <Badge className={`${payBadge.className} px-2.5 py-0.5 font-black italic text-[8px]`}>
+                                                                    PAY: {payBadge.label}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400 font-medium">
+                                                                {lifecycle.paymentStatus === 'SUCCESS' ? (
+                                                                    <span className="text-emerald-400 font-bold">₹{lifecycle.amountPaid || 149} Verified</span>
+                                                                ) : lifecycle.paymentStatus === 'PENDING' ? (
+                                                                    <span className="text-amber-400 font-bold">₹149 Awaiting Payment</span>
+                                                                ) : (
+                                                                    <span className="text-slate-500">Unpaid Account</span>
+                                                                )}
+                                                            </div>
+                                                            {lifecycle.paymentId && (
+                                                                <span className="text-[8px] text-slate-600 font-mono truncate max-w-[150px]">
+                                                                    ID: {lifecycle.paymentId}
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-8">
-                                                        <div className="flex flex-col gap-2 items-start min-w-[200px]">
-                                                            {isGoogle ? (
-                                                                <div className="flex flex-col gap-1.5 w-full">
-                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] font-black tracking-wider w-fit">
-                                                                        <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                                                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                                                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                                                                        </svg>
-                                                                        <span>GOOGLE AUTH</span>
-                                                                    </div>
-                                                                    
-                                                                    <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-white/5 w-full font-mono">
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[8px] font-black uppercase text-blue-400 tracking-wider">Google ID:</span>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    navigator.clipboard.writeText(user.googleId || user.uid || user.id);
-                                                                                    toast.success("Copied Google ID!");
-                                                                                }}
-                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
-                                                                                title="Copy Google ID"
-                                                                            >
-                                                                                <Copy size={11} />
-                                                                            </button>
-                                                                        </div>
-                                                                        <span className="text-white font-bold text-[10px] select-all break-all leading-tight">
-                                                                            {user.googleId || (user.uid ? user.uid : 'Google Connected')}
-                                                                        </span>
 
-                                                                        <div className="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-white/5">
-                                                                            <span className="text-[8px] font-black uppercase text-slate-500 tracking-wider">Firebase UID:</span>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    navigator.clipboard.writeText(user.uid || user.id);
-                                                                                    toast.success("Copied Firebase UID!");
-                                                                                }}
-                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
-                                                                                title="Copy Firebase UID"
-                                                                            >
-                                                                                <Copy size={11} />
-                                                                            </button>
-                                                                        </div>
-                                                                        <span className="text-slate-400 text-[9px] select-all break-all leading-tight">
-                                                                            {user.uid || user.id}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex flex-col gap-1.5 w-full">
-                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-400 text-[9px] font-black tracking-wider w-fit">
-                                                                        <Key size={11} />
-                                                                        <span>FIREBASE AUTH</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-slate-950/80 border border-white/5 w-full font-mono">
-                                                                        <div className="flex items-center justify-between gap-2">
-                                                                            <span className="text-[8px] font-black uppercase text-slate-500 tracking-wider">Firebase UID:</span>
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    navigator.clipboard.writeText(user.uid || user.id);
-                                                                                    toast.success("Copied UID!");
-                                                                                }}
-                                                                                className="text-slate-500 hover:text-white transition-colors cursor-pointer"
-                                                                                title="Copy UID"
-                                                                            >
-                                                                                <Copy size={11} />
-                                                                            </button>
-                                                                        </div>
-                                                                        <span className="text-primary font-bold text-[10px] select-all break-all leading-tight">
-                                                                            {user.uid || user.id}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
+                                                    {/* Column 3: RESQR Service & Emergency Profile Status */}
+                                                    <td className="px-6 py-8">
+                                                        <div className="flex flex-col gap-1.5 items-start">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <Badge className={`${srvBadge.className} px-2.5 py-0.5 font-black italic text-[8px]`}>
+                                                                    SERVICE: {srvBadge.label}
+                                                                </Badge>
+                                                                <Badge className={`${profBadge.className} px-2.5 py-0.5 font-black italic text-[8px]`}>
+                                                                    PROFILE: {profBadge.label}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400">
+                                                                {lifecycle.isActive ? (
+                                                                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                                                        <ShieldCheck size={11} /> Active Dossier
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-amber-400/90 font-medium">
+                                                                        {lifecycle.paymentStatus !== 'SUCCESS' ? 'Requires Verified Payment' : lifecycle.registrationStatus !== 'COMPLETED' ? 'Registration Incomplete' : 'Service Inactive'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {lifecycle.serviceExpiryDate && (
+                                                                <span className="text-[8px] text-slate-500 font-mono">
+                                                                    Expires: {new Date(lifecycle.serviceExpiryDate).toLocaleDateString()}
+                                                                </span>
                                                             )}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Column 4: Auth & Telemetry */}
+                                                    <td className="px-6 py-8">
+                                                        <div className="flex flex-col gap-1.5 items-start min-w-[180px]">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {isGoogle ? (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[8px] font-black tracking-wider">
+                                                                        GOOGLE AUTH
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700/50 text-slate-400 text-[8px] font-black tracking-wider">
+                                                                        FIREBASE AUTH
+                                                                    </span>
+                                                                )}
+                                                                <Badge className={`${tele.badgeClass} px-2 py-0.5 font-black italic text-[8px] border`}>
+                                                                    {tele.label.toUpperCase()}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-400 font-mono">
+                                                                {user.lastLogin && user.lastLogin !== 'Never' ? (
+                                                                    <span>{new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({tele.relative})</span>
+                                                                ) : (
+                                                                    <span className="text-slate-600">Never Logged In</span>
+                                                                )}
+                                                            </div>
                                                             <button
                                                                 onClick={() => {
                                                                     setSelectedUserForAuthModal(user);
                                                                     setNewGoogleIdInput(user.googleId || '');
                                                                     setEditingGoogleId(false);
                                                                 }}
-                                                                className="text-[9px] font-black uppercase text-primary/80 hover:text-primary transition-colors flex items-center gap-1 tracking-widest italic cursor-pointer"
+                                                                className="text-[8px] font-black uppercase text-primary/80 hover:text-primary transition-colors flex items-center gap-1 tracking-widest italic cursor-pointer mt-0.5"
                                                             >
-                                                                <ShieldCheck size={11} /> View Details
+                                                                <ShieldCheck size={10} /> Inspect Credentials
                                                             </button>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-8">
-                                                        <div className="flex flex-col gap-1.5 items-start">
-                                                            <Badge className={`${tele.badgeClass} px-3 py-1 font-black italic text-[8px] border flex items-center gap-1.5`}>
-                                                                <span className={`w-1.5 h-1.5 rounded-full ${tele.dotClass}`} />
-                                                                {tele.label.toUpperCase()}
-                                                            </Badge>
-                                                            {user.lastLogin && user.lastLogin !== 'Never' ? (
-                                                                <div className="flex flex-col text-[10px] font-black italic text-slate-400">
-                                                                    <span className="text-white">{new Date(user.lastLogin).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({tele.relative})</span>
-                                                                    <span className="text-[9px] text-slate-500 uppercase">{new Date(user.lastLogin).toLocaleDateString()}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-[9px] font-black italic text-slate-600 uppercase tracking-widest">No Login Logged</span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-8">
-                                                        {profile ? (
-                                                            <div className="flex flex-col gap-2">
-                                                                <div className="flex items-center gap-3">
-                                                                    <Badge className="bg-green-500/10 text-green-500 border-none font-black italic px-4 py-1 text-[8px]">ACTIVE</Badge>
-                                                                    <span className="text-sm font-black text-primary italic font-poppins">{profile.bloodGroup}</span>
-                                                                </div>
-                                                                <span className="text-[9px] text-slate-600 uppercase font-black tracking-widest italic">{profile.id || 'N/A'}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <Badge className="bg-slate-800 text-slate-500 border-none font-black italic px-4 py-1 text-[8px] opacity-40 uppercase tracking-widest">No Node Initialized</Badge>
-                                                        )}
-                                                    </td>
+
+                                                    {/* Column 5: Operations (Requirement 11) */}
                                                     <td className="px-8 py-8 text-right">
-                                                        <div className="flex items-center justify-end gap-2.5">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {/* Conditional Emergency Profile Action */}
+                                                            {lifecycle.isActive ? (
+                                                                <Link
+                                                                    to={`/admin/users/${user.id || (profile && profile.id)}/emergency-profile`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 hover:border-emerald-500/60 hover:bg-emerald-500/25 text-emerald-400 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm text-[10px] font-black uppercase tracking-wider shrink-0"
+                                                                    title="View Emergency Profile (Direct Admin Access - Active RESQR User)"
+                                                                >
+                                                                    <Eye size={14} className="text-emerald-400" />
+                                                                    <span className="hidden sm:inline">View Profile</span>
+                                                                </Link>
+                                                            ) : (
+                                                                <Link
+                                                                    to={`/admin/users/${user.id || (profile && profile.id)}/emergency-profile`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="px-2.5 py-2 rounded-xl bg-slate-900 border border-amber-500/30 hover:border-amber-500/60 text-amber-400 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm text-[9px] font-black uppercase tracking-wider shrink-0"
+                                                                    title={`Emergency Profile Inactive: ${lifecycle.paymentStatus !== 'SUCCESS' ? 'Payment Required' : lifecycle.registrationStatus !== 'COMPLETED' ? 'Registration Incomplete' : 'Service Expired'}`}
+                                                                >
+                                                                    <AlertTriangle size={13} className="text-amber-400" />
+                                                                    <span className="hidden sm:inline">Profile Inactive</span>
+                                                                </Link>
+                                                            )}
+
                                                             <button
-                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 text-blue-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                                className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 hover:border-blue-500/50 hover:bg-blue-500/10 text-blue-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                 onClick={() => setSelectedUserForAuthModal(user)}
-                                                                title="Inspect Firebase Auth & Google Account"
+                                                                title="Inspect User Auth & Google Account"
                                                             >
-                                                                <ShieldCheck size={18} className="text-blue-400" />
+                                                                <ShieldCheck size={16} className="text-blue-400" />
                                                             </button>
-                                                            <Link
-                                                                to={`/admin/users/${user.id || (profile && profile.id)}/emergency-profile`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
-                                                                title="View Emergency Profile (Direct Admin Access - No Face ID)"
-                                                            >
-                                                                <Eye size={18} className="text-primary" />
-                                                            </Link>
+
                                                             {profile ? (
                                                                 <button
-                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                                    className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                     onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
                                                                     title="Edit Medical Profile"
                                                                 >
-                                                                    <Edit3 size={18} className="text-emerald-400" />
+                                                                    <Edit3 size={16} className="text-emerald-400" />
                                                                 </button>
                                                             ) : (
                                                                 <button
-                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                                    className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                     onClick={() => { setSelectedUserForProfile(user); setIsProfileModalOpen(true); }}
                                                                     title="Generate Medical Profile"
                                                                 >
-                                                                    <Plus size={18} className="text-emerald-400" />
+                                                                    <Plus size={16} className="text-emerald-400" />
                                                                 </button>
                                                             )}
+
                                                             <button
-                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                                className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
                                                                 onClick={() => deleteItem(`users/${user.id}`)}
                                                                 title="Delete User"
                                                             >
-                                                                <Trash2 size={18} className="text-rose-400" />
+                                                                <Trash2 size={16} className="text-rose-400" />
                                                             </button>
                                                         </div>
                                                     </td>

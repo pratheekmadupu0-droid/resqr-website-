@@ -241,9 +241,18 @@ export function calculateSubscriptionStatus(subscription, now = new Date()) {
 export const REMINDER_THRESHOLDS_DAYS = [30, 15, 7, 3, 1];
 
 /**
- * Standard Payment Lifecycle Statuses (Section 5)
+ * User & Service Lifecycle Status Models (Section 2)
  */
+export const REGISTRATION_STATUS = {
+    NOT_STARTED: 'NOT_STARTED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    PAYMENT_PENDING: 'PAYMENT_PENDING',
+    PAYMENT_FAILED: 'PAYMENT_FAILED',
+    COMPLETED: 'COMPLETED'
+};
+
 export const PAYMENT_STATUS = {
+    NOT_REQUIRED: 'NOT_REQUIRED',
     PENDING: 'PENDING',
     PROCESSING: 'PROCESSING',
     SUCCESS: 'SUCCESS',
@@ -253,6 +262,223 @@ export const PAYMENT_STATUS = {
     PARTIALLY_REFUNDED: 'PARTIALLY_REFUNDED',
     EXPIRED: 'EXPIRED'
 };
+
+export const SERVICE_STATUS = {
+    NOT_ACTIVE: 'NOT_ACTIVE',
+    ACTIVE: 'ACTIVE',
+    EXPIRED: 'EXPIRED',
+    SUSPENDED: 'SUSPENDED',
+    REVOKED: 'REVOKED'
+};
+
+export const EMERGENCY_PROFILE_STATUS = {
+    NOT_CREATED: 'NOT_CREATED',
+    ACTIVE: 'ACTIVE',
+    INACTIVE: 'INACTIVE',
+    EXPIRED: 'EXPIRED',
+    SUSPENDED: 'SUSPENDED',
+    REVOKED: 'REVOKED'
+};
+
+export const QR_STATUS = {
+    NOT_ACTIVE: 'NOT_ACTIVE',
+    ACTIVE: 'ACTIVE',
+    EXPIRED: 'EXPIRED',
+    SUSPENDED: 'SUSPENDED',
+    REVOKED: 'REVOKED'
+};
+
+/**
+ * Evaluates the full unified lifecycle state for a user/profile
+ */
+export function evaluateUserStatus(user = {}, profile = {}, subscription = null) {
+    const u = user || {};
+    const p = profile || {};
+    const s = subscription || u.subscription || p.subscription || null;
+
+    // Check expiration against current time
+    const expiry = u.serviceExpiryDate || p.serviceExpiryDate || p.subscriptionExpiresAt || s?.expiresAt || null;
+    const isExpired = expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+
+    // 1. Payment status evaluation
+    let paymentStatus = u.paymentStatus || p.paymentStatus || (
+        u.payment_status === 'paid' || p.payment_status === 'paid' || s?.paymentStatus === 'paid' || s?.payment_status === 'paid' || (s?.status === 'ACTIVE' && !isExpired)
+            ? 'SUCCESS' 
+            : 'PENDING'
+    );
+    if (paymentStatus === 'PAID' || paymentStatus === 'SUCCESSFUL') paymentStatus = 'SUCCESS';
+
+    // 2. Registration status evaluation
+    let registrationStatus = u.registrationStatus || p.registrationStatus;
+    if (!registrationStatus) {
+        if (paymentStatus === 'SUCCESS' && (u.profileCompleted || p.name || p.id)) {
+            registrationStatus = 'COMPLETED';
+        } else if (u.profileCompleted || p.name) {
+            registrationStatus = 'PAYMENT_PENDING';
+        } else if (u.phone || u.name) {
+            registrationStatus = 'IN_PROGRESS';
+        } else {
+            registrationStatus = 'NOT_STARTED';
+        }
+    }
+
+    // 3. Service status evaluation
+    let serviceStatus = u.serviceStatus || p.serviceStatus;
+    if (!serviceStatus) {
+        if (isExpired) {
+            serviceStatus = 'EXPIRED';
+        } else if (s?.status === 'SUSPENDED' || u.status === 'suspended') {
+            serviceStatus = 'SUSPENDED';
+        } else if (s?.status === 'REVOKED' || u.status === 'revoked') {
+            serviceStatus = 'REVOKED';
+        } else if (paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+            serviceStatus = 'ACTIVE';
+        } else {
+            serviceStatus = 'NOT_ACTIVE';
+        }
+    } else if (isExpired && serviceStatus === 'ACTIVE') {
+        serviceStatus = 'EXPIRED';
+    }
+
+    // 4. Emergency profile status evaluation
+    let emergencyProfileStatus = u.emergencyProfileStatus || p.emergencyProfileStatus;
+    if (!emergencyProfileStatus) {
+        if (isExpired) {
+            emergencyProfileStatus = 'EXPIRED';
+        } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS' && registrationStatus === 'COMPLETED') {
+            emergencyProfileStatus = 'ACTIVE';
+        } else if (serviceStatus === 'SUSPENDED') {
+            emergencyProfileStatus = 'SUSPENDED';
+        } else if (serviceStatus === 'REVOKED') {
+            emergencyProfileStatus = 'REVOKED';
+        } else {
+            emergencyProfileStatus = 'NOT_CREATED';
+        }
+    } else if (isExpired && emergencyProfileStatus === 'ACTIVE') {
+        emergencyProfileStatus = 'EXPIRED';
+    }
+
+    // 5. QR status evaluation
+    let qrStatus = u.qrStatus || p.qrStatus;
+    if (!qrStatus) {
+        if (isExpired) {
+            qrStatus = 'EXPIRED';
+        } else if (serviceStatus === 'ACTIVE' && paymentStatus === 'SUCCESS') {
+            qrStatus = 'ACTIVE';
+        } else {
+            qrStatus = 'NOT_ACTIVE';
+        }
+    } else if (isExpired && qrStatus === 'ACTIVE') {
+        qrStatus = 'EXPIRED';
+    }
+
+    // Exact activation condition (Section 3):
+    // ALL 4 must be satisfied simultaneously
+    const isActive = (
+        registrationStatus === 'COMPLETED' &&
+        paymentStatus === 'SUCCESS' &&
+        serviceStatus === 'ACTIVE' &&
+        emergencyProfileStatus === 'ACTIVE'
+    );
+
+    return {
+        registrationStatus,
+        paymentStatus,
+        serviceStatus,
+        emergencyProfileStatus,
+        qrStatus,
+        isActive,
+        isExpired: Boolean(isExpired),
+        serviceExpiryDate: expiry,
+        amountPaid: u.amountPaid || p.amountPaid || s?.amount || (paymentStatus === 'SUCCESS' ? 149 : 0),
+        planId: u.planId || p.planId || s?.planId || 'initial_3m',
+        paymentId: u.paymentId || p.paymentId || s?.paymentId || null
+    };
+}
+
+/**
+ * Exact activation condition (Section 3)
+ * Emergency Profile is ACTIVE ONLY when:
+ * registrationStatus == "COMPLETED"
+ * && paymentStatus == "SUCCESS"
+ * && serviceStatus == "ACTIVE"
+ * && emergencyProfileStatus == "ACTIVE"
+ */
+export function isEmergencyProfileActive(user, subscription = null) {
+    const status = evaluateUserStatus(user, null, subscription);
+    return status.isActive;
+}
+
+/**
+ * Status Badge Helpers for Admin Panel UI
+ */
+export function getRegistrationStatusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+        case 'COMPLETED':
+            return { label: 'COMPLETED', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+        case 'PAYMENT_PENDING':
+            return { label: 'PAYMENT PENDING', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+        case 'PAYMENT_FAILED':
+            return { label: 'PAYMENT FAILED', className: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+        case 'IN_PROGRESS':
+            return { label: 'IN PROGRESS', className: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' };
+        case 'NOT_STARTED':
+        default:
+            return { label: 'NOT STARTED', className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20' };
+    }
+}
+
+export function getServiceStatusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+        case 'ACTIVE':
+            return { label: 'ACTIVE', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+        case 'EXPIRED':
+            return { label: 'EXPIRED', className: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+        case 'SUSPENDED':
+            return { label: 'SUSPENDED', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+        case 'REVOKED':
+            return { label: 'REVOKED', className: 'bg-red-500/10 text-red-500 border border-red-500/20' };
+        case 'NOT_ACTIVE':
+        default:
+            return { label: 'NOT ACTIVE', className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20' };
+    }
+}
+
+export function getEmergencyProfileStatusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+        case 'ACTIVE':
+            return { label: 'ACTIVE', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+        case 'EXPIRED':
+            return { label: 'EXPIRED', className: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+        case 'INACTIVE':
+            return { label: 'INACTIVE', className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+        case 'SUSPENDED':
+        case 'REVOKED':
+            return { label: s, className: 'bg-red-500/10 text-red-500 border border-red-500/20' };
+        case 'NOT_CREATED':
+        default:
+            return { label: 'NOT CREATED', className: 'bg-slate-500/10 text-slate-500 border border-slate-500/20' };
+    }
+}
+
+export function getQrStatusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+        case 'ACTIVE':
+            return { label: 'ACTIVE', className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+        case 'EXPIRED':
+            return { label: 'EXPIRED', className: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+        case 'SUSPENDED':
+        case 'REVOKED':
+            return { label: s, className: 'bg-red-500/10 text-red-500 border border-red-500/20' };
+        case 'NOT_ACTIVE':
+        default:
+            return { label: 'NOT ACTIVE', className: 'bg-slate-500/10 text-slate-500 border border-slate-500/20' };
+    }
+}
 
 /**
  * Helper to get status badge styling for payments
@@ -302,3 +528,4 @@ export function getPaymentStatusBadge(status) {
             };
     }
 }
+

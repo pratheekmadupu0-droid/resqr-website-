@@ -54,6 +54,12 @@ export async function syncUserOnLogin(user, extraData = {}) {
             lastLogin: now,
             createdAt: existing.createdAt || extraData.createdAt || user.metadata?.creationTime || now,
             authProvider: authProvider,
+            // User Lifecycle State Models (Section 2)
+            registrationStatus: existing.registrationStatus || extraData.registrationStatus || (existing.paymentStatus === 'SUCCESS' || existing.payment_status === 'paid' ? 'COMPLETED' : 'NOT_STARTED'),
+            paymentStatus: existing.paymentStatus || extraData.paymentStatus || (existing.payment_status === 'paid' ? 'SUCCESS' : 'PENDING'),
+            serviceStatus: existing.serviceStatus || extraData.serviceStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE'),
+            emergencyProfileStatus: existing.emergencyProfileStatus || extraData.emergencyProfileStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_CREATED'),
+            qrStatus: existing.qrStatus || extraData.qrStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE'),
             // Detailed Firebase Authentication & Google Account parameters
             googleId: googleId,
             googleEmail: googleEmail,

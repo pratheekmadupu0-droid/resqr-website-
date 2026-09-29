@@ -170,10 +170,12 @@ export default function EmergencyPage() {
                         }
                         if (sub) {
                             setSubscriptionData(sub);
-                            if (sub.status === 'REVOKED') {
+                            if (sub.status === 'REVOKED' || raw.serviceStatus === 'REVOKED') {
                                 setSubscriptionStatus('REVOKED');
-                            } else if (sub.status === 'SUSPENDED') {
+                            } else if (sub.status === 'SUSPENDED' || raw.serviceStatus === 'SUSPENDED') {
                                 setSubscriptionStatus('SUSPENDED');
+                            } else if ((raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE') && raw.paymentStatus !== 'SUCCESS') {
+                                setSubscriptionStatus('NOT_ACTIVE');
                             } else if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
                                 setSubscriptionStatus('EXPIRED');
                             } else if (sub.expiresAt) {
@@ -184,6 +186,8 @@ export default function EmergencyPage() {
                                     setSubscriptionStatus('ACTIVE');
                                 }
                             }
+                        } else if (raw.qrStatus === 'NOT_ACTIVE' || raw.serviceStatus === 'NOT_ACTIVE' || raw.paymentStatus === 'PENDING') {
+                            setSubscriptionStatus('NOT_ACTIVE');
                         }
                     } catch (subErr) {
                         console.warn("Could not load subscription details:", subErr);
@@ -467,6 +471,27 @@ export default function EmergencyPage() {
                             <Phone size={16} /> Call Emergency Contact
                         </a>
                     )}
+                </div>
+            </div>
+        );
+    }
+
+    if (subscriptionStatus === 'NOT_ACTIVE') {
+        return (
+            <div className="min-h-screen bg-[#040812] text-white font-manrope flex items-center justify-center p-6 text-center">
+                <div className="max-w-md w-full bg-slate-900/80 border border-amber-500/30 p-8 rounded-3xl space-y-6">
+                    <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-full flex items-center justify-center mx-auto text-amber-500">
+                        <AlertTriangle size={32} />
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black uppercase italic tracking-tight text-white">QR Inactive · Payment Pending</h2>
+                        <p className="text-slate-400 text-xs mt-2">
+                            This emergency identity is pending payment completion and has not been activated. An Emergency Profile is available only for active, verified RESQR citizens.
+                        </p>
+                    </div>
+                    <Link to="/payment" className="inline-block py-4 px-8 bg-primary hover:bg-red-700 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs shadow-lg transition-all">
+                        Complete Activation (₹149)
+                    </Link>
                 </div>
             </div>
         );
