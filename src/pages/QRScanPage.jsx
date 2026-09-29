@@ -126,7 +126,8 @@ export default function QRScanPage() {
                             name: raw.emergencyContactName || fallbackEmergency.name || "GUARDIAN",
                             relation: raw.emergencyContactRelation || fallbackEmergency.relationship || fallbackEmergency.relation || "AUTHORIZED CONTACT",
                             phone: raw.emergencyContactPhone || fallbackEmergency.phone || ""
-                        }
+                        },
+                        emergencyNotes: raw.medical?.emergencyNotes || raw.emergencyNotes || ""
                     });
 
                     recordScan(actualUid, actualPid);
@@ -428,6 +429,18 @@ export default function QRScanPage() {
                             </button>
                         </div>
                     </div>
+
+                    {/* Critical Emergency Note (Public Rescue Directive) */}
+                    {publicUser?.emergencyNotes && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-[32px] p-6 text-left space-y-2 shadow-xl">
+                            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                                <AlertCircle size={16} /> Critical Emergency Directive
+                            </div>
+                            <p className="text-white text-sm font-semibold leading-relaxed">
+                                {publicUser.emergencyNotes}
+                            </p>
+                        </div>
+                    )}
 
                     {/* ============================================================
                         3. OFFICIAL EMERGENCY RESPONSE ACTIONS

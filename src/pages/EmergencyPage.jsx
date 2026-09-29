@@ -186,16 +186,6 @@ export default function EmergencyPage() {
                 const existingToken = sessionStorage.getItem(`resqr_emergency_token_${actualPid}`);
                 if (existingToken && validatePublicEmergencySession(actualPid, existingToken)) {
                     setIsIdentityVerified(true);
-                    try {
-                        const clinicalData = await fetchAuthorizedMedicalProfile(actualPid, existingToken);
-                        if (clinicalData) {
-                            setAuthorizedMedicalData(clinicalData);
-                            setIsMedicalAuthorized(true);
-                            setSessionExpiresAt(clinicalData.authorizedUntil || (Date.now() + 15 * 60 * 1000));
-                        }
-                    } catch (e) {
-                        console.warn("Session restore medical fetch note:", e);
-                    }
                 }
 
                 if (snap && snap.exists()) {
@@ -211,7 +201,8 @@ export default function EmergencyPage() {
                             name: raw.emergencyContactName || fallbackEmergency.name || "GUARDIAN",
                             relation: raw.emergencyContactRelation || fallbackEmergency.relationship || fallbackEmergency.relation || "AUTHORIZED CONTACT",
                             phone: raw.emergencyContactPhone || fallbackEmergency.phone || ""
-                        }
+                        },
+                        emergencyNotes: raw.medical?.emergencyNotes || raw.emergencyNotes || ""
                     };
                     setPublicUser(publicData);
                     recordScan(actualUid, actualPid);
@@ -624,20 +615,10 @@ export default function EmergencyPage() {
                     <QRScanIdentityGate
                         patientId={resolvedPatientId}
                         qrId={id || resolvedPatientId}
-                        onVerificationSuccess={async ({ token, expiresAt }) => {
+                        onVerificationSuccess={({ token }) => {
                             sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
                             setIsIdentityVerified(true);
                             toast.success("✓ Identity confirmed. Emergency profile unlocked.");
-                            try {
-                                const clinicalData = await fetchAuthorizedMedicalProfile(resolvedPatientId, token);
-                                if (clinicalData) {
-                                    setAuthorizedMedicalData(clinicalData);
-                                    setIsMedicalAuthorized(true);
-                                    setSessionExpiresAt(expiresAt || (Date.now() + 15 * 60 * 1000));
-                                }
-                            } catch (e) {
-                                console.warn("Auto-decrypt medical profile note:", e);
-                            }
                         }}
                     />
                 </div>
@@ -752,6 +733,18 @@ export default function EmergencyPage() {
                             </button>
                         </div>
                     </div>
+
+                    {/* Critical Emergency Note (Public Rescue Directive) */}
+                    {publicUser?.emergencyNotes && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-[32px] p-6 text-left space-y-2 shadow-xl">
+                            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                                <AlertTriangle size={16} /> Critical Emergency Directive
+                            </div>
+                            <p className="text-white text-sm font-semibold leading-relaxed">
+                                {publicUser.emergencyNotes}
+                            </p>
+                        </div>
+                    )}
 
                     {/* ============================================================
                         3. OFFICIAL EMERGENCY RESPONSE ACTIONS

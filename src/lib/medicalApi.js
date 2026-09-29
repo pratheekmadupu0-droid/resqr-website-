@@ -319,16 +319,30 @@ export async function verifyPublicEmergencyAccess({
         // 2. Retrieve candidate's enrolled biometric profile directly from RTDB
         let bioSnap = await get(ref(db, `biometricProfiles/${cleanId}`));
         
-        // 3. Try resolving via UID prefix
+        // 2.1 Check QR Identity mapping
+        if (!bioSnap.exists()) {
+            try {
+                const qrSnap = await get(ref(db, `qrIdentities/${cleanId}`));
+                if (qrSnap.exists()) {
+                    const mappedId = qrSnap.val();
+                    bioSnap = await get(ref(db, `biometricProfiles/${mappedId}`));
+                }
+            } catch (e) {}
+        }
+
+        // 2.2 Try resolving via UID prefix or account faceEnrollment
         if (!bioSnap.exists()) {
             const uid = cleanId.includes('_') ? (cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0]) : cleanId;
             bioSnap = await get(ref(db, `users/${uid}/biometricProfiles/${cleanId}`));
+            if (!bioSnap.exists()) {
+                bioSnap = await get(ref(db, `users/${uid}/faceEnrollment`));
+            }
             if (!bioSnap.exists()) {
                 bioSnap = await get(ref(db, `biometricProfiles/${uid}`));
             }
         }
 
-        // 3. Try resolving via username registry if cleanId is a slug/username
+        // 2.3 Try resolving via username registry if cleanId is a slug/username
         if (!bioSnap.exists()) {
             try {
                 const regSnap = await get(ref(db, `usernames/${cleanId.toLowerCase()}`));
@@ -342,20 +356,23 @@ export async function verifyPublicEmergencyAccess({
                         bioSnap = await get(ref(db, `users/${actualUid}/biometricProfiles/${actualPid}`));
                     }
                     if (!bioSnap.exists() && actualUid) {
+                        bioSnap = await get(ref(db, `users/${actualUid}/faceEnrollment`));
+                    }
+                    if (!bioSnap.exists() && actualUid) {
                         bioSnap = await get(ref(db, `biometricProfiles/${actualUid}`));
                     }
                 }
             } catch (e) {}
         }
 
-        // 4. Broad fallback search across biometricProfiles collection
+        // 2.4 Broad fallback search across biometricProfiles collection
         if (!bioSnap.exists()) {
             try {
                 const allBioSnap = await get(ref(db, `biometricProfiles`));
                 if (allBioSnap.exists()) {
                     const allBios = allBioSnap.val();
                     for (const [k, v] of Object.entries(allBios)) {
-                        if (k === cleanId || v.profileId === cleanId || v.uid === cleanId) {
+                        if (k === cleanId || v.profileId === cleanId || v.uid === cleanId || k.toLowerCase() === cleanId.toLowerCase()) {
                             bioSnap = { exists: () => true, val: () => v };
                             break;
                         }

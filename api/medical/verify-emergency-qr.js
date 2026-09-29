@@ -92,15 +92,36 @@ export default async function handler(req, res) {
         let bioRes = await fetch(bioUrl);
         let bio = await bioRes.json();
 
+        // 2.1 Check QR Identity mapping
+        if (!bio) {
+            try {
+                const qrRes = await fetch(`${DB_URL}/qrIdentities/${cleanId}.json`);
+                const mappedId = await qrRes.json();
+                if (mappedId && typeof mappedId === 'string') {
+                    const mappedBioRes = await fetch(`${DB_URL}/biometricProfiles/${mappedId}.json`);
+                    bio = await mappedBioRes.json();
+                }
+            } catch (e) {}
+        }
+
+        // 2.2 Try resolving via UID prefix or account faceEnrollment
         if (!bio) {
             const uid = cleanId.includes('_') ? (cleanId.startsWith('c_') ? cleanId.replace('c_', '') : cleanId.split('_')[0]) : cleanId;
             bioUrl = `${DB_URL}/users/${uid}/biometricProfiles/${cleanId}.json`;
             bioRes = await fetch(bioUrl);
             bio = await bioRes.json();
+            if (!bio) {
+                const faceRes = await fetch(`${DB_URL}/users/${uid}/faceEnrollment.json`);
+                bio = await faceRes.json();
+            }
+            if (!bio) {
+                const uidBioRes = await fetch(`${DB_URL}/biometricProfiles/${uid}.json`);
+                bio = await uidBioRes.json();
+            }
         }
 
+        // 2.3 Lookup username registry
         if (!bio) {
-            // Lookup username registry
             const regRes = await fetch(`${DB_URL}/usernames/${cleanId.toLowerCase()}.json`);
             const regPath = await regRes.json();
             if (regPath && typeof regPath === 'string') {
@@ -112,6 +133,14 @@ export default async function handler(req, res) {
                 if (!bio && actualUid) {
                     bioRes = await fetch(`${DB_URL}/users/${actualUid}/biometricProfiles/${actualPid}.json`);
                     bio = await bioRes.json();
+                }
+                if (!bio && actualUid) {
+                    const faceRes = await fetch(`${DB_URL}/users/${actualUid}/faceEnrollment.json`);
+                    bio = await faceRes.json();
+                }
+                if (!bio && actualUid) {
+                    const uidBioRes = await fetch(`${DB_URL}/biometricProfiles/${actualUid}.json`);
+                    bio = await uidBioRes.json();
                 }
             }
         }

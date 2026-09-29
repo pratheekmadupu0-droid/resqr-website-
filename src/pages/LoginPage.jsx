@@ -22,6 +22,14 @@ import { isPseudoEmbedding } from '../lib/biometrics';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../lib/subscriptionApi';
 import { addMonthsToDate } from '../lib/subscriptionConfig';
+import { 
+    REGISTRATION_STEPS, 
+    STEP_METADATA, 
+    canAccessStep, 
+    getFirstIncompleteStep, 
+    fetchAuthoritativeRegistrationState, 
+    commitStepProgress 
+} from '../lib/registrationStateMachine';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -63,6 +71,7 @@ export default function LoginPage() {
 
     // Citizen Registration Wizard States
     const [citizenStep, setCitizenStep] = useState(1);
+    const [completedSteps, setCompletedSteps] = useState({});
     const [faceRegStarted, setFaceRegStarted] = useState(false);
     const [biometricEnrollment, setBiometricEnrollment] = useState(null);
     const [citizenProfilePhoto, setCitizenProfilePhoto] = useState('');
@@ -172,6 +181,64 @@ export default function LoginPage() {
                                 navigate('/dashboard');
                                 return;
                             }
+
+                            // Authoritative registration state machine resume
+                            try {
+                                const regState = await fetchAuthoritativeRegistrationState(currentUser.uid);
+                                if (regState.isCompleted) {
+                                    navigate('/dashboard');
+                                    return;
+                                }
+                                setCompletedSteps(regState.completedSteps || {});
+                                if (regState.draft?.personal) {
+                                    const p = regState.draft.personal;
+                                    if (p.name) setCitizenName(p.name);
+                                    if (p.phone) setPhoneNumber(p.phone);
+                                    if (p.email) setCitizenEmail(p.email);
+                                    if (p.dob) setCitizenDob(p.dob);
+                                    if (p.gender) setCitizenGender(p.gender);
+                                    if (p.username) setChosenUsername(p.username);
+                                    if (p.address) setCitizenAddress(prev => ({ ...prev, ...p.address }));
+                                    if (p.emergencyContacts) setEmergencyContacts(p.emergencyContacts);
+                                    if (p.familyDoctor) setFamilyDoctor(p.familyDoctor);
+                                } else if (currentUser.displayName) {
+                                    setCitizenName(currentUser.displayName);
+                                    if (currentUser.email) setCitizenEmail(currentUser.email);
+                                }
+                                if (regState.draft?.medical) {
+                                    const m = regState.draft.medical;
+                                    if (m.bloodGroup) setBloodGroup(m.bloodGroup);
+                                    if (m.height) setHeight(m.height);
+                                    if (m.weight) setWeight(m.weight);
+                                    if (m.medicalConditions) setMedicalConditions(m.medicalConditions);
+                                    if (m.allergies) setAllergies(m.allergies);
+                                    if (m.currentMedication) setCurrentMedication(m.currentMedication);
+                                    if (m.previousSurgeries) setPreviousSurgeries(m.previousSurgeries);
+                                    if (m.isOrganDonor !== undefined) setIsOrganDonor(m.isOrganDonor);
+                                    if (m.emergencyNotes) setEmergencyNotes(m.emergencyNotes);
+                                    if (m.medicalId) setMedicalId(m.medicalId);
+                                }
+                                if (regState.draft?.insurance) {
+                                    const ins = regState.draft.insurance;
+                                    if (ins.hasInsurance) setHasInsurance(ins.hasInsurance);
+                                    if (ins.insuranceCompany) setInsuranceCompany(ins.insuranceCompany);
+                                    if (ins.policyNumber) setPolicyNumber(ins.policyNumber);
+                                    if (ins.policyHolder) setPolicyHolder(ins.policyHolder);
+                                    if (ins.policyExpiry) setPolicyExpiry(ins.policyExpiry);
+                                    if (ins.coverageAmount) setCoverageAmount(ins.coverageAmount);
+                                }
+                                if (regState.profile?.faceEnrollment) {
+                                    setBiometricEnrollment(regState.profile.faceEnrollment);
+                                    if (regState.profile.faceEnrollment.frontPhotoSnapshot) {
+                                        setCitizenProfilePhoto(regState.profile.faceEnrollment.frontPhotoSnapshot);
+                                    }
+                                }
+                                if (regState.currentStep && regState.currentStep > 1) {
+                                    setCitizenStep(regState.currentStep);
+                                }
+                            } catch (regErr) {
+                                console.warn("Could not restore registration state:", regErr);
+                            }
                         } else if (userData.role === 'agent' || userData.role === 'hospital') {
                             navigate('/dashboard');
                             return;
@@ -250,9 +317,13 @@ export default function LoginPage() {
                 setCitizenEmail(user.email || '');
                 const defaultUsername = (user.displayName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                 setChosenUsername(defaultUsername);
+
+                const regState = await fetchAuthoritativeRegistrationState(user.uid);
+                setCompletedSteps(regState.completedSteps || {});
+                const nextStep = getFirstIncompleteStep(regState.completedSteps);
                 setAuthState('register_wizard');
-                setCitizenStep(1);
-                toast.success("Google authenticated! Please complete your 4-Step Medical Profile.");
+                setCitizenStep(nextStep);
+                toast.success("Google authenticated! Resuming your Sequential Registration.");
             }
         } catch (error) {
             console.error("Google Auth error:", error);
@@ -282,9 +353,15 @@ export default function LoginPage() {
             }
             await syncUserOnLogin(currentUser, { role: 'citizen' });
             setSelectedRole('citizen');
-            setChosenUsername(`user${Math.floor(1000 + Math.random() * 9000)}`);
+            const regState = await fetchAuthoritativeRegistrationState(currentUser.uid);
+            setCompletedSteps(regState.completedSteps || {});
+            const nextStep = getFirstIncompleteStep(regState.completedSteps);
+            if (!chosenUsername) {
+                setChosenUsername(`user${Math.floor(1000 + Math.random() * 9000)}`);
+            }
             setAuthState('register_wizard');
-            setCitizenStep(1);
+            setCitizenStep(nextStep);
+            toast.success("Identity session initiated! Starting Sequential Registration.");
         } catch (err) {
             console.error("Direct registration start error:", err);
             toast.error("Could not start registration: " + (err.message || err));
@@ -479,15 +556,23 @@ export default function LoginPage() {
                     [profileId]: profileData
                 }
             };
+            const cleanUser = chosenUsername.toLowerCase().trim();
             updates[`profiles/${profileId}`] = profileData;
             updates[`subscriptions/${profileId}`] = subscriptionData;
             updates[`users/${uid}/subscription`] = subscriptionData;
+            updates[`users/${uid}/completedSteps`] = { 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true };
+            updates[`users/${uid}/currentRegistrationStep`] = 7;
             updates[`paymentHistory/${paymentId}`] = paymentRecord;
-            updates[`usernames/${chosenUsername.toLowerCase()}`] = `${uid}/profiles/${profileId}`;
+            updates[`usernames/${cleanUser}`] = `users/${uid}/profiles/${profileId}`;
+            updates[`qrIdentities/${cleanUser}`] = profileId;
+            updates[`qrIdentities/${profileId}`] = profileId;
 
             if (biometricEnrollment) {
                 updates[`biometricProfiles/${profileId}`] = biometricEnrollment;
+                updates[`biometricProfiles/${uid}`] = biometricEnrollment;
+                updates[`biometricProfiles/${cleanUser}`] = biometricEnrollment;
                 updates[`users/${uid}/biometricProfiles/${profileId}`] = biometricEnrollment;
+                updates[`users/${uid}/faceEnrollment`] = biometricEnrollment;
             }
 
             await update(ref(db), updates);
@@ -1261,21 +1346,79 @@ export default function LoginPage() {
                             className="max-w-2xl mx-auto"
                         >
                             <Card className="p-10 bg-medical-card border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden">
-                                {/* Wizard Steps Header */}
-                                <div className="flex justify-between items-center mb-10 pb-6 border-b border-white/5">
-                                    <div>
-                                        <Badge className="bg-primary/20 text-primary border-none px-4 py-1 font-black italic tracking-widest text-[9px] mb-2">CITIZEN IDENTITY PROTOCOL</Badge>
-                                        <h2 className="text-2xl font-black italic uppercase tracking-tighter font-poppins">
-                                            Step {citizenStep} of 6: {
-                                                citizenStep === 1 ? 'Face Registration' :
-                                                citizenStep === 2 ? 'Personal Details' :
-                                                citizenStep === 3 ? 'Medical Details' :
-                                                citizenStep === 4 ? 'Insurance Details' :
-                                                citizenStep === 5 ? 'QR Registration Preview' : 'Registration Payment'
-                                            }
-                                        </h2>
+                                {/* Wizard Step Progression Header */}
+                                <div className="mb-8 pb-6 border-b border-white/5 space-y-4">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <Badge className="bg-primary/20 text-primary border-none px-4 py-1 font-black italic tracking-widest text-[9px] mb-1">CITIZEN IDENTITY PROTOCOL</Badge>
+                                            <h2 className="text-xl sm:text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
+                                                Step {citizenStep} of 6: {
+                                                    citizenStep === 1 ? 'Face Registration' :
+                                                    citizenStep === 2 ? 'Personal Details' :
+                                                    citizenStep === 3 ? 'Medical Details' :
+                                                    citizenStep === 4 ? 'Insurance Details' :
+                                                    citizenStep === 5 ? 'QR / Plan Selection' : 'Registration Payment'
+                                                }
+                                            </h2>
+                                        </div>
+                                        <span className="text-lg font-black italic text-primary font-poppins">
+                                            {Math.round((citizenStep / 6) * 100)}% Completed
+                                        </span>
                                     </div>
-                                    <span className="text-xl font-black italic text-primary font-poppins">{Math.round((citizenStep / 6) * 100)}% Completed</span>
+
+                                    {/* Sequential Step Badges */}
+                                    <div className="grid grid-cols-6 gap-1.5 sm:gap-2 pt-2">
+                                        {[
+                                            { step: 1, label: 'Face' },
+                                            { step: 2, label: 'Personal' },
+                                            { step: 3, label: 'Medical' },
+                                            { step: 4, label: 'Insurance' },
+                                            { step: 5, label: 'QR Plan' },
+                                            { step: 6, label: 'Payment' }
+                                        ].map(({ step, label }) => {
+                                            const isDone = completedSteps[step] || step < citizenStep;
+                                            const isCurrent = citizenStep === step;
+                                            const isAccessible = canAccessStep(step, completedSteps);
+
+                                            return (
+                                                <button
+                                                    key={step}
+                                                    type="button"
+                                                    disabled={!isAccessible && !isDone}
+                                                    onClick={() => {
+                                                        if (isDone || isAccessible) {
+                                                            setCitizenStep(step);
+                                                        } else {
+                                                            toast.error(`Step ${step} is locked. Please complete previous steps first.`);
+                                                        }
+                                                    }}
+                                                    className={`py-2 px-1 rounded-xl text-center flex flex-col items-center justify-center transition-all ${
+                                                        isCurrent
+                                                            ? 'bg-primary text-white shadow-lg shadow-primary/25 border border-primary font-black scale-[1.02]'
+                                                            : isDone
+                                                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 cursor-pointer'
+                                                            : 'bg-slate-950/60 border border-white/5 text-slate-600 cursor-not-allowed opacity-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-1 mb-0.5">
+                                                        {isDone && !isCurrent ? (
+                                                            <Check size={12} className="text-emerald-400" />
+                                                        ) : isCurrent ? (
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                        ) : (
+                                                            <Lock size={10} className="text-slate-600" />
+                                                        )}
+                                                        <span className="text-[10px] uppercase tracking-wider font-bold">
+                                                            0{step}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[8px] uppercase tracking-widest truncate w-full hidden sm:block">
+                                                        {label}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* Step 1: Face Registration */}
@@ -1291,7 +1434,8 @@ export default function LoginPage() {
                                                 if (bioProfile?.frontPhotoSnapshot) {
                                                     setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
                                                 }
-                                                toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                setCompletedSteps(prev => ({ ...prev, 1: true }));
+                                                toast.success("✓ Step 1 Complete: Face Biometrics Recorded!");
                                                 setCitizenStep(2);
                                             }}
                                             onCancel={() => setAuthState('card_select')}
@@ -1441,6 +1585,12 @@ export default function LoginPage() {
                                                     <ArrowLeft size={16} className="mr-2" /> Back
                                                 </Button>
                                                 <Button onClick={async () => {
+                                                    if (!biometricEnrollment && !completedSteps[1]) {
+                                                        toast.error("Please complete Step 1: Face Registration first.");
+                                                        setCitizenStep(1);
+                                                        return;
+                                                    }
+
                                                     if (!citizenName || !citizenDob || !citizenGender || !citizenAddress.city || !citizenAddress.pincode || !chosenUsername) {
                                                         toast.error("Please fill all mandatory personal & address details, including a username.");
                                                         return;
@@ -1452,19 +1602,49 @@ export default function LoginPage() {
                                                         return;
                                                     }
 
-                                                    const t = toast.loading("Checking username availability...");
+                                                    const currentUid = auth.currentUser?.uid;
+                                                    if (!currentUid) {
+                                                        toast.error("Authentication session missing. Please restart registration.");
+                                                        return;
+                                                    }
+
+                                                    const t = toast.loading("Checking username availability & saving...");
                                                     try {
                                                         const regRef = ref(db, `usernames/${cleanUser}`);
                                                         const existing = await get(regRef);
                                                         if (existing.exists()) {
-                                                            toast.error("Username already taken. Please choose another one.", { id: t });
-                                                            return;
+                                                            const val = existing.val();
+                                                            // Allowed if already owned by this user
+                                                            if (!val.includes(currentUid)) {
+                                                                toast.error("Username already taken. Please choose another one.", { id: t });
+                                                                return;
+                                                            }
                                                         }
-                                                        toast.success("Username available!", { id: t });
+
+                                                        const personalData = {
+                                                            name: citizenName,
+                                                            phone: phoneNumber,
+                                                            email: citizenEmail,
+                                                            dob: citizenDob,
+                                                            gender: citizenGender,
+                                                            username: cleanUser,
+                                                            address: citizenAddress,
+                                                            emergencyContacts,
+                                                            familyDoctor
+                                                        };
+
+                                                        await commitStepProgress({
+                                                            uid: currentUid,
+                                                            stepNumber: 2,
+                                                            stepData: personalData
+                                                        });
+
+                                                        setCompletedSteps(prev => ({ ...prev, 2: true }));
+                                                        toast.success("✓ Step 2 Complete: Personal details saved!", { id: t });
                                                         setCitizenStep(3);
                                                     } catch (e) {
-                                                        console.error("Username check error:", e);
-                                                        toast.error("Error validating username", { id: t });
+                                                        console.error("Step 2 save error:", e);
+                                                        toast.error("Error saving personal details: " + (e.message || e), { id: t });
                                                     }
                                                 }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
                                                     Continue to Medical Details <ArrowRight size={16} className="ml-2" />
@@ -1527,12 +1707,41 @@ export default function LoginPage() {
                                             <Button onClick={() => setCitizenStep(2)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button onClick={() => {
+                                            <Button onClick={async () => {
                                                 if (!bloodGroup) {
                                                     toast.error("Please specify your blood group.");
                                                     return;
                                                 }
-                                                setCitizenStep(4);
+                                                const currentUid = auth.currentUser?.uid;
+                                                if (!currentUid) {
+                                                    toast.error("Authentication session missing. Please restart registration.");
+                                                    return;
+                                                }
+                                                try {
+                                                    const medicalData = {
+                                                        bloodGroup,
+                                                        height,
+                                                        weight,
+                                                        medicalConditions,
+                                                        allergies,
+                                                        currentMedication,
+                                                        previousSurgeries,
+                                                        isOrganDonor,
+                                                        emergencyNotes,
+                                                        medicalId
+                                                    };
+                                                    await commitStepProgress({
+                                                        uid: currentUid,
+                                                        stepNumber: 3,
+                                                        stepData: medicalData
+                                                    });
+                                                    setCompletedSteps(prev => ({ ...prev, 3: true }));
+                                                    toast.success("✓ Step 3 Complete: Medical details saved!");
+                                                    setCitizenStep(4);
+                                                } catch (e) {
+                                                    console.error("Step 3 save error:", e);
+                                                    toast.error("Could not save medical details: " + (e.message || e));
+                                                }
                                             }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
                                                 Proceed to Insurance Details <ArrowRight size={16} className="ml-2" />
                                             </Button>
@@ -1645,7 +1854,38 @@ export default function LoginPage() {
                                             <Button onClick={() => setCitizenStep(3)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button onClick={() => setCitizenStep(5)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                            <Button onClick={async () => {
+                                                const currentUid = auth.currentUser?.uid;
+                                                if (!currentUid) {
+                                                    toast.error("Authentication session missing. Please restart registration.");
+                                                    return;
+                                                }
+                                                try {
+                                                    const insuranceData = {
+                                                        hasInsurance,
+                                                        insuranceCompany: hasInsurance === 'yes' ? insuranceCompany : '',
+                                                        policyNumber: hasInsurance === 'yes' ? policyNumber : '',
+                                                        policyHolder: hasInsurance === 'yes' ? policyHolder : '',
+                                                        policyAgentName: hasInsurance === 'yes' ? policyAgentName : '',
+                                                        policyAgentPhone: hasInsurance === 'yes' ? policyAgentPhone : '',
+                                                        policyExpiry: hasInsurance === 'yes' ? policyExpiry : '',
+                                                        coverageAmount: hasInsurance === 'yes' ? coverageAmount : '',
+                                                        insuranceCardPhoto: hasInsurance === 'yes' ? insuranceCardPhoto : '',
+                                                        cashlessFacility: hasInsurance === 'yes' ? cashlessFacility : false
+                                                    };
+                                                    await commitStepProgress({
+                                                        uid: currentUid,
+                                                        stepNumber: 4,
+                                                        stepData: insuranceData
+                                                    });
+                                                    setCompletedSteps(prev => ({ ...prev, 4: true }));
+                                                    toast.success("✓ Step 4 Complete: Insurance details saved!");
+                                                    setCitizenStep(5);
+                                                } catch (e) {
+                                                    console.error("Step 4 save error:", e);
+                                                    toast.error("Could not save insurance details: " + (e.message || e));
+                                                }
+                                            }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
                                                 Continue to QR Preview <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>
@@ -1686,7 +1926,33 @@ export default function LoginPage() {
                                             <Button onClick={() => setCitizenStep(4)} variant="outline" className="py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                 <ArrowLeft size={16} className="mr-2" /> Back
                                             </Button>
-                                            <Button onClick={() => setCitizenStep(6)} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
+                                            <Button onClick={async () => {
+                                                const currentUid = auth.currentUser?.uid;
+                                                if (!currentUid) {
+                                                    toast.error("Authentication session missing. Please restart registration.");
+                                                    return;
+                                                }
+                                                try {
+                                                    const planData = {
+                                                        package: selectedPackage,
+                                                        planId: 'initial_3m',
+                                                        name: 'RESQR Registration + 2 QR Stickers',
+                                                        price: 149,
+                                                        validityMonths: 3
+                                                    };
+                                                    await commitStepProgress({
+                                                        uid: currentUid,
+                                                        stepNumber: 5,
+                                                        stepData: planData
+                                                    });
+                                                    setCompletedSteps(prev => ({ ...prev, 5: true }));
+                                                    toast.success("✓ Step 5 Complete: Plan configured!");
+                                                    setCitizenStep(6);
+                                                } catch (e) {
+                                                    console.error("Step 5 save error:", e);
+                                                    toast.error("Could not save plan selection: " + (e.message || e));
+                                                }
+                                            }} className="py-4 px-8 bg-primary rounded-2xl font-black italic uppercase text-xs">
                                                 Proceed to Payment <ArrowRight size={16} className="ml-2" />
                                             </Button>
                                         </div>

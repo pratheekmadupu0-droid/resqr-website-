@@ -218,18 +218,25 @@ export default function QRScanIdentityGate({
         // STEP 3 — CAPTURE STILL IMAGE (exactly one photograph)
         const vW = video.videoWidth || 640;
         const vH = video.videoHeight || 480;
-        const snapCanvas = document.createElement('canvas');
-        snapCanvas.width = vW;
-        snapCanvas.height = vH;
-        const sCtx = snapCanvas.getContext('2d', { willReadFrequently: true });
 
-        // Mirror front selfie camera snapshot to match user's perspective
+        // 1. Raw un-mirrored canvas for biometric extraction (matches enrollment frame geometry)
+        const rawCanvas = document.createElement('canvas');
+        rawCanvas.width = vW;
+        rawCanvas.height = vH;
+        const rCtx = rawCanvas.getContext('2d', { willReadFrequently: true });
+        rCtx.drawImage(video, 0, 0, vW, vH);
+
+        // 2. User preview photo (mirrored if front selfie camera for natural visual feedback)
+        const previewCanvas = document.createElement('canvas');
+        previewCanvas.width = vW;
+        previewCanvas.height = vH;
+        const pCtx = previewCanvas.getContext('2d');
         if (facingMode === 'user') {
-            sCtx.translate(vW, 0);
-            sCtx.scale(-1, 1);
+            pCtx.translate(vW, 0);
+            pCtx.scale(-1, 1);
         }
-        sCtx.drawImage(video, 0, 0, vW, vH);
-        const photoDataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
+        pCtx.drawImage(video, 0, 0, vW, vH);
+        const photoDataUrl = previewCanvas.toDataURL('image/jpeg', 0.92);
         setCapturedPhotoUrl(photoDataUrl);
 
         // Immediately stop live camera stream
@@ -246,7 +253,7 @@ export default function QRScanIdentityGate({
 
             // Analyze the frozen still photograph canvas
             setAnalyzingSubtext('Detecting facial presence & orientation...');
-            const probe = await detectSingleFace(snapCanvas, { extractDescriptor: true });
+            let probe = await detectSingleFace(rawCanvas, { extractDescriptor: true });
 
             // Check 1: Is a face present in the still photo?
             if (!probe || probe.status === 'NO_FACE') {
@@ -273,7 +280,7 @@ export default function QRScanIdentityGate({
             }
 
             // Check 5: Neural metric descriptor extraction (Float32Array of 128 elements)
-            const probeDescriptor = probe.descriptor;
+            let probeDescriptor = probe.descriptor;
             if (!probeDescriptor || probeDescriptor.length !== 128 || isPseudoEmbedding(probeDescriptor)) {
                 handleFailure();
                 return;
@@ -282,12 +289,27 @@ export default function QRScanIdentityGate({
             // STEP 5 — QR-BOUND 1:1 FACE MATCH
             // Compares ONLY against the registered biometric profile belonging to THIS specific QR owner
             setAnalyzingSubtext('Verifying with registered RESQR biometric enrollment...');
-            const verifyResult = await verifyPublicEmergencyAccess({
+            let verifyResult = await verifyPublicEmergencyAccess({
                 probeDescriptor,
                 patientId,
                 qrId: qrId || patientId,
                 padScore
             });
+
+            // If not verified and user camera was active, also check previewCanvas descriptor in case of mirrored enrollment legacy
+            if (!verifyResult.verified && facingMode === 'user') {
+                try {
+                    const altProbe = await detectSingleFace(previewCanvas, { extractDescriptor: true });
+                    if (altProbe?.descriptor && altProbe.descriptor.length === 128 && !isPseudoEmbedding(altProbe.descriptor)) {
+                        verifyResult = await verifyPublicEmergencyAccess({
+                            probeDescriptor: altProbe.descriptor,
+                            patientId,
+                            qrId: qrId || patientId,
+                            padScore
+                        });
+                    }
+                } catch (e) {}
+            }
 
             // STEP 6 — SUCCESS
             if (verifyResult.verified && verifyResult.verificationToken) {

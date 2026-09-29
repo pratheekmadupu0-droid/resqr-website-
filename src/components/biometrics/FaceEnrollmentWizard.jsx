@@ -16,6 +16,7 @@ import {
     TEMPLATE_VERSION 
 } from '../../lib/biometrics';
 import toast from 'react-hot-toast';
+import { commitStepProgress } from '../../lib/registrationStateMachine';
 
 export default function FaceEnrollmentWizard({
     uid,
@@ -532,8 +533,11 @@ export default function FaceEnrollmentWizard({
 
         try {
             const currentAuthUid = auth?.currentUser?.uid;
-            const targetUid = uid || currentAuthUid || 'guest_user';
-            const targetPid = profileId || (currentAuthUid ? `c_${currentAuthUid}` : `c_${targetUid}`);
+            const targetUid = uid || currentAuthUid;
+            if (!targetUid) {
+                throw new Error("Active user session required for biometric enrollment. Please log in or refresh.");
+            }
+            const targetPid = profileId || `c_${targetUid}`;
 
             const saveResult = await saveBiometricProfileToAccount({
                 uid: targetUid,
@@ -542,6 +546,17 @@ export default function FaceEnrollmentWizard({
             });
 
             if (saveResult?.success) {
+                // Also record to authoritative registration state machine
+                try {
+                    await commitStepProgress({
+                        uid: targetUid,
+                        stepNumber: 1,
+                        stepData: { biometricProfile: saveResult.profile }
+                    });
+                } catch (e) {
+                    console.warn("State machine commit warning for step 1:", e);
+                }
+
                 setSaveSuccess(true);
                 toast.success("✓ FACIAL PROFILE CREATED", { id: toastId });
 
@@ -558,7 +573,7 @@ export default function FaceEnrollmentWizard({
             console.error("Biometric save failed:", err);
             setIsSaving(false);
             setSaveError("FACIAL PROFILE COULD NOT BE SAVED. Please check network connection and try again.");
-            toast.error("FACIAL PROFILE COULD NOT BE SAVED", { id: toastId });
+            toast.error("FACIAL PROFILE COULD NOT BE SAVED: " + (err.message || "Network error"), { id: toastId });
         }
     };
 
