@@ -14,17 +14,39 @@ function getClientIdentifier(req, patientId) {
 }
 
 function isPseudoEmbedding(desc) {
-    if (!desc || !Array.isArray(desc) || desc.length !== 128) return true;
-    if (desc[0] === 0.01 && desc[1] === 0.01 && desc[2] === 0.01) return true;
-    if (desc[60] === 0 && desc[61] === 0) return true;
+    if (!desc) return true;
+    if (desc.length !== 128) return true;
+
+    const arr = Array.isArray(desc) ? desc : Array.from(desc);
+
+    const first = arr[0];
+    let allSame = true;
     let sum = 0;
-    let zeroCount = 0;
+    let sumSq = 0;
+    let exactZeroCount = 0;
+
     for (let i = 0; i < 128; i++) {
-        sum += desc[i] * desc[i];
-        if (desc[i] === 0) zeroCount++;
+        const val = arr[i];
+        if (!Number.isFinite(val)) return true;
+        if (Math.abs(val - first) > 1e-5) allSame = false;
+        sum += val;
+        sumSq += val * val;
+        if (val === 0) exactZeroCount++;
     }
-    const norm = Math.sqrt(sum);
-    if (norm < 0.8 || norm > 1.2 || zeroCount > 5) return true;
+
+    if (allSame) return true;
+
+    const norm = Math.sqrt(sumSq);
+    if (!Number.isFinite(norm) || norm < 0.01) return true;
+
+    if (arr[60] === 0 && arr[61] === 0 && exactZeroCount > 10) {
+        return true;
+    }
+
+    const mean = sum / 128;
+    const variance = (sumSq / 128) - (mean * mean);
+    if (variance < 1e-6) return true;
+
     return false;
 }
 

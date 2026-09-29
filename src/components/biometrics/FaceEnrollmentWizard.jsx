@@ -408,7 +408,16 @@ export default function FaceEnrollmentWizard({
             try {
                 bio = await detectSingleFace(snapCanvas, { extractDescriptor: true });
             } catch (e) {
-                console.warn("On-demand detection exception:", e);
+                console.warn("On-demand detection exception on canvas:", e);
+            }
+
+            // Fallback: If snapshot canvas detection had no valid descriptor, attempt directly on video stream
+            if ((!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor || bio.descriptor.length !== 128) && video && video.readyState >= 2) {
+                try {
+                    bio = await detectSingleFace(video, { extractDescriptor: true });
+                } catch (vErr) {
+                    console.warn("Direct video element fallback detection exception:", vErr);
+                }
             }
 
             if (!bio || bio.status !== 'FACE_DETECTED' || !bio.descriptor || bio.descriptor.length !== 128 || isPseudoEmbedding(bio.descriptor)) {

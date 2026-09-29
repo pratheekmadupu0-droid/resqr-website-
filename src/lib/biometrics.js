@@ -240,24 +240,49 @@ export function estimateHeadPose(landmarks) {
 
 /**
  * Detects whether a 128-d descriptor is a synthetic landmark pseudo-embedding
- * (which matches all human faces) rather than a genuine deep ResNet-34 metric embedding.
+ * or dummy vector rather than a genuine deep ResNet-34 metric embedding.
  */
 export function isPseudoEmbedding(desc) {
-    if (!desc || !Array.isArray(desc) || desc.length !== 128) return true;
-    // 1. Check for identical filled dummy values
-    if (desc[0] === 0.01 && desc[1] === 0.01 && desc[2] === 0.01) return true;
-    // 2. Check nose-centered landmark anchor points:
-    // In landmark pseudo-embeddings, points[30] (nose tip) was placed at indices 60 and 61
-    if (desc[60] === 0 && desc[61] === 0) return true;
-    // 3. ResNet-34 128-d face descriptors have L2 norm of ~1.0 with virtually zero exact 0.0 values
+    if (!desc) return true;
+    if (desc.length !== 128) return true;
+
+    // Handle both plain Array and Float32Array
+    const arr = Array.isArray(desc) ? desc : Array.from(desc);
+
+    // 1. Check for identical dummy values (e.g. fill(0.01) or fill(0))
+    const first = arr[0];
+    let allSame = true;
     let sum = 0;
-    let zeroCount = 0;
+    let sumSq = 0;
+    let exactZeroCount = 0;
+
     for (let i = 0; i < 128; i++) {
-        sum += desc[i] * desc[i];
-        if (desc[i] === 0) zeroCount++;
+        const val = arr[i];
+        if (!Number.isFinite(val)) return true;
+        if (Math.abs(val - first) > 1e-5) allSame = false;
+        sum += val;
+        sumSq += val * val;
+        if (val === 0) exactZeroCount++;
     }
-    const norm = Math.sqrt(sum);
-    if (norm < 0.8 || norm > 1.2 || zeroCount > 5) return true;
+
+    if (allSame) return true;
+
+    const norm = Math.sqrt(sumSq);
+    // Must be non-zero, finite magnitude
+    if (!Number.isFinite(norm) || norm < 0.01) return true;
+
+    // 2. Check for signature of legacy landmark embedding:
+    // In legacy landmark pseudo-embeddings, points[30] (nose tip) gave exact 0 at indices 60 and 61,
+    // and points > 64 left unused indices strictly at 0.0 (>10 exact zeroes).
+    if (arr[60] === 0 && arr[61] === 0 && exactZeroCount > 10) {
+        return true;
+    }
+
+    // 3. Check for valid feature variance across 128 dimensions
+    const mean = sum / 128;
+    const variance = (sumSq / 128) - (mean * mean);
+    if (variance < 1e-6) return true;
+
     return false;
 }
 
@@ -512,8 +537,29 @@ export async function detectSingleFace(inputElement, options = {}) {
             }
         }
 
+        // Fallback: If still no descriptor, try computing from aligned face crop directly
+        if (extractDescriptor && (!descriptor || descriptor.length !== 128) && primary.landmarks && faceapi.nets?.faceRecognitionNet?.isLoaded) {
+            try {
+                const alignedFaces = await faceapi.extractFaces(sourceElement, [primary.alignedRect || primary.detection]);
+                if (alignedFaces && alignedFaces[0]) {
+                    const computed = await faceapi.computeFaceDescriptor(alignedFaces[0]);
+                    if (computed && computed.length === 128) {
+                        descriptor = Array.from(computed);
+                    }
+                }
+            } catch (cropErr) {
+                console.warn("Direct aligned crop face descriptor computation warning:", cropErr);
+            }
+        }
+
         // Under NO circumstances allow fake pseudo-embeddings
         if (extractDescriptor && (!descriptor || descriptor.length !== 128 || isPseudoEmbedding(descriptor))) {
+            const isPseudo = descriptor ? isPseudoEmbedding(descriptor) : false;
+            console.warn("[Biometrics] Deep descriptor extraction rejected:", {
+                hasDescriptor: !!descriptor,
+                descriptorLength: descriptor ? descriptor.length : 0,
+                isPseudo
+            });
             return {
                 status: 'NO_DESCRIPTOR',
                 message: 'Could not extract deep biometric identity. Please ensure face is centered with clear lighting and look directly at the camera.',
@@ -522,6 +568,10 @@ export async function detectSingleFace(inputElement, options = {}) {
                 pose,
                 quality
             };
+        }
+
+        if (extractDescriptor && descriptor) {
+            console.log("[Biometrics] Deep 128-d biometric identity extracted successfully. Norm:", Math.hypot(...descriptor).toFixed(3));
         }
 
         return {
