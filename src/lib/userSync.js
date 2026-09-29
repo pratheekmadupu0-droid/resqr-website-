@@ -5,7 +5,9 @@ export const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
     'pratheekmadupu0@gmail.com',
     'resqr.official@gmail.com',
-    'admin@resqr.co.in'
+    'admin@resqr.co.in',
+    'siconentp@gmail.com',
+    'siconenterprises@gmail.com'
 ];
 
 /**
@@ -60,7 +62,7 @@ export async function syncUserOnLogin(user, extraData = {}) {
             serviceStatus: isAdmin ? 'ACTIVE' : (existing.serviceStatus || extraData.serviceStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE')),
             emergencyProfileStatus: isAdmin ? 'ACTIVE' : (existing.emergencyProfileStatus || extraData.emergencyProfileStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_CREATED')),
             qrStatus: isAdmin ? 'ACTIVE' : (existing.qrStatus || extraData.qrStatus || (existing.payment_status === 'paid' ? 'ACTIVE' : 'NOT_ACTIVE')),
-            qrId: existing.qrId || (userEmail.includes('pratheek') ? 'pratheek' : null),
+            qrId: existing.qrId || (userEmail.includes('pratheek') ? 'pratheek' : (userEmail.includes('sicon') ? 'jwala-shyam' : null)),
             // Detailed Firebase Authentication & Google Account parameters
             googleId: googleId,
             googleEmail: googleEmail,

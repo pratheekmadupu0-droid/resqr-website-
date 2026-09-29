@@ -72,7 +72,9 @@ export default function AdminPanel() {
         'pratheekmadupu2006@gmail.com',
         'pratheekmadupu0@gmail.com',
         'resqr.official@gmail.com',
-        'admin@resqr.co.in'
+        'admin@resqr.co.in',
+        'siconentp@gmail.com',
+        'siconenterprises@gmail.com'
     ];
 
     // ==========================================

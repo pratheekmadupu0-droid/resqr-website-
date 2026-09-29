@@ -19,13 +19,7 @@ import toast from 'react-hot-toast';
 // - The admin always presses SEND inside WhatsApp themselves.
 // ============================================================
 
-// Same authorized admin list used by the existing RESQR admin system
-const ADMIN_EMAILS = [
-    'pratheekmadupu2006@gmail.com',
-    'pratheekmadupu0@gmail.com',
-    'resqr.official@gmail.com',
-    'admin@resqr.co.in'
-];
+import { ADMIN_EMAILS } from '../../lib/subscriptionConfig';
 
 // RESQR Admin WhatsApp SENDER account (the account the admin sends from manually).
 // NEVER used as a recipient — recipients always come from the selected user's Firebase profile.

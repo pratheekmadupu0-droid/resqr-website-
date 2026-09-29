@@ -6,7 +6,9 @@ export const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
     'pratheekmadupu0@gmail.com',
     'resqr.official@gmail.com',
-    'admin@resqr.co.in'
+    'admin@resqr.co.in',
+    'siconentp@gmail.com',
+    'siconenterprises@gmail.com'
 ];
 
 /**
@@ -88,13 +90,35 @@ export async function fetchAdminEmergencyProfile(userId) {
 
     // 2. Direct Authenticated Fallback (Guaranteed to work in serverless/offline environments)
     try {
-        let userSnap = await get(ref(db, `users/${userId}`));
-        let profileSnap = await get(ref(db, `profiles/${userId}`));
-        let rawUser = userSnap.exists() ? userSnap.val() : null;
-        let rawProfile = profileSnap.exists() ? profileSnap.val() : null;
+        let rawUser = null;
+        let rawProfile = null;
+
+        if (!userId.includes('@')) {
+            const userSnap = await get(ref(db, `users/${userId}`));
+            const profileSnap = await get(ref(db, `profiles/${userId}`));
+            rawUser = userSnap.exists() ? userSnap.val() : null;
+            rawProfile = profileSnap.exists() ? profileSnap.val() : null;
+        } else {
+            const usersSnap = await get(ref(db, 'users'));
+            if (usersSnap.exists()) {
+                const allU = usersSnap.val();
+                const uMatch = Object.entries(allU).find(([k, u]) => u && u.email && u.email.toLowerCase() === userId.toLowerCase());
+                if (uMatch) {
+                    rawUser = { id: uMatch[0], ...uMatch[1] };
+                }
+            }
+            const profilesSnap = await get(ref(db, 'profiles'));
+            if (profilesSnap.exists()) {
+                const allP = profilesSnap.val();
+                const pMatch = Object.entries(allP).find(([k, p]) => p && p.email && p.email.toLowerCase() === userId.toLowerCase());
+                if (pMatch) {
+                    rawProfile = { id: pMatch[0], ...pMatch[1] };
+                }
+            }
+        }
 
         // If not found, try username lookup
-        if (!rawUser && !rawProfile) {
+        if (!rawUser && !rawProfile && !userId.includes('@')) {
             const userRegSnap = await get(ref(db, `usernames/${userId.toLowerCase()}`));
             if (userRegSnap.exists()) {
                 const regPath = userRegSnap.val();

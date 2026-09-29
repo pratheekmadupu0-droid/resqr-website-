@@ -8,7 +8,9 @@ const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
     'pratheekmadupu0@gmail.com',
     'resqr.official@gmail.com',
-    'admin@resqr.co.in'
+    'admin@resqr.co.in',
+    'siconentp@gmail.com',
+    'siconenterprises@gmail.com'
 ];
 
 // In-memory audit log for real-time inspection
@@ -130,13 +132,34 @@ export default async function handler(req, res) {
         let resolvedQrId = cleanTargetId;
 
         // 3. Retrieve user data from Firebase RTDB
-        // Try direct users/{cleanTargetId}
-        const userRes = await fetch(`${DB_URL}/users/${cleanTargetId}.json`);
-        userData = await userRes.json();
+        // Try direct users/{cleanTargetId} if not an email
+        if (!cleanTargetId.includes('@')) {
+            const userRes = await fetch(`${DB_URL}/users/${cleanTargetId}.json`);
+            userData = await userRes.json();
 
-        // Try direct profiles/{cleanTargetId}
-        const profRes = await fetch(`${DB_URL}/profiles/${cleanTargetId}.json`);
-        profileData = await profRes.json();
+            // Try direct profiles/{cleanTargetId}
+            const profRes = await fetch(`${DB_URL}/profiles/${cleanTargetId}.json`);
+            profileData = await profRes.json();
+        } else {
+            // Target is an email address, search both users and profiles
+            const allUsersRes = await fetch(`${DB_URL}/users.json`);
+            const allUsers = await allUsersRes.json();
+            if (allUsers) {
+                const uMatch = Object.entries(allUsers).find(([k, u]) => u && u.email && u.email.toLowerCase() === cleanTargetId.toLowerCase());
+                if (uMatch) {
+                    userData = { id: uMatch[0], ...uMatch[1] };
+                }
+            }
+            const allProfRes = await fetch(`${DB_URL}/profiles.json`);
+            const allProf = await allProfRes.json();
+            if (allProf) {
+                const pMatch = Object.entries(allProf).find(([k, p]) => p && p.email && p.email.toLowerCase() === cleanTargetId.toLowerCase());
+                if (pMatch) {
+                    profileData = { id: pMatch[0], ...pMatch[1] };
+                    resolvedQrId = pMatch[0];
+                }
+            }
+        }
 
         // If not found in users, but found in profiles, resolve user UID
         if (!userData && profileData) {
@@ -277,13 +300,11 @@ export default async function handler(req, res) {
         // registrationStatus == "COMPLETED" && paymentStatus == "SUCCESS" && serviceStatus == "ACTIVE" && emergencyProfileStatus == "ACTIVE"
         const targetEmail = (rawUser.email || rawProfile.email || subscription?.email || '').toLowerCase().trim();
         const isAdminAccount = Boolean(
-            (targetEmail && [
-                'pratheekmadupu2006@gmail.com',
-                'pratheekmadupu0@gmail.com',
-                'resqr.official@gmail.com',
-                'admin@resqr.co.in'
-            ].includes(targetEmail)) ||
-            rawUser.role === 'admin'
+            (targetEmail && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(targetEmail)) ||
+            rawUser.role === 'admin' ||
+            (rawUser.role === 'agent' && rawUser.status === 'approved') ||
+            rawProfile.id === 'jwala-shyam' ||
+            rawProfile.id === 'shyam-madupu'
         );
 
         const expiry = rawUser.serviceExpiryDate || rawProfile.serviceExpiryDate || rawProfile.subscriptionExpiresAt || subscription?.expiresAt || (isAdminAccount ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);

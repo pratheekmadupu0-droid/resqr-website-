@@ -84,31 +84,63 @@ export default function EmergencyPage() {
                 let actualPid = id;
                 let resolvedPath = null;
 
-                if (id.includes('_')) {
+                if (id.includes('@')) {
+                    try {
+                        const [uListSnap, pListSnap] = await Promise.all([
+                            get(ref(db, 'users')),
+                            get(ref(db, 'profiles'))
+                        ]);
+                        if (uListSnap.exists()) {
+                            const allU = uListSnap.val();
+                            for (const [uk, uv] of Object.entries(allU)) {
+                                if (uv && uv.email && uv.email.toLowerCase() === id.toLowerCase()) {
+                                    actualUid = uk;
+                                    break;
+                                }
+                            }
+                        }
+                        if (pListSnap.exists()) {
+                            const allP = pListSnap.val();
+                            for (const [pk, pv] of Object.entries(allP)) {
+                                if (pv && pv.email && pv.email.toLowerCase() === id.toLowerCase()) {
+                                    snap = { exists: () => true, val: () => pv };
+                                    actualPid = pk;
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (eEmail) {
+                        console.warn("Email scan resolution note:", eEmail);
+                    }
+                }
+
+                if (!snap && id.includes('_')) {
                     actualUid = id.startsWith('c_') ? id.replace('c_', '') : id.split('_')[0];
                     resolvedPath = `users/${actualUid}/profiles/${id}`;
                     snap = await get(ref(db, resolvedPath));
                 }
 
                 if (!snap || !snap.exists()) {
-                    const regSnap = await get(ref(db, `usernames/${id.toLowerCase()}`));
-                    if (regSnap.exists()) {
-                        const path = regSnap.val();
-                        resolvedPath = path.startsWith('users/') ? path : `users/${path}`;
-                        snap = await get(ref(db, resolvedPath));
-                        
-                        const parts = path.split('/');
-                        actualUid = parts[0] === 'users' ? parts[1] : parts[0];
-                        actualPid = parts[parts.length - 1];
+                    if (!id.includes('@')) {
+                        const regSnap = await get(ref(db, `usernames/${id.toLowerCase()}`));
+                        if (regSnap.exists()) {
+                            const path = regSnap.val();
+                            resolvedPath = path.startsWith('users/') ? path : `users/${path}`;
+                            snap = await get(ref(db, resolvedPath));
+                            
+                            const parts = path.split('/');
+                            actualUid = parts[0] === 'users' ? parts[1] : parts[0];
+                            actualPid = parts[parts.length - 1];
+                        }
                     }
                 }
 
-                if (!snap || !snap.exists()) {
+                if ((!snap || !snap.exists()) && !id.includes('@')) {
                     resolvedPath = `profiles/${id}`;
                     snap = await get(ref(db, resolvedPath));
                 }
 
-                if (!snap || !snap.exists()) {
+                if ((!snap || !snap.exists()) && !id.includes('@')) {
                     try {
                         const userSnap = await get(ref(db, `users/${id}`));
                         if (userSnap.exists()) {

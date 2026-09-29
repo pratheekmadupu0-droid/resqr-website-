@@ -292,7 +292,9 @@ export const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
     'pratheekmadupu0@gmail.com',
     'resqr.official@gmail.com',
-    'admin@resqr.co.in'
+    'admin@resqr.co.in',
+    'siconentp@gmail.com',
+    'siconenterprises@gmail.com'
 ];
 
 /**
@@ -306,7 +308,9 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
     const email = (u.email || p.email || s?.email || '').toLowerCase().trim();
     const isAdminAccount = Boolean(
         (email && ADMIN_EMAILS.includes(email)) ||
-        u.role === 'admin'
+        u.role === 'admin' ||
+        (u.role === 'agent' && u.status === 'approved') ||
+        (p && (p.id === 'jwala-shyam' || p.id === 'shyam-madupu'))
     );
 
     // Check expiration against current time

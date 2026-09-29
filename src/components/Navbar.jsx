@@ -4,13 +4,7 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { ref, get } from 'firebase/database';
-
-const ADMIN_EMAILS = [
-    'pratheekmadupu2006@gmail.com',
-    'pratheekmadupu0@gmail.com',
-    'resqr.official@gmail.com',
-    'admin@resqr.co.in'
-];
+import { ADMIN_EMAILS } from '../lib/subscriptionConfig';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
