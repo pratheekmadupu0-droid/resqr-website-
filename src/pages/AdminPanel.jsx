@@ -4345,15 +4345,23 @@ export default function AdminPanel() {
 
                                 <div className="flex items-center gap-1.5 text-slate-300">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Key ID:</span>
-                                    <span className="px-2 py-0.5 rounded-lg bg-white/5 font-mono text-[10px] text-slate-200 border border-white/5">
-                                        {connectionStatus?.keyIdMasked || 'Configured'}
+                                    <span className={`px-2 py-0.5 rounded-lg font-mono text-[10px] border ${
+                                        connectionStatus?.keyConfigured
+                                            ? 'bg-white/5 text-slate-200 border-white/5'
+                                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                    }`}>
+                                        {connectionStatus?.keyIdMasked || 'Not Configured'}
                                     </span>
                                 </div>
 
                                 <div className="flex items-center gap-1.5 text-slate-300">
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Secret:</span>
-                                    <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 font-mono text-[10px] text-emerald-400 border border-emerald-500/20 font-bold">
-                                        Configured
+                                    <span className={`px-2 py-0.5 rounded-lg font-mono text-[10px] font-bold border ${
+                                        connectionStatus?.secretConfigured
+                                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                    }`}>
+                                        {connectionStatus?.secretConfigured ? 'Configured' : 'Missing'}
                                     </span>
                                 </div>
 
@@ -4379,6 +4387,45 @@ export default function AdminPanel() {
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Setup Guidance Banner for Deployment Platform when credentials are not configured on server */}
+                        {connectionStatus && (!connectionStatus.keyConfigured || !connectionStatus.secretConfigured) && (
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-5 flex items-start gap-4">
+                                <AlertTriangle className="text-rose-400 shrink-0 mt-0.5" size={20} />
+                                <div className="text-xs space-y-2 flex-1">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-black text-rose-300 uppercase tracking-wide">
+                                            Deployment Environment Setup Required (Vercel)
+                                        </p>
+                                    </div>
+                                    <p className="text-slate-300 leading-relaxed">
+                                        Because API secrets are excluded from Git repositories for security, your cloud serverless backend (Vercel) requires you to add your new Razorpay credentials to the Vercel Dashboard.
+                                    </p>
+                                    <div className="bg-black/50 p-4 rounded-2xl border border-white/10 space-y-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                            Step 1: Open Vercel Dashboard &rarr; Project Settings &rarr; Environment Variables, and set:
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 font-mono text-[11px]">
+                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                                                <span className="text-amber-400 font-bold">RAZORPAY_KEY_ID</span>: <span className="text-white">rzp_live_ThrOENs4KvWiGI</span>
+                                            </div>
+                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                                                <span className="text-amber-400 font-bold">RAZORPAY_KEY_SECRET</span>: <span className="text-slate-400">[Value from CSV]</span>
+                                            </div>
+                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                                                <span className="text-amber-400 font-bold">VITE_RAZORPAY_KEY_ID</span>: <span className="text-white">rzp_live_ThrOENs4KvWiGI</span>
+                                            </div>
+                                            <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                                                <span className="text-amber-400 font-bold">RAZORPAY_WEBHOOK_SECRET</span>: <span className="text-white">resqr_webhook_secret_secure_2026</span>
+                                            </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 pt-1">
+                                            Step 2: Go to <strong>Deployments</strong> &rarr; Click <strong>Redeploy</strong> on your latest deployment so the new variables take effect.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Executive Telemetry KPI Cards */}
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
