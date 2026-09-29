@@ -1861,13 +1861,13 @@ export default function AdminPanel() {
                                                 <div className="flex items-center gap-3">
                                                     {profile && (
                                                         <Link
-                                                            to={`/e/${profile.id}`}
+                                                            to={`/admin/users/${profile.id || user.id}/emergency-profile`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="p-3 text-slate-500 hover:text-primary bg-slate-950 rounded-xl border border-white/5 transition-all"
-                                                            title="View QR Profile"
+                                                            title="View Emergency Profile (Direct Admin Access - No Face ID)"
                                                         >
-                                                            <ExternalLink size={16} />
+                                                            <Eye size={16} />
                                                         </Link>
                                                     )}
                                                     <Badge className="bg-green-500/10 text-green-500 border-none font-black italic tracking-widest text-[8px] px-3">ACTIVE</Badge>
@@ -2227,17 +2227,15 @@ export default function AdminPanel() {
                                                             >
                                                                 <ShieldCheck size={18} className="text-blue-400" />
                                                             </button>
-                                                            {profile && (
-                                                                <Link
-                                                                    to={`/e/${profile.id}`}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
-                                                                    title="View QR Profile"
-                                                                >
-                                                                    <ExternalLink size={18} className="text-primary" />
-                                                                </Link>
-                                                            )}
+                                                            <Link
+                                                                to={`/admin/users/${user.id || (profile && profile.id)}/emergency-profile`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
+                                                                title="View Emergency Profile (Direct Admin Access - No Face ID)"
+                                                            >
+                                                                <Eye size={18} className="text-primary" />
+                                                            </Link>
                                                             {profile ? (
                                                                 <button
                                                                     className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
@@ -2359,13 +2357,13 @@ export default function AdminPanel() {
                                             <td className="px-10 py-8 text-right">
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <Link
-                                                        to={`/e/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}`}
+                                                        to={`/admin/users/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}/emergency-profile`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
-                                                        title="View QR Profile"
+                                                        title="View Emergency Profile (Direct Admin Access - No Face ID)"
                                                     >
-                                                        <ExternalLink size={18} className="text-primary" />
+                                                        <Eye size={18} className="text-primary" />
                                                     </Link>
                                                     <button
                                                         className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
@@ -5082,10 +5080,18 @@ export default function AdminPanel() {
                             </div>
                         </div>
 
-                        <div className="mt-8 flex justify-end">
+                        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <Link
+                                to={`/admin/users/${selectedUserForAuthModal.id || selectedUserForAuthModal.uid}/emergency-profile`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-primary hover:bg-primary-dark text-white font-black italic uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all cursor-pointer"
+                            >
+                                <Eye size={16} /> View Emergency Profile (Direct Admin Access)
+                            </Link>
                             <Button
                                 onClick={() => setSelectedUserForAuthModal(null)}
-                                className="h-14 px-8 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black italic uppercase tracking-widest text-[10px]"
+                                className="w-full sm:w-auto h-14 px-8 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/10 font-black italic uppercase tracking-widest text-[10px]"
                             >
                                 Close Inspector
                             </Button>

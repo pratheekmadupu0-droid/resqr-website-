@@ -22,6 +22,15 @@ function apiMiddlewarePlugin() {
             modulePath = './api/webhooks/razorpay.js';
           } else if (pathname === '/api/verify') {
             modulePath = './api/verify.js';
+          } else if (pathname === '/api/admin/emergency-profile') {
+            modulePath = './api/admin/emergency-profile.js';
+          } else if (pathname.startsWith('/api/admin/users/') && pathname.endsWith('/emergency-profile')) {
+            const match = pathname.match(/^\/api\/admin\/users\/([^/]+)\/emergency-profile$/);
+            if (match) {
+              req.params = { userId: match[1] };
+              urlObj.searchParams.set('userId', match[1]);
+            }
+            modulePath = './api/admin/emergency-profile.js';
           }
 
           if (!modulePath) return next();

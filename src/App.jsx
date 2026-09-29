@@ -25,6 +25,7 @@ const SuccessPage = lazy(() => import('./pages/SuccessPage'));
 const EmergencyPage = lazy(() => import('./pages/EmergencyPage'));
 const QRScanPage = lazy(() => import('./pages/QRScanPage'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const AdminEmergencyProfilePage = lazy(() => import('./pages/AdminEmergencyProfilePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CreateIdentity = lazy(() => import('./pages/CreateIdentity'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
@@ -148,6 +149,7 @@ function App() {
                         <Route path="/e/:id" element={<EmergencyPage />} />
                         <Route path="/qr/:profileId" element={<QRScanPage />} />
                         <Route path="/admin" element={<AdminErrorBoundary><AdminPanel /></AdminErrorBoundary>} />
+                        <Route path="/admin/users/:userId/emergency-profile" element={<AdminErrorBoundary><AdminEmergencyProfilePage /></AdminErrorBoundary>} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/contact" element={<ContactUs />} />
                         <Route path="/p/:username" element={<QRScanPage />} />
