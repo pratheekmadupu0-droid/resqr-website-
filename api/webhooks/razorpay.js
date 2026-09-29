@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { getEnvWebhookSecret } from '../lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -29,7 +30,7 @@ export default async function handler(req, res) {
     }
 
     const webhookSignature = req.headers['x-razorpay-signature'];
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const webhookSecret = getEnvWebhookSecret();
 
     if (!webhookSignature || !webhookSecret) {
         return res.status(400).json({ error: 'Missing Razorpay webhook signature or server webhook secret' });

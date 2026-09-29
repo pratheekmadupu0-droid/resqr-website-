@@ -55,6 +55,12 @@ export default async function handler(req, res) {
     }
 
     try {
+        if (res.setHeader) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+        }
+
         const forceRefresh = req.method === 'POST' || req.query?.refresh === 'true';
         const result = await testRazorpayConnection(forceRefresh);
 
@@ -68,6 +74,10 @@ export default async function handler(req, res) {
                 secretConfigured: result.secretConfigured,
                 lastSuccessfulConnection: result.timestamp,
                 message: result.message,
+                diagnostics: result.diagnostics || {
+                    runtime: process.env.VERCEL ? 'Vercel Serverless Function' : 'Node.js Local Server',
+                    vercelEnv: process.env.VERCEL_ENV || (process.env.VERCEL ? 'production' : 'local')
+                },
                 testedBy: adminEmail
             });
         } else {
@@ -81,6 +91,10 @@ export default async function handler(req, res) {
                 error: result.error,
                 message: result.message,
                 timestamp: result.timestamp,
+                diagnostics: result.diagnostics || {
+                    runtime: process.env.VERCEL ? 'Vercel Serverless Function' : 'Node.js Local Server',
+                    vercelEnv: process.env.VERCEL_ENV || (process.env.VERCEL ? 'production' : 'local')
+                },
                 testedBy: adminEmail
             });
         }

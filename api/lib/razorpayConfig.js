@@ -72,6 +72,45 @@ function readCsvCredentials() {
     return null;
 }
 
+/**
+ * Safely extracts Key ID from environment with alias and whitespace/quote stripping
+ */
+export function getEnvKeyId() {
+    const raw = process.env.RAZORPAY_KEY_ID 
+        || process.env.VITE_RAZORPAY_KEY_ID 
+        || process.env.RAZORPAY_KEY 
+        || process.env.RAZORPAY_API_KEY 
+        || process.env.RZP_KEY_ID
+        || process.env.RAZOR_PAY_KEY_ID
+        || '';
+    return typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
+}
+
+/**
+ * Safely extracts Key Secret from environment with alias and whitespace/quote stripping
+ */
+export function getEnvKeySecret() {
+    const raw = process.env.RAZORPAY_KEY_SECRET 
+        || process.env.RAZORPAY_SECRET 
+        || process.env.RAZORPAY_API_SECRET 
+        || process.env.RAZORPAY_SECRET_KEY 
+        || process.env.RZP_KEY_SECRET
+        || process.env.RAZOR_PAY_KEY_SECRET
+        || '';
+    return typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
+}
+
+/**
+ * Safely extracts Webhook Secret with alias and whitespace/quote stripping
+ */
+export function getEnvWebhookSecret() {
+    const raw = process.env.RAZORPAY_WEBHOOK_SECRET
+        || process.env.RAZORPAY_WEBHOOK
+        || process.env.RZP_WEBHOOK_SECRET
+        || '';
+    return typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
+}
+
 let cachedWorkingPair = null;
 
 /**
@@ -79,17 +118,17 @@ let cachedWorkingPair = null;
  * Section 3: Environment Validation
  */
 export function validateRazorpayConfig() {
-    const envKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
-    const envKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    const envKeyId = getEnvKeyId();
+    const envKeySecret = getEnvKeySecret();
     const csvCreds = readCsvCredentials();
 
     const keyId = envKeyId || csvCreds?.keyId || '';
     const keySecret = envKeySecret || csvCreds?.keySecret || '';
-    const source = envKeyId && envKeySecret ? 'process.env / .env' : (csvCreds ? csvCreds.source : 'none');
+    const source = envKeyId && envKeySecret ? (process.env.VERCEL ? 'Vercel Environment Variables' : 'process.env / .env') : (csvCreds ? csvCreds.source : 'none');
 
-    const keyConfigured = Boolean(keyId && keyId.trim().length > 0);
-    const secretConfigured = Boolean(keySecret && keySecret.trim().length > 0);
-    const webhookConfigured = Boolean(process.env.RAZORPAY_WEBHOOK_SECRET && process.env.RAZORPAY_WEBHOOK_SECRET.trim().length > 0);
+    const keyConfigured = Boolean(keyId && keyId.length > 0);
+    const secretConfigured = Boolean(keySecret && keySecret.length > 0);
+    const webhookConfigured = Boolean(getEnvWebhookSecret().length > 0);
 
     const isLive = keyId.startsWith('rzp_live_');
     const isTest = keyId.startsWith('rzp_test_');
@@ -163,11 +202,11 @@ export function validateRazorpayConfig() {
 function getCandidatePairs() {
     const candidates = [];
 
-    // Candidate A: .env / process.env
-    const envKeyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
-    const envKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    // Candidate A: .env / process.env / Vercel
+    const envKeyId = getEnvKeyId();
+    const envKeySecret = getEnvKeySecret();
     if (envKeyId && envKeySecret) {
-        candidates.push({ keyId: envKeyId.trim(), keySecret: envKeySecret.trim(), source: '.env' });
+        candidates.push({ keyId: envKeyId, keySecret: envKeySecret, source: process.env.VERCEL ? 'Vercel Environment' : '.env' });
     }
 
     // Candidate B: CSV file (e.g. rzp-key (1).csv)
@@ -208,16 +247,34 @@ export async function testRazorpayConnection(forceRefresh = false) {
     const candidates = getCandidatePairs();
 
     if (candidates.length === 0) {
+        const envKeyId = getEnvKeyId();
+        const envKeySecret = getEnvKeySecret();
+        const keyConfigured = Boolean(envKeyId);
+        const secretConfigured = Boolean(envKeySecret);
+        const detectedEnvNames = Object.keys(process.env).filter(k => 
+            k.toUpperCase().includes('RAZOR') || 
+            k.toUpperCase().includes('RZP')
+        );
+
         return {
             success: false,
             status: 'Error',
             error: 'MISSING_CONFIGURATION',
-            message: 'Razorpay configuration is missing on the server. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.',
-            keyConfigured: false,
-            secretConfigured: false,
-            mode: 'UNKNOWN',
-            keyIdMasked: 'Not Configured',
-            timestamp: new Date().toISOString()
+            message: !keyConfigured && !secretConfigured 
+                ? 'Razorpay configuration is incomplete on the server. Neither Key ID nor Key Secret is configured.'
+                : !keyConfigured 
+                ? 'Razorpay Key ID is missing in the server configuration.'
+                : 'Razorpay Key Secret is missing on the server.',
+            keyConfigured,
+            secretConfigured,
+            mode: envKeyId.startsWith('rzp_live_') ? 'LIVE' : (envKeyId.startsWith('rzp_test_') ? 'TEST' : 'UNKNOWN'),
+            keyIdMasked: keyConfigured ? maskKeyId(envKeyId) : 'Not Configured',
+            timestamp: new Date().toISOString(),
+            diagnostics: {
+                runtime: process.env.VERCEL ? 'Vercel Serverless Function' : 'Node.js Local Server',
+                vercelEnv: process.env.VERCEL_ENV || (process.env.VERCEL ? 'production' : 'local'),
+                detectedKeys: detectedEnvNames
+            }
         };
     }
 
