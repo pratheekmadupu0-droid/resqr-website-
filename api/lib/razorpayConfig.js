@@ -80,8 +80,11 @@ export function getEnvKeyId() {
         || process.env.VITE_RAZORPAY_KEY_ID 
         || process.env.RAZORPAY_KEY 
         || process.env.RAZORPAY_API_KEY 
+        || process.env.RAZORPAY_KEYID
         || process.env.RZP_KEY_ID
+        || process.env.RZP_KEY
         || process.env.RAZOR_PAY_KEY_ID
+        || process.env.KEY_ID
         || '';
     return typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
 }
@@ -94,8 +97,12 @@ export function getEnvKeySecret() {
         || process.env.RAZORPAY_SECRET 
         || process.env.RAZORPAY_API_SECRET 
         || process.env.RAZORPAY_SECRET_KEY 
+        || process.env.RAZORPAY_KEYSECRET
+        || process.env.RAZORPAY_SECRETKEY
         || process.env.RZP_KEY_SECRET
+        || process.env.RZP_SECRET
         || process.env.RAZOR_PAY_KEY_SECRET
+        || process.env.KEY_SECRET
         || '';
     return typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
 }
@@ -253,7 +260,9 @@ export async function testRazorpayConnection(forceRefresh = false) {
         const secretConfigured = Boolean(envKeySecret);
         const detectedEnvNames = Object.keys(process.env).filter(k => 
             k.toUpperCase().includes('RAZOR') || 
-            k.toUpperCase().includes('RZP')
+            k.toUpperCase().includes('RZP') ||
+            k.toUpperCase().includes('KEY') ||
+            k.toUpperCase().includes('SECRET')
         );
 
         return {
