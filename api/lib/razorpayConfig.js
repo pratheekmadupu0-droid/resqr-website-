@@ -44,8 +44,10 @@ function readCsvCredentials() {
     try {
         const cwd = process.cwd();
         const candidateFiles = [
-            path.join(cwd, 'rzp-key (1).csv'),
-            path.join(cwd, 'rzp-key.csv')
+            path.join(cwd, 'razor pay api keys .csv'),
+            path.join(cwd, 'razor-pay-api-keys.csv'),
+            path.join(cwd, 'rzp-key.csv'),
+            path.join(cwd, 'rzp-key (1).csv')
         ];
 
         for (const filePath of candidateFiles) {
@@ -185,6 +187,9 @@ function getCandidatePairs() {
  * Section 6: Test Razorpay Connection
  */
 export async function testRazorpayConnection(forceRefresh = false) {
+    if (forceRefresh) {
+        cachedWorkingPair = null;
+    }
     if (!forceRefresh && cachedWorkingPair) {
         return {
             success: true,

@@ -57,7 +57,7 @@ export default function DemoRazorpayModal({
 
     const effectiveUserId = userId || auth.currentUser?.uid || 'temp_user';
     const effectiveQrId = qrId || `c_${effectiveUserId}`;
-    const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TdeJyUV9tLfxvJ";
+    const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_ThrOENs4KvWiGI";
 
     useEffect(() => {
         if (!isOpen) {
