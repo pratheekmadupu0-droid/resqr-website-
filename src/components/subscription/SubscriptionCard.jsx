@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     QrCode, Calendar, Clock, RefreshCw, AlertTriangle, ShieldCheck, 
-    CheckCircle2, CreditCard, ChevronDown, ChevronUp, ExternalLink, Download
+    CheckCircle2, CreditCard, ChevronDown, ChevronUp, ExternalLink, Download, Receipt
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { calculateSubscriptionStatus } from '../../lib/subscriptionConfig';
 import { getPaymentHistory } from '../../lib/subscriptionApi';
+import PaymentReceiptModal from '../common/PaymentReceiptModal';
 
 export default function SubscriptionCard({
     subscription,
@@ -19,6 +20,7 @@ export default function SubscriptionCard({
     const [showHistory, setShowHistory] = useState(false);
     const [history, setHistory] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
+    const [receiptPayment, setReceiptPayment] = useState(null);
 
     const statusInfo = calculateSubscriptionStatus(subscription);
     const userName = (activeProfile?.name || activeProfile?.data?.name || 'REGISTERED HOLDER').toUpperCase();
@@ -189,6 +191,30 @@ export default function SubscriptionCard({
                             {statusInfo.isExpired ? 'RENEW NOW' : statusInfo.isExpiringSoon ? 'RENEW NOW' : 'RENEW / UPGRADE QR'}
                         </Button>
 
+                        {subscription?.paymentId && (
+                            <button
+                                type="button"
+                                onClick={() => setReceiptPayment({
+                                    paymentId: subscription.paymentId,
+                                    orderId: subscription.orderId,
+                                    amount: subscription.amount || 149,
+                                    planName: subscription.planName || 'RESQR Emergency Plan',
+                                    userName: activeProfile?.name || activeProfile?.data?.name,
+                                    userEmail: activeProfile?.email || activeProfile?.data?.email,
+                                    userPhone: activeProfile?.phone || activeProfile?.data?.phone,
+                                    userId: subscription.userId,
+                                    qrId: subscription.qrId || qrId,
+                                    paidAt: subscription.activatedAt,
+                                    subscriptionStartDate: subscription.activatedAt,
+                                    subscriptionExpiryDate: subscription.expiresAt
+                                })}
+                                className="w-full sm:w-auto px-5 py-4 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <Receipt size={14} />
+                                View Receipt
+                            </button>
+                        )}
+
                         <button
                             type="button"
                             onClick={() => setShowHistory(!showHistory)}
@@ -226,9 +252,31 @@ export default function SubscriptionCard({
                                             <p className="font-bold text-white">{subscription.planName || '3 Months Registration'}</p>
                                             <p className="text-[10px] text-slate-400">Payment ID: {subscription.paymentId}</p>
                                         </div>
-                                        <div className="text-right">
-                                            <span className="text-emerald-400 font-bold">₹{subscription.amount || 149} SUCCESSFUL</span>
-                                            <p className="text-[10px] text-slate-400">{new Date(subscription.activatedAt || Date.now()).toLocaleDateString('en-IN')}</p>
+                                        <div className="text-right flex items-center gap-3">
+                                            <div>
+                                                <span className="text-emerald-400 font-bold">₹{subscription.amount || 149} SUCCESSFUL</span>
+                                                <p className="text-[10px] text-slate-400">{new Date(subscription.activatedAt || Date.now()).toLocaleDateString('en-IN')}</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReceiptPayment({
+                                                    paymentId: subscription.paymentId,
+                                                    orderId: subscription.orderId,
+                                                    amount: subscription.amount || 149,
+                                                    planName: subscription.planName,
+                                                    userName: activeProfile?.name || activeProfile?.data?.name,
+                                                    userEmail: activeProfile?.email,
+                                                    userPhone: activeProfile?.phone,
+                                                    userId: subscription.userId,
+                                                    qrId: subscription.qrId || qrId,
+                                                    paidAt: subscription.activatedAt,
+                                                    subscriptionStartDate: subscription.activatedAt,
+                                                    subscriptionExpiryDate: subscription.expiresAt
+                                                })}
+                                                className="text-[10px] font-bold text-primary hover:underline"
+                                            >
+                                                Receipt
+                                            </button>
                                         </div>
                                     </div>
                                 ) : (
@@ -256,13 +304,35 @@ export default function SubscriptionCard({
                                             </p>
                                         </div>
 
-                                        <div className="text-left sm:text-right">
-                                            <span className="text-base font-black italic text-emerald-400 font-poppins">
-                                                ₹{item.amount?.toLocaleString('en-IN') || '0'}
-                                            </span>
-                                            <p className="text-[10px] text-slate-400">
-                                                {item.timestamp ? new Date(item.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Verified'}
-                                            </p>
+                                        <div className="text-left sm:text-right flex items-center gap-4">
+                                            <div>
+                                                <span className="text-base font-black italic text-emerald-400 font-poppins">
+                                                    ₹{item.amount?.toLocaleString('en-IN') || '0'}
+                                                </span>
+                                                <p className="text-[10px] text-slate-400">
+                                                    {item.timestamp ? new Date(item.timestamp).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Verified'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReceiptPayment({
+                                                    paymentId: item.paymentId,
+                                                    orderId: item.orderId,
+                                                    amount: item.amount,
+                                                    planName: item.planName,
+                                                    userName: item.userName || activeProfile?.name || activeProfile?.data?.name,
+                                                    userEmail: item.userEmail || activeProfile?.email,
+                                                    userPhone: item.userPhone || activeProfile?.phone,
+                                                    userId: item.userId || subscription?.userId,
+                                                    qrId: item.qrId || qrId,
+                                                    paidAt: item.paidAt || item.timestamp,
+                                                    subscriptionStartDate: item.subscriptionStartDate || item.timestamp,
+                                                    subscriptionExpiryDate: item.subscriptionExpiryDate
+                                                })}
+                                                className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-[10px] font-bold text-slate-300 uppercase tracking-wider transition-colors"
+                                            >
+                                                Receipt
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -271,6 +341,13 @@ export default function SubscriptionCard({
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Receipt Modal */}
+            <PaymentReceiptModal
+                isOpen={!!receiptPayment}
+                onClose={() => setReceiptPayment(null)}
+                paymentData={receiptPayment}
+            />
         </div>
     );
 }

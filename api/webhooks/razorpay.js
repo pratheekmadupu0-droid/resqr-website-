@@ -1,0 +1,279 @@
+import crypto from 'crypto';
+
+const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+const PLAN_CATALOG = {
+    initial_3m: { name: 'RESQR Registration + 2 QR Stickers', amount: 149, durationMonths: 3, type: 'registration' },
+    renewal_3m: { name: '3 Months Renewal', amount: 299, durationMonths: 3, type: 'renewal' },
+    renewal_6m: { name: '6 Months Renewal', amount: 599, durationMonths: 6, type: 'renewal' },
+    renewal_12m: { name: '12 Months Renewal', amount: 1199, durationMonths: 12, type: 'renewal' },
+    renewal_18m: { name: '18 Months Renewal', amount: 1799, durationMonths: 18, type: 'renewal' },
+    renewal_24m: { name: '24 Months Renewal', amount: 2399, durationMonths: 24, type: 'renewal' }
+};
+
+function addMonths(date, months) {
+    const d = new Date(date);
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + months);
+    if (d.getDate() !== day) {
+        d.setDate(0);
+    }
+    return d;
+}
+
+const processedEventsSet = new Set();
+
+export default async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    const webhookSignature = req.headers['x-razorpay-signature'];
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+    if (!webhookSignature || !webhookSecret) {
+        return res.status(400).json({ error: 'Missing Razorpay webhook signature or server webhook secret' });
+    }
+
+    // 1. Validate Razorpay Webhook HMAC SHA-256 Signature (Section 6)
+    const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+    const expectedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+    if (expectedSignature !== webhookSignature) {
+        console.warn('Unauthorized webhook signature mismatch');
+        return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    const eventData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const eventType = eventData.event;
+    const eventId = req.headers['x-razorpay-event-id'] || eventData.id || `evt_${Date.now()}`;
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    try {
+        // 2. Anti-Replay / Idempotency Check (Section 6 & 16)
+        if (processedEventsSet.has(eventId)) {
+            return res.status(200).json({ status: 'ok', duplicate: true, message: 'Event already processed' });
+        }
+        processedEventsSet.add(eventId);
+
+        const checkEventUrl = `${DB_URL}/webhookEvents/${eventId}.json`;
+        try {
+            const evtRes = await fetch(checkEventUrl);
+            const existingEvent = await evtRes.json();
+            if (existingEvent && existingEvent.processed) {
+                return res.status(200).json({ status: 'ok', duplicate: true, message: 'Event already processed' });
+            }
+        } catch (e) {}
+        // Record incoming event to ensure idempotency
+        await fetch(checkEventUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                eventId,
+                eventType,
+                processed: true,
+                receivedAt: nowIso
+            })
+        });
+
+        // 3. Process Event Types
+        if (eventType === 'payment.captured' || eventType === 'order.paid') {
+            const paymentEntity = eventData.payload?.payment?.entity || {};
+            const orderEntity = eventData.payload?.order?.entity || {};
+
+            const paymentId = paymentEntity.id;
+            const orderId = paymentEntity.order_id || orderEntity.id;
+            const notes = paymentEntity.notes || orderEntity.notes || {};
+
+            let userId = notes.userId;
+            let qrId = notes.qrId;
+            let planId = notes.planId || 'initial_3m';
+
+            // If notes missing, try to find from paymentAttempts
+            if (!userId && orderId) {
+                try {
+                    const attemptRes = await fetch(`${DB_URL}/paymentAttempts/${orderId}.json`);
+                    const attemptData = await attemptRes.json();
+                    if (attemptData) {
+                        userId = attemptData.userId;
+                        qrId = attemptData.qrId;
+                        planId = attemptData.planId || planId;
+                    }
+                } catch (e) {}
+            }
+
+            if (!userId || !qrId) {
+                console.warn('Webhook received payment but could not resolve user/qr context:', orderId);
+                return res.status(200).json({ status: 'ok', warning: 'Context missing' });
+            }
+
+            const cleanUserId = String(userId).trim();
+            const cleanQrId = String(qrId).trim();
+            const plan = PLAN_CATALOG[planId] || PLAN_CATALOG.initial_3m;
+
+            // Fetch existing subscription
+            let existingSub = null;
+            try {
+                const subRes = await fetch(`${DB_URL}/subscriptions/${cleanQrId}.json`);
+                existingSub = await subRes.json();
+            } catch (e) {}
+
+            let newExpiryDate;
+            const existingExpiresAt = existingSub?.expiresAt ? new Date(existingSub.expiresAt) : null;
+            if (existingExpiresAt && !isNaN(existingExpiresAt.getTime()) && existingExpiresAt.getTime() > now.getTime()) {
+                newExpiryDate = addMonths(existingExpiresAt, plan.durationMonths);
+            } else {
+                newExpiryDate = addMonths(now, plan.durationMonths);
+            }
+            const newExpiryIso = newExpiryDate.toISOString();
+            const activatedAtIso = existingSub?.activatedAt || nowIso;
+            const receiptNumber = `REC-${cleanUserId.slice(-4).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+
+            const paymentRecord = {
+                paymentId,
+                userId: cleanUserId,
+                userName: notes.userName || paymentEntity.contact || '',
+                userEmail: paymentEntity.email || '',
+                userPhone: paymentEntity.contact || '',
+                qrId: cleanQrId,
+                razorpayOrderId: orderId,
+                razorpayPaymentId: paymentId,
+                planId,
+                planName: plan.name,
+                amount: (paymentEntity.amount ? paymentEntity.amount / 100 : plan.amount),
+                currency: 'INR',
+                status: 'SUCCESS',
+                createdAt: nowIso,
+                updatedAt: nowIso,
+                paidAt: nowIso,
+                paymentMethod: paymentEntity.method || 'razorpay',
+                receiptNumber,
+                subscriptionStartDate: activatedAtIso,
+                subscriptionExpiryDate: newExpiryIso,
+                webhookVerified: true,
+                signatureVerified: true,
+                type: plan.type
+            };
+
+            const subscriptionRecord = {
+                id: `sub_${cleanQrId}`,
+                userId: cleanUserId,
+                qrId: cleanQrId,
+                planId,
+                planName: plan.name,
+                durationMonths: plan.durationMonths,
+                amount: paymentRecord.amount,
+                currency: 'INR',
+                status: 'ACTIVE',
+                activatedAt: activatedAtIso,
+                expiresAt: newExpiryIso,
+                paymentId,
+                orderId,
+                paymentStatus: 'paid',
+                createdAt: existingSub?.createdAt || nowIso,
+                updatedAt: nowIso,
+                renewedAt: nowIso,
+                renewalCount: (existingSub?.renewalCount || 0) + (plan.type === 'registration' ? 0 : 1)
+            };
+
+            const updates = {
+                [`payments/${paymentId}`]: paymentRecord,
+                [`paymentHistory/${paymentId}`]: {
+                    ...paymentRecord,
+                    status: 'SUCCESSFUL',
+                    epoch: now.getTime()
+                },
+                [`subscriptions/${cleanQrId}`]: subscriptionRecord,
+                [`users/${cleanUserId}/subscription`]: subscriptionRecord,
+                [`users/${cleanUserId}/profiles/${cleanQrId}/subscription`]: subscriptionRecord,
+                [`profiles/${cleanQrId}/subscription`]: subscriptionRecord,
+                [`profiles/${cleanQrId}/payment_status`]: 'paid',
+                [`profiles/${cleanQrId}/payment_id`]: paymentId,
+                [`profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
+                [`profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso,
+                [`users/${cleanUserId}/profiles/${cleanQrId}/payment_status`]: 'paid',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/payment_id`]: paymentId,
+                [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
+                [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso
+            };
+
+            if (orderId) {
+                updates[`paymentAttempts/${orderId}/status`] = 'SUCCESS';
+                updates[`paymentAttempts/${orderId}/razorpayPaymentId`] = paymentId;
+                updates[`paymentAttempts/${orderId}/updatedAt`] = nowIso;
+            }
+
+            await fetch(`${DB_URL}/.json`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates)
+            });
+
+            return res.status(200).json({ status: 'ok', action: 'ACTIVATED_OR_EXTENDED', paymentId });
+        } else if (eventType === 'payment.failed') {
+            const paymentEntity = eventData.payload?.payment?.entity || {};
+            const orderId = paymentEntity.order_id;
+            const paymentId = paymentEntity.id;
+            const failureReason = paymentEntity.error_description || 'Payment Failed';
+
+            const failureRecord = {
+                paymentId: paymentId || `failed_${Date.now()}`,
+                razorpayOrderId: orderId || null,
+                razorpayPaymentId: paymentId || null,
+                status: 'FAILED',
+                failureReason,
+                updatedAt: nowIso,
+                createdAt: nowIso
+            };
+
+            const updates = {};
+            if (paymentId) updates[`payments/${paymentId}`] = failureRecord;
+            if (orderId) {
+                updates[`paymentAttempts/${orderId}/status`] = 'FAILED';
+                updates[`paymentAttempts/${orderId}/failureReason`] = failureReason;
+                updates[`paymentAttempts/${orderId}/updatedAt`] = nowIso;
+            }
+
+            if (Object.keys(updates).length > 0) {
+                await fetch(`${DB_URL}/.json`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+            }
+
+            return res.status(200).json({ status: 'ok', action: 'FAILED_RECORDED' });
+        } else if (eventType === 'refund.processed' || eventType === 'refund.created') {
+            const refundEntity = eventData.payload?.refund?.entity || {};
+            const paymentId = refundEntity.payment_id;
+
+            if (paymentId) {
+                const updates = {
+                    [`payments/${paymentId}/status`]: 'REFUNDED',
+                    [`payments/${paymentId}/refundId`]: refundEntity.id,
+                    [`payments/${paymentId}/refundAmount`]: refundEntity.amount ? refundEntity.amount / 100 : 0,
+                    [`payments/${paymentId}/refundAt`]: nowIso,
+                    [`payments/${paymentId}/updatedAt`]: nowIso
+                };
+
+                await fetch(`${DB_URL}/.json`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+            }
+
+            return res.status(200).json({ status: 'ok', action: 'REFUND_RECORDED' });
+        }
+
+        return res.status(200).json({ status: 'ok', received: true });
+    } catch (err) {
+        console.error('Razorpay Webhook execution error:', err);
+        return res.status(500).json({ error: 'Webhook processing error', message: err.message });
+    }
+}

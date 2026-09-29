@@ -239,3 +239,66 @@ export function calculateSubscriptionStatus(subscription, now = new Date()) {
  * Notification thresholds in days before expiry
  */
 export const REMINDER_THRESHOLDS_DAYS = [30, 15, 7, 3, 1];
+
+/**
+ * Standard Payment Lifecycle Statuses (Section 5)
+ */
+export const PAYMENT_STATUS = {
+    PENDING: 'PENDING',
+    PROCESSING: 'PROCESSING',
+    SUCCESS: 'SUCCESS',
+    FAILED: 'FAILED',
+    CANCELLED: 'CANCELLED',
+    REFUNDED: 'REFUNDED',
+    PARTIALLY_REFUNDED: 'PARTIALLY_REFUNDED',
+    EXPIRED: 'EXPIRED'
+};
+
+/**
+ * Helper to get status badge styling for payments
+ */
+export function getPaymentStatusBadge(status) {
+    const s = String(status || '').toUpperCase();
+    switch (s) {
+        case 'SUCCESS':
+        case 'PAID':
+        case 'SUCCESSFUL':
+            return {
+                label: 'SUCCESS',
+                className: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+                dotClass: 'bg-emerald-400'
+            };
+        case 'PENDING':
+        case 'PROCESSING':
+            return {
+                label: s || 'PENDING',
+                className: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
+                dotClass: 'bg-amber-400'
+            };
+        case 'FAILED':
+            return {
+                label: 'FAILED',
+                className: 'bg-rose-500/10 text-rose-400 border border-rose-500/20',
+                dotClass: 'bg-rose-400'
+            };
+        case 'CANCELLED':
+            return {
+                label: 'CANCELLED',
+                className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+                dotClass: 'bg-slate-400'
+            };
+        case 'REFUNDED':
+        case 'PARTIALLY_REFUNDED':
+            return {
+                label: s.replace('_', ' '),
+                className: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
+                dotClass: 'bg-purple-400'
+            };
+        default:
+            return {
+                label: s || 'UNKNOWN',
+                className: 'bg-slate-500/10 text-slate-400 border border-slate-500/20',
+                dotClass: 'bg-slate-400'
+            };
+    }
+}

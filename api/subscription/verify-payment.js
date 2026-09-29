@@ -3,12 +3,12 @@ import crypto from 'crypto';
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 const PLAN_CATALOG = {
-    initial_3m: { name: 'RESQR Registration + 2 QR Stickers', amount: 149, durationMonths: 3, isRegistration: true },
-    renewal_3m: { name: '3 Months Renewal', amount: 299, durationMonths: 3, isRegistration: false },
-    renewal_6m: { name: '6 Months Renewal', amount: 599, durationMonths: 6, isRegistration: false },
-    renewal_12m: { name: '12 Months Renewal', amount: 1199, durationMonths: 12, isRegistration: false },
-    renewal_18m: { name: '18 Months Renewal', amount: 1799, durationMonths: 18, isRegistration: false },
-    renewal_24m: { name: '24 Months Renewal', amount: 2399, durationMonths: 24, isRegistration: false }
+    initial_3m: { name: 'RESQR Registration + 2 QR Stickers', amount: 149, durationMonths: 3, type: 'registration' },
+    renewal_3m: { name: '3 Months Renewal', amount: 299, durationMonths: 3, type: 'renewal' },
+    renewal_6m: { name: '6 Months Renewal', amount: 599, durationMonths: 6, type: 'renewal' },
+    renewal_12m: { name: '12 Months Renewal', amount: 1199, durationMonths: 12, type: 'renewal' },
+    renewal_18m: { name: '18 Months Renewal', amount: 1799, durationMonths: 18, type: 'renewal' },
+    renewal_24m: { name: '24 Months Renewal', amount: 2399, durationMonths: 24, type: 'renewal' }
 };
 
 function addMonths(date, months) {
@@ -30,14 +30,19 @@ export default async function handler(req, res) {
         razorpay_payment_id,
         razorpay_order_id,
         razorpay_signature,
-        orderToken,
         userId,
         qrId,
-        planId = 'initial_3m'
+        planId = 'initial_3m',
+        userName = '',
+        userEmail = '',
+        userPhone = ''
     } = req.body || {};
 
-    if (!razorpay_payment_id) {
-        return res.status(400).json({ error: 'Razorpay Payment ID is required.' });
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+        return res.status(400).json({
+            error: 'MISSING_PAYMENT_DATA',
+            message: 'Razorpay Payment ID, Order ID, and Cryptographic Signature are required.'
+        });
     }
 
     if (!userId || !qrId) {
@@ -49,28 +54,22 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: `Invalid plan specified: ${planId}` });
     }
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || 'jklh0aJD4M7xHrXx46H67Iby';
-
-    // 1. Signature Verification
-    let signatureVerified = false;
-    if (razorpay_signature && razorpay_order_id) {
-        const body = razorpay_order_id + "|" + razorpay_payment_id;
-        const expectedSignature = crypto
-            .createHmac('sha256', keySecret)
-            .update(body)
-            .digest('hex');
-
-        if (expectedSignature === razorpay_signature) {
-            signatureVerified = true;
-        }
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keySecret) {
+        return res.status(500).json({
+            error: 'CONFIG_ERROR',
+            message: 'Razorpay Secret is not configured on server.'
+        });
     }
 
-    // Fallback signature verification for demo/sandbox or signed orderToken
-    if (!signatureVerified && (razorpay_payment_id.startsWith('pay_') || orderToken)) {
-        signatureVerified = true;
-    }
+    // 1. Strict Server-Side HMAC SHA-256 Signature Verification (Section 2 & 26)
+    const verificationBody = `${razorpay_order_id}|${razorpay_payment_id}`;
+    const expectedSignature = crypto
+        .createHmac('sha256', keySecret)
+        .update(verificationBody)
+        .digest('hex');
 
-    if (!signatureVerified) {
+    if (expectedSignature !== razorpay_signature) {
         return res.status(400).json({
             error: 'INVALID_SIGNATURE',
             message: 'Cryptographic payment verification failed. Unauthorized request.'
@@ -84,12 +83,11 @@ export default async function handler(req, res) {
 
     try {
         // 2. Anti-Replay Protection: Check if paymentId was already processed
-        const checkPayUrl = `${DB_URL}/paymentHistory/${razorpay_payment_id}.json`;
+        const checkPayUrl = `${DB_URL}/payments/${razorpay_payment_id}.json`;
         const payRes = await fetch(checkPayUrl);
         const existingPayment = await payRes.json();
 
-        if (existingPayment && existingPayment.status === 'SUCCESSFUL') {
-            // Already processed; return existing record without double extending
+        if (existingPayment && existingPayment.status === 'SUCCESS') {
             return res.status(200).json({
                 success: true,
                 duplicate: true,
@@ -99,7 +97,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. Source of Truth: Fetch existing subscription from RTDB
+        // 3. Fetch existing subscription from RTDB (Source of truth)
         let existingSub = null;
         try {
             const subRes = await fetch(`${DB_URL}/subscriptions/${cleanQrId}.json`);
@@ -112,7 +110,23 @@ export default async function handler(req, res) {
             console.warn('Subscription fetch notice:', fetchErr.message);
         }
 
-        // 4. Calculate New Expiry Date according to Section 5
+        // Fetch user data if user details not provided in request
+        let resolvedName = userName;
+        let resolvedEmail = userEmail;
+        let resolvedPhone = userPhone;
+        if (!resolvedName || !resolvedEmail) {
+            try {
+                const userRes = await fetch(`${DB_URL}/users/${cleanUserId}.json`);
+                const userData = await userRes.json();
+                if (userData) {
+                    resolvedName = resolvedName || userData.name || '';
+                    resolvedEmail = resolvedEmail || userData.email || '';
+                    resolvedPhone = resolvedPhone || userData.phone || '';
+                }
+            } catch (e) {}
+        }
+
+        // 4. Calculate New Expiry Date (Section 15: PRESERVE SAME QR TOKEN, ONLY EXTEND EXPIRY)
         let newExpiryDate;
         const existingExpiresAt = existingSub?.expiresAt ? new Date(existingSub.expiresAt) : null;
 
@@ -126,8 +140,37 @@ export default async function handler(req, res) {
 
         const newExpiryIso = newExpiryDate.toISOString();
         const activatedAtIso = existingSub?.activatedAt || nowIso;
+        const receiptNumber = `REC-${cleanUserId.slice(-4).toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
-        // 5. Construct Subscription Record
+        // 5. Canonical Payment Record (Section 4 Schema)
+        const paymentRecord = {
+            paymentId: razorpay_payment_id,
+            userId: cleanUserId,
+            userName: resolvedName,
+            userEmail: resolvedEmail,
+            userPhone: resolvedPhone,
+            qrId: cleanQrId,
+            razorpayOrderId: razorpay_order_id,
+            razorpayPaymentId: razorpay_payment_id,
+            razorpaySignature: razorpay_signature,
+            planId: planId,
+            planName: plan.name,
+            amount: plan.amount,
+            currency: 'INR',
+            status: 'SUCCESS',
+            createdAt: nowIso,
+            updatedAt: nowIso,
+            paidAt: nowIso,
+            paymentMethod: 'razorpay',
+            receiptNumber: receiptNumber,
+            subscriptionStartDate: activatedAtIso,
+            subscriptionExpiryDate: newExpiryIso,
+            webhookVerified: false,
+            signatureVerified: true,
+            type: plan.type
+        };
+
+        // 6. Canonical Subscription Record
         const subscriptionRecord = {
             id: `sub_${cleanQrId}`,
             userId: cleanUserId,
@@ -141,62 +184,38 @@ export default async function handler(req, res) {
             activatedAt: activatedAtIso,
             expiresAt: newExpiryIso,
             paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id || `ord_${Date.now()}`,
+            orderId: razorpay_order_id,
             paymentStatus: 'paid',
             createdAt: existingSub?.createdAt || nowIso,
             updatedAt: nowIso,
             renewedAt: nowIso,
-            renewalCount: (existingSub?.renewalCount || 0) + (plan.isRegistration ? 0 : 1)
+            renewalCount: (existingSub?.renewalCount || 0) + (plan.type === 'registration' ? 0 : 1)
         };
 
-        // 6. Construct Payment Record
-        const paymentRecord = {
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id || `ord_${Date.now()}`,
-            userId: cleanUserId,
-            qrId: cleanQrId,
-            planId: planId,
-            planName: plan.name,
-            durationMonths: plan.durationMonths,
-            amount: plan.amount,
-            currency: 'INR',
-            status: 'SUCCESSFUL',
-            timestamp: nowIso,
-            epoch: now.getTime(),
-            type: plan.isRegistration ? 'registration' : 'renewal'
-        };
-
-        // 7. Construct Audit Log Entry
-        const auditLog = {
-            action: plan.isRegistration ? 'INITIAL_REGISTRATION_ACTIVATED' : 'SUBSCRIPTION_RENEWAL_EXTENDED',
-            userId: cleanUserId,
-            qrId: cleanQrId,
-            planId,
-            amount: plan.amount,
-            previousExpiry: existingSub?.expiresAt || null,
-            newExpiry: newExpiryIso,
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id || null,
-            timestamp: nowIso
-        };
-
-        // 8. Atomic Multi-path Updates to Realtime Database
+        // 7. Atomic Multi-path Updates to Realtime Database
         const updatePayload = {
+            [`payments/${razorpay_payment_id}`]: paymentRecord,
+            [`paymentHistory/${razorpay_payment_id}`]: {
+                ...paymentRecord,
+                status: 'SUCCESSFUL',
+                epoch: now.getTime()
+            },
+            [`paymentAttempts/${razorpay_order_id}/status`]: 'SUCCESS',
+            [`paymentAttempts/${razorpay_order_id}/razorpayPaymentId`]: razorpay_payment_id,
+            [`paymentAttempts/${razorpay_order_id}/updatedAt`]: nowIso,
             [`subscriptions/${cleanQrId}`]: subscriptionRecord,
             [`users/${cleanUserId}/subscription`]: subscriptionRecord,
             [`users/${cleanUserId}/profiles/${cleanQrId}/subscription`]: subscriptionRecord,
             [`profiles/${cleanQrId}/subscription`]: subscriptionRecord,
-            [`paymentHistory/${razorpay_payment_id}`]: paymentRecord
+            [`profiles/${cleanQrId}/payment_status`]: 'paid',
+            [`profiles/${cleanQrId}/payment_id`]: razorpay_payment_id,
+            [`profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
+            [`profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso,
+            [`users/${cleanUserId}/profiles/${cleanQrId}/payment_status`]: 'paid',
+            [`users/${cleanUserId}/profiles/${cleanQrId}/payment_id`]: razorpay_payment_id,
+            [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionStatus`]: 'ACTIVE',
+            [`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionExpiresAt`]: newExpiryIso
         };
-
-        // Also update profile payment_status and expiry metadata
-        updatePayload[`profiles/${cleanQrId}/payment_status`] = 'paid';
-        updatePayload[`profiles/${cleanQrId}/payment_id`] = razorpay_payment_id;
-        updatePayload[`profiles/${cleanQrId}/subscriptionStatus`] = 'ACTIVE';
-        updatePayload[`profiles/${cleanQrId}/subscriptionExpiresAt`] = newExpiryIso;
-        updatePayload[`users/${cleanUserId}/profiles/${cleanQrId}/payment_status`] = 'paid';
-        updatePayload[`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionStatus`] = 'ACTIVE';
-        updatePayload[`users/${cleanUserId}/profiles/${cleanQrId}/subscriptionExpiresAt`] = newExpiryIso;
 
         const updateRes = await fetch(`${DB_URL}/.json`, {
             method: 'PATCH',
@@ -205,15 +224,27 @@ export default async function handler(req, res) {
         });
 
         if (!updateRes.ok) {
-            console.error('Failed to commit subscription to RTDB:', await updateRes.text());
+            console.error('Failed to commit verified payment to RTDB:', await updateRes.text());
         }
 
-        // Write audit log entry
+        // Audit log entry
         try {
             await fetch(`${DB_URL}/subscriptionAudits/${cleanQrId}.json`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(auditLog)
+                body: JSON.stringify({
+                    action: plan.type === 'registration' ? 'INITIAL_REGISTRATION_ACTIVATED' : 'SUBSCRIPTION_RENEWAL_EXTENDED',
+                    userId: cleanUserId,
+                    qrId: cleanQrId,
+                    planId,
+                    amount: plan.amount,
+                    previousExpiry: existingSub?.expiresAt || null,
+                    newExpiry: newExpiryIso,
+                    paymentId: razorpay_payment_id,
+                    orderId: razorpay_order_id,
+                    receiptNumber,
+                    timestamp: nowIso
+                })
             });
         } catch (e) {}
 
@@ -229,7 +260,8 @@ export default async function handler(req, res) {
             activatedAt: activatedAtIso,
             expiresAt: newExpiryIso,
             paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id || null
+            orderId: razorpay_order_id,
+            receiptNumber
         });
     } catch (err) {
         console.error('Backend payment verification error:', err);

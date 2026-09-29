@@ -2282,12 +2282,15 @@ export default function LoginPage() {
                 customerName={selectedRole === 'hospital' ? (hospitalInfo.hospitalName || 'Hospital Partner') : (citizenName || 'RESQR Citizen')}
                 customerEmail={selectedRole === 'hospital' ? (email || 'hospital@resqr.co.in') : (citizenEmail || 'citizen@resqr.co.in')}
                 customerPhone={phoneNumber || '9876543210'}
+                userId={auth.currentUser?.uid}
+                qrId={auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_citizen'}
+                planId="initial_3m"
                 onSuccess={(paymentInfo) => {
                     toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
                     if (selectedRole === 'hospital') {
                         handleHospitalRegistrationSubmit();
                     } else {
-                        handleCitizenRegistrationSubmit();
+                        handleCitizenRegistrationSubmit(paymentInfo);
                     }
                 }}
             />

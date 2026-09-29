@@ -6,7 +6,7 @@ import {
     Package, Settings, LayoutDashboard, LogOut, ChevronRight, ExternalLink, Bell,
     Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
     QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle,
-    ShieldCheck, Key, Copy
+    ShieldCheck, Key, Copy, Receipt, DollarSign, Calendar, FileText, Download
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -22,6 +22,8 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAge } from '../lib/dateUtils';
 import WhatsAppMessaging from '../components/admin/WhatsAppMessaging';
+import PaymentReceiptModal from '../components/common/PaymentReceiptModal';
+import { PAYMENT_STATUS, getPaymentStatusBadge } from '../lib/subscriptionConfig';
 
 export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -96,6 +98,16 @@ export default function AdminPanel() {
     // Subscription Operations & Revenue Analytics States (Section 12, 13, 14)
     const [subscriptionsList, setSubscriptionsList] = useState([]);
     const [paymentsList, setPaymentsList] = useState([]);
+    const [canonicalPaymentsList, setCanonicalPaymentsList] = useState([]);
+    const [paymentAttemptsList, setPaymentAttemptsList] = useState([]);
+    const [paymentFilterStatus, setPaymentFilterStatus] = useState('ALL');
+    const [paymentDateRange, setPaymentDateRange] = useState('all');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const [paymentSearchQuery, setPaymentSearchQuery] = useState('');
+    const [adminReceiptPayment, setAdminReceiptPayment] = useState(null);
+    const [activePaymentSubTab, setActivePaymentSubTab] = useState('transactions');
+    const [selectedUserAttempts, setSelectedUserAttempts] = useState(null);
     const [subscriptionAuditsList, setSubscriptionAuditsList] = useState([]);
     const [subStatusFilter, setSubStatusFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'SUSPENDED' | 'REVOKED'
     const [subSearchTerm, setSubSearchTerm] = useState('');
@@ -113,6 +125,8 @@ export default function AdminPanel() {
     const safeContacts = Array.isArray(contacts) ? contacts.filter(Boolean) : [];
     const safeSubscriptions = Array.isArray(subscriptionsList) ? subscriptionsList.filter(Boolean) : [];
     const safePayments = Array.isArray(paymentsList) ? paymentsList.filter(Boolean) : [];
+    const safeCanonicalPayments = Array.isArray(canonicalPaymentsList) ? canonicalPaymentsList.filter(Boolean) : [];
+    const safeAttempts = Array.isArray(paymentAttemptsList) ? paymentAttemptsList.filter(Boolean) : [];
 
     // Helper to evaluate login recency and activity telemetry from Firebase
     const getLoginTelemetry = (lastLogin) => {
@@ -366,6 +380,15 @@ export default function AdminPanel() {
             setSubscriptionsList([]);
         });
 
+        // Canonical Payments listener (Section 4)
+        const canonicalPaymentsRef = ref(db, 'payments');
+        const unsubCanonicalPayments = onValue(canonicalPaymentsRef, (snapshot) => {
+            setCanonicalPaymentsList(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB payments read warning:", error);
+            setCanonicalPaymentsList([]);
+        });
+
         // Payment History listener (Section 13)
         const paymentsRef = ref(db, 'paymentHistory');
         const unsubPayments = onValue(paymentsRef, (snapshot) => {
@@ -373,6 +396,15 @@ export default function AdminPanel() {
         }, (error) => {
             console.warn("RTDB paymentHistory read warning:", error);
             setPaymentsList([]);
+        });
+
+        // Payment Attempts listener (Section 12)
+        const attemptsRef = ref(db, 'paymentAttempts');
+        const unsubAttempts = onValue(attemptsRef, (snapshot) => {
+            setPaymentAttemptsList(parseData(snapshot));
+        }, (error) => {
+            console.warn("RTDB paymentAttempts read warning:", error);
+            setPaymentAttemptsList([]);
         });
 
         // Subscription Audits listener (Section 14)
@@ -393,7 +425,9 @@ export default function AdminPanel() {
             unsubContacts();
             unsubAudits();
             unsubSubscriptions();
+            unsubCanonicalPayments();
             unsubPayments();
+            unsubAttempts();
             unsubSubAudits();
         };
     }, [navigate]);
@@ -1488,11 +1522,140 @@ export default function AdminPanel() {
         return true;
     });
 
-    const registrationPayments = safePayments.filter(p => p.type === 'registration' || p.planId === 'initial_3m' || p.type === 'registration_expansion');
-    const renewalPayments = safePayments.filter(p => p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')));
+    // Canonical unified payments combining payments/ and legacy paymentHistory/
+    const allUnifiedPayments = (() => {
+        const map = new Map();
+        [...safeCanonicalPayments, ...safePayments].forEach(p => {
+            if (!p) return;
+            const id = p.paymentId || p.razorpayPaymentId || p.id;
+            if (id && !map.has(id)) {
+                map.set(id, {
+                    ...p,
+                    paymentId: id,
+                    status: (p.status || 'SUCCESS').toUpperCase(),
+                    amount: Number(p.amount) || 149
+                });
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => new Date(b.paidAt || b.createdAt || b.timestamp || 0) - new Date(a.paidAt || a.createdAt || a.timestamp || 0));
+    })();
+
+    // Verified Successful Payments (Source of truth for revenue)
+    const verifiedSuccessPayments = allUnifiedPayments.filter(p => 
+        p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID'
+    );
+    const pendingPaymentsCount = safeAttempts.filter(a => a.status === 'PENDING').length + allUnifiedPayments.filter(p => p.status === 'PENDING' || p.status === 'PROCESSING').length;
+    const failedPaymentsCount = safeAttempts.filter(a => a.status === 'FAILED').length + allUnifiedPayments.filter(p => p.status === 'FAILED').length;
+    const refundedPaymentsCount = allUnifiedPayments.filter(p => p.status === 'REFUNDED' || p.status === 'PARTIALLY_REFUNDED').length;
+
+    const totalVerifiedRevenue = verifiedSuccessPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+    const registrationPayments = verifiedSuccessPayments.filter(p => p.type === 'registration' || p.planId === 'initial_3m' || p.type === 'registration_expansion');
+    const renewalPayments = verifiedSuccessPayments.filter(p => p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')));
     const regRevenue = registrationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
     const renRevenue = renewalPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
     const totalPlatformRevenue = regRevenue + renRevenue;
+
+    // Today & This Month Revenue (Section 8)
+    const todayStr = new Date().toDateString();
+    const todayRevenue = verifiedSuccessPayments.filter(p => {
+        const d = p.paidAt || p.createdAt || p.timestamp;
+        return d && new Date(d).toDateString() === todayStr;
+    }).reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+
+    const nowD = new Date();
+    const thisMonthRevenue = verifiedSuccessPayments.filter(p => {
+        const d = p.paidAt || p.createdAt || p.timestamp;
+        if (!d) return false;
+        const dt = new Date(d);
+        return dt.getFullYear() === nowD.getFullYear() && dt.getMonth() === nowD.getMonth();
+    }).reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+
+    // Unpaid Users (Payment Follow-up) - Section 11
+    const unpaidFollowUpUsers = safeUsers.filter(u => {
+        const hasSuccess = verifiedSuccessPayments.some(p => p.userId === u.uid);
+        const sub = u.subscription || safeSubscriptions.find(s => s.userId === u.uid);
+        const isPaidSub = sub && (sub.status === 'ACTIVE' || sub.status === 'EXPIRING_SOON') && sub.paymentStatus === 'paid';
+        return !hasSuccess && !isPaidSub;
+    }).map(u => {
+        const userAttempts = safeAttempts.filter(a => a.userId === u.uid).sort((a,b) => (b.epoch || 0) - (a.epoch || 0));
+        const lastAttempt = userAttempts[0];
+        const regDate = u.createdAt ? new Date(u.createdAt) : new Date();
+        const daysSinceReg = Math.max(0, Math.floor((Date.now() - regDate.getTime()) / (1000 * 60 * 60 * 24)));
+        return {
+            ...u,
+            attempts: userAttempts,
+            lastAttempt,
+            daysSinceReg,
+            expectedPlan: lastAttempt?.planName || 'RESQR Registration + 2 QR Stickers',
+            expectedAmount: lastAttempt?.amount || 149
+        };
+    });
+
+    // Date filtering helper
+    const filterPaymentByDate = (itemDate) => {
+        if (!itemDate || paymentDateRange === 'all') return true;
+        const d = new Date(itemDate);
+        if (isNaN(d.getTime())) return true;
+        const now = new Date();
+
+        if (paymentDateRange === 'today') {
+            return d.toDateString() === now.toDateString();
+        } else if (paymentDateRange === 'yesterday') {
+            const yesterday = new Date(now);
+            yesterday.setDate(now.getDate() - 1);
+            return d.toDateString() === yesterday.toDateString();
+        } else if (paymentDateRange === '7days') {
+            return (now.getTime() - d.getTime()) <= 7 * 24 * 60 * 60 * 1000;
+        } else if (paymentDateRange === '30days') {
+            return (now.getTime() - d.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+        } else if (paymentDateRange === 'this_month') {
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        } else if (paymentDateRange === 'custom') {
+            if (customStartDate && d < new Date(customStartDate)) return false;
+            if (customEndDate && d > new Date(customEndDate + 'T23:59:59')) return false;
+            return true;
+        }
+        return true;
+    };
+
+    // Filtered Payments Table Data (Section 9, 10, 18)
+    const filteredPaymentsList = allUnifiedPayments.filter(p => {
+        const pDate = p.paidAt || p.createdAt || p.timestamp;
+        if (!filterPaymentByDate(pDate)) return false;
+
+        if (paymentSearchQuery.trim()) {
+            const q = paymentSearchQuery.toLowerCase();
+            const matches = 
+                (p.userName || '').toLowerCase().includes(q) ||
+                (p.userEmail || '').toLowerCase().includes(q) ||
+                (p.userPhone || '').toLowerCase().includes(q) ||
+                (p.userId || '').toLowerCase().includes(q) ||
+                (p.paymentId || '').toLowerCase().includes(q) ||
+                (p.razorpayPaymentId || '').toLowerCase().includes(q) ||
+                (p.razorpayOrderId || p.orderId || '').toLowerCase().includes(q) ||
+                (p.receiptNumber || '').toLowerCase().includes(q);
+            if (!matches) return false;
+        }
+
+        if (paymentFilterStatus === 'ALL') return true;
+        const st = (p.status || '').toUpperCase();
+        if (paymentFilterStatus === 'PAID') {
+            return st === 'SUCCESS' || st === 'SUCCESSFUL' || st === 'PAID';
+        }
+        if (paymentFilterStatus === 'NOT PAID') {
+            return st !== 'SUCCESS' && st !== 'SUCCESSFUL' && st !== 'PAID';
+        }
+        if (paymentFilterStatus === 'PENDING') {
+            return st === 'PENDING' || st === 'PROCESSING';
+        }
+        if (paymentFilterStatus === 'FAILED') {
+            return st === 'FAILED';
+        }
+        if (paymentFilterStatus === 'REFUNDED') {
+            return st === 'REFUNDED' || st === 'PARTIALLY_REFUNDED';
+        }
+        return true;
+    });
 
     const activeSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'ACTIVE' || getSubDisplayStatus(s).label === 'EXPIRING SOON').length;
     const expiredSubCount = safeSubscriptions.filter(s => getSubDisplayStatus(s).label === 'EXPIRED').length;
@@ -1516,7 +1679,7 @@ export default function AdminPanel() {
         'renewal_24m': { name: 'Renewal 24 Months', price: 2399, count: 0, revenue: 0 }
     };
 
-    safePayments.forEach(p => {
+    verifiedSuccessPayments.forEach(p => {
         const pId = p.planId || (p.type === 'registration' ? 'initial_3m' : null);
         if (pId && planStats[pId]) {
             planStats[pId].count += 1;
@@ -1541,6 +1704,7 @@ export default function AdminPanel() {
                 <nav className="space-y-2">
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+                        { id: 'payments', label: 'Payment Gateway', icon: <Receipt size={20} /> },
                         { id: 'subscriptions', label: 'Subscriptions', icon: <CreditCard size={20} /> },
                         { id: 'revenue', label: 'Revenue & Plans', icon: <ArrowUpRight size={20} /> },
                         { id: 'users', label: 'Auth Users', icon: <Users size={20} /> },
@@ -1586,7 +1750,8 @@ export default function AdminPanel() {
                 <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-extrabold capitalize">
-                            {activeTab === 'subscriptions' ? 'Emergency QR Subscription Operations' :
+                            {activeTab === 'payments' ? 'Razorpay Payment Gateway & Revenue Ledger' :
+                                activeTab === 'subscriptions' ? 'Emergency QR Subscription Operations' :
                                 activeTab === 'revenue' ? 'Subscription Revenue & Plan Analytics' :
                                     activeTab === 'whatsapp' ? 'WhatsApp Messages' :
                                 activeTab === 'users' ? 'Registered Accounts' :
@@ -3771,6 +3936,532 @@ export default function AdminPanel() {
                         </Card>
                     </div>
                 )}
+
+                {/* Section 8, 9, 10, 11, 12, 18, 19: Razorpay Payment Gateway & Revenue Operations */}
+                {activeTab === 'payments' && (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+                        {/* Executive Telemetry KPI Cards (Section 8) */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic block">Total Users</span>
+                                <div className="text-3xl font-black italic text-white font-poppins">{safeUsers.length}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Registered Citizens</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 italic block">Total Payments</span>
+                                <div className="text-3xl font-black italic text-white font-poppins">{allUnifiedPayments.length}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Platform Transactions</span>
+                            </div>
+
+                            <div 
+                                onClick={() => { setPaymentFilterStatus('PAID'); setActivePaymentSubTab('transactions'); }}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'PAID' ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Successful Payments</span>
+                                <div className="text-3xl font-black italic text-emerald-400 font-poppins">{verifiedSuccessPayments.length}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Verified & Activated</span>
+                            </div>
+
+                            <div 
+                                onClick={() => { setPaymentFilterStatus('PENDING'); setActivePaymentSubTab('transactions'); }}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'PENDING' ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 italic block">Pending Payments</span>
+                                <div className="text-3xl font-black italic text-amber-400 font-poppins">{pendingPaymentsCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Checkout In Progress</span>
+                            </div>
+
+                            <div 
+                                onClick={() => { setPaymentFilterStatus('FAILED'); setActivePaymentSubTab('transactions'); }}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'FAILED' ? 'bg-rose-500/10 border-rose-500/40 shadow-lg shadow-rose-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 italic block">Failed Payments</span>
+                                <div className="text-3xl font-black italic text-rose-400 font-poppins">{failedPaymentsCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Declined / Errors</span>
+                            </div>
+
+                            <div 
+                                onClick={() => { setPaymentFilterStatus('REFUNDED'); setActivePaymentSubTab('transactions'); }}
+                                className={`p-6 rounded-3xl border transition-all cursor-pointer space-y-1 ${paymentFilterStatus === 'REFUNDED' ? 'bg-purple-500/10 border-purple-500/40 shadow-lg shadow-purple-500/10' : 'bg-slate-950/60 border-white/5 hover:border-white/15'}`}
+                            >
+                                <span className="text-[10px] font-black uppercase tracking-widest text-purple-400 italic block">Refunded</span>
+                                <div className="text-3xl font-black italic text-purple-400 font-poppins">{refundedPaymentsCount}</div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Reversals Handled</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1 col-span-2 md:col-span-1 lg:col-span-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-primary italic block">Total Verified Revenue</span>
+                                <div className="text-4xl font-black italic text-primary font-poppins">
+                                    ₹{totalVerifiedRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Counted Only from SUCCESS Payments</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 italic block">Today's Revenue</span>
+                                <div className="text-3xl font-black italic text-emerald-400 font-poppins">
+                                    ₹{todayRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Settled Today</span>
+                            </div>
+
+                            <div className="p-6 rounded-3xl bg-slate-950/60 border border-white/5 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 italic block">This Month's Revenue</span>
+                                <div className="text-3xl font-black italic text-blue-400 font-poppins">
+                                    ₹{thisMonthRevenue.toLocaleString('en-IN')}
+                                </div>
+                                <span className="text-[9px] font-bold text-slate-500 uppercase block">Current Month Total</span>
+                            </div>
+                        </div>
+
+                        {/* Navigation Sub-Tabs */}
+                        <div className="flex border-b border-white/10 gap-3 pb-3 overflow-x-auto">
+                            <button
+                                onClick={() => setActivePaymentSubTab('transactions')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'transactions' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <Receipt size={14} /> Transactions Ledger ({filteredPaymentsList.length})
+                            </button>
+                            <button
+                                onClick={() => setActivePaymentSubTab('followup')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'followup' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <Users size={14} /> Payment Follow-up (Unpaid: {unpaidFollowUpUsers.length})
+                            </button>
+                            <button
+                                onClick={() => setActivePaymentSubTab('attempts')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'attempts' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <Clock size={14} /> Payment Attempts ({safeAttempts.length})
+                            </button>
+                            <button
+                                onClick={() => setActivePaymentSubTab('analytics')}
+                                className={`px-5 py-3 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${activePaymentSubTab === 'analytics' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                            >
+                                <ArrowUpRight size={14} /> Revenue Analytics
+                            </button>
+                        </div>
+
+                        {/* SUB-TAB 1: TRANSACTIONS LEDGER (Section 9, 10, 18) */}
+                        {activePaymentSubTab === 'transactions' && (
+                            <div className="space-y-6">
+                                {/* Search & Filters Bar */}
+                                <Card className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl space-y-4">
+                                    <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+                                        {/* Search Input */}
+                                        <div className="relative w-full md:w-96">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                                            <input
+                                                type="text"
+                                                value={paymentSearchQuery}
+                                                onChange={(e) => setPaymentSearchQuery(e.target.value)}
+                                                placeholder="Search name, phone, email, UID, payment ID, order ID, receipt..."
+                                                className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-xs text-white placeholder-slate-500 outline-none focus:border-primary"
+                                            />
+                                        </div>
+
+                                        {/* Date Filters (Section 18) */}
+                                        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                                            <span className="text-[10px] font-black uppercase text-slate-500 mr-1 flex items-center gap-1">
+                                                <Calendar size={12} /> Period:
+                                            </span>
+                                            {[
+                                                { id: 'all', label: 'All' },
+                                                { id: 'today', label: 'Today' },
+                                                { id: 'yesterday', label: 'Yesterday' },
+                                                { id: '7days', label: '7D' },
+                                                { id: '30days', label: '30D' },
+                                                { id: 'this_month', label: 'Month' },
+                                                { id: 'custom', label: 'Custom' }
+                                            ].map(d => (
+                                                <button
+                                                    key={d.id}
+                                                    onClick={() => setPaymentDateRange(d.id)}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${paymentDateRange === d.id ? 'bg-primary text-white' : 'bg-slate-900 text-slate-400 hover:text-white'}`}
+                                                >
+                                                    {d.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Custom Date Pickers */}
+                                    {paymentDateRange === 'custom' && (
+                                        <div className="flex items-center gap-3 pt-2 border-t border-white/5 text-xs text-slate-400">
+                                            <span>From:</span>
+                                            <input
+                                                type="date"
+                                                value={customStartDate}
+                                                onChange={(e) => setCustomStartDate(e.target.value)}
+                                                className="px-3 py-1.5 bg-slate-950 border border-white/10 rounded-xl text-white outline-none"
+                                            />
+                                            <span>To:</span>
+                                            <input
+                                                type="date"
+                                                value={customEndDate}
+                                                onChange={(e) => setCustomEndDate(e.target.value)}
+                                                className="px-3 py-1.5 bg-slate-950 border border-white/10 rounded-xl text-white outline-none"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Status Filters (Section 10) */}
+                                    <div className="flex items-center gap-2 pt-2 border-t border-white/5 flex-wrap">
+                                        <span className="text-[10px] font-black uppercase text-slate-500 mr-2 flex items-center gap-1">
+                                            <Filter size={12} /> Status:
+                                        </span>
+                                        {['ALL', 'PAID', 'NOT PAID', 'PENDING', 'FAILED', 'REFUNDED'].map(st => (
+                                            <button
+                                                key={st}
+                                                onClick={() => setPaymentFilterStatus(st)}
+                                                className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                    paymentFilterStatus === st
+                                                        ? 'bg-white text-slate-950 shadow-md font-bold'
+                                                        : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {st}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </Card>
+
+                                {/* Transactions Table */}
+                                <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                                    <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-xl font-black italic uppercase text-white font-poppins">
+                                                Verified Transactions Ledger
+                                            </h3>
+                                            <p className="text-xs text-slate-400">Showing {filteredPaymentsList.length} recorded payments</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-xs text-slate-500 uppercase font-black block">Matching Value</span>
+                                            <span className="text-lg font-black italic text-emerald-400 font-poppins">
+                                                ₹{filteredPaymentsList.filter(p => p.status === 'SUCCESS' || p.status === 'SUCCESSFUL' || p.status === 'PAID').reduce((sum, p) => sum + (Number(p.amount) || 0), 0).toLocaleString('en-IN')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs font-mono">
+                                            <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                                <tr>
+                                                    <th className="p-5">Customer</th>
+                                                    <th className="p-5">Contact</th>
+                                                    <th className="p-5">RESQR UID</th>
+                                                    <th className="p-5">Plan</th>
+                                                    <th className="p-5">Amount</th>
+                                                    <th className="p-5">Status</th>
+                                                    <th className="p-5">Method</th>
+                                                    <th className="p-5">Razorpay Order ID</th>
+                                                    <th className="p-5">Payment ID</th>
+                                                    <th className="p-5">Date</th>
+                                                    <th className="p-5 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-slate-300">
+                                                {filteredPaymentsList.map((p) => {
+                                                    const badge = getPaymentStatusBadge(p.status);
+                                                    return (
+                                                        <tr key={p.paymentId} className="hover:bg-white/5 transition-colors">
+                                                            <td className="p-5 font-sans">
+                                                                <span className="font-bold text-white block truncate max-w-[140px]">{p.userName || 'RESQR Citizen'}</span>
+                                                                <span className="text-[10px] text-slate-500 font-mono">{p.receiptNumber || '—'}</span>
+                                                            </td>
+                                                            <td className="p-5 font-sans">
+                                                                <span className="block truncate max-w-[150px]">{p.userEmail || '—'}</span>
+                                                                <span className="text-[10px] text-slate-500 font-mono">{p.userPhone || '—'}</span>
+                                                            </td>
+                                                            <td className="p-5 font-mono text-primary text-[11px] truncate max-w-[100px]">
+                                                                {p.userId || p.qrId || '—'}
+                                                            </td>
+                                                            <td className="p-5 font-sans font-bold text-white truncate max-w-[150px]">
+                                                                {p.planName || '3 Months Registration'}
+                                                            </td>
+                                                            <td className="p-5 font-sans font-black italic text-emerald-400 text-sm">
+                                                                ₹{p.amount || 149}
+                                                            </td>
+                                                            <td className="p-5 font-sans">
+                                                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${badge.className}`}>
+                                                                    <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
+                                                                    {badge.label}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-5 font-sans text-slate-400 uppercase text-[10px]">
+                                                                {p.paymentMethod || 'razorpay'}
+                                                            </td>
+                                                            <td className="p-5 font-mono text-[10px] text-slate-400 truncate max-w-[110px]">
+                                                                {p.razorpayOrderId || p.orderId || '—'}
+                                                            </td>
+                                                            <td className="p-5 font-mono text-[10px] text-white truncate max-w-[110px]">
+                                                                {p.paymentId || p.razorpayPaymentId}
+                                                            </td>
+                                                            <td className="p-5 font-sans text-slate-400 text-[10px] whitespace-nowrap">
+                                                                {p.paidAt || p.createdAt || p.timestamp ? new Date(p.paidAt || p.createdAt || p.timestamp).toLocaleDateString('en-IN') : '—'}
+                                                            </td>
+                                                            <td className="p-5 text-right font-sans">
+                                                                <button
+                                                                    onClick={() => setAdminReceiptPayment(p)}
+                                                                    className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-[10px] font-black uppercase tracking-wider transition-all"
+                                                                >
+                                                                    View Receipt
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+
+                                                {filteredPaymentsList.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="11" className="p-12 text-center text-slate-500 font-sans text-xs uppercase font-bold">
+                                                            No matching payment records found.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB 2: PAYMENT FOLLOW-UP (UNPAID USERS) (Section 11) */}
+                        {activePaymentSubTab === 'followup' && (
+                            <div className="space-y-6">
+                                <Card className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xl font-black italic uppercase text-white font-poppins">
+                                            Payment Follow-Up • Unpaid Accounts
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            Registered accounts that have not completed payment verification. Contact users to assist with payment and activation.
+                                        </p>
+                                    </div>
+                                    <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 font-black text-xs px-4 py-2">
+                                        {unpaidFollowUpUsers.length} Unpaid Users
+                                    </Badge>
+                                </Card>
+
+                                <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs font-mono">
+                                            <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                                <tr>
+                                                    <th className="p-5">Citizen Name</th>
+                                                    <th className="p-5">Phone</th>
+                                                    <th className="p-5">Email</th>
+                                                    <th className="p-5">Registration Date</th>
+                                                    <th className="p-5">Days Since Reg</th>
+                                                    <th className="p-5">Expected Plan</th>
+                                                    <th className="p-5">Expected Amount</th>
+                                                    <th className="p-5">Payment Status</th>
+                                                    <th className="p-5">Last Attempt</th>
+                                                    <th className="p-5 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-slate-300">
+                                                {unpaidFollowUpUsers.map((u) => (
+                                                    <tr key={u.uid} className="hover:bg-white/5 transition-colors">
+                                                        <td className="p-5 font-sans font-bold text-white truncate max-w-[140px]">
+                                                            {u.name || 'Unnamed Citizen'}
+                                                        </td>
+                                                        <td className="p-5 font-mono text-slate-300">
+                                                            {u.phone || '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans text-slate-400 truncate max-w-[160px]">
+                                                            {u.email || '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans text-slate-400 whitespace-nowrap">
+                                                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-slate-900 text-slate-400 border border-white/5">
+                                                                {u.daysSinceReg} Days
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-sans font-bold text-white truncate max-w-[140px]">
+                                                            {u.expectedPlan}
+                                                        </td>
+                                                        <td className="p-5 font-sans font-black italic text-amber-400 text-sm">
+                                                            ₹{u.expectedAmount}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                                                PAYMENT NOT COMPLETED
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-sans text-slate-400 text-[10px] whitespace-nowrap">
+                                                            {u.lastAttempt ? new Date(u.lastAttempt.createdAt).toLocaleDateString('en-IN') : 'Never Attempted'}
+                                                        </td>
+                                                        <td className="p-5 text-right font-sans whitespace-nowrap">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => setSelectedUserAttempts({
+                                                                        userId: u.uid,
+                                                                        userName: u.name,
+                                                                        attempts: u.attempts || []
+                                                                    })}
+                                                                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] font-bold uppercase tracking-wider"
+                                                                >
+                                                                    Attempts ({u.attempts?.length || 0})
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (u.phone) {
+                                                                            window.open(`https://wa.me/${u.phone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(u.name || 'Citizen')},%20complete%20your%20RESQR%20emergency%20safety%20activation%20here:%20${window.location.origin}/payment`, '_blank');
+                                                                        } else {
+                                                                            toast.success(`Payment reminder link copied for ${u.name}`);
+                                                                            navigator.clipboard?.writeText(`${window.location.origin}/payment`);
+                                                                        }
+                                                                    }}
+                                                                    className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-dark text-white text-[10px] font-bold uppercase tracking-wider"
+                                                                >
+                                                                    Remind
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+
+                                                {unpaidFollowUpUsers.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="10" className="p-12 text-center text-emerald-400 font-sans text-xs uppercase font-bold">
+                                                            Awesome! All registered citizens have verified active payments.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB 3: PAYMENT ATTEMPTS (Section 12) */}
+                        {activePaymentSubTab === 'attempts' && (
+                            <div className="space-y-6">
+                                <Card className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xl font-black italic uppercase text-white font-poppins">
+                                            Payment Attempts Audit Log
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-1">
+                                            Every checkout attempt generated by citizens and partners is logged here with full lifecycle states.
+                                        </p>
+                                    </div>
+                                    <Badge className="bg-primary/20 text-primary border border-primary/30 font-black text-xs px-4 py-2">
+                                        {safeAttempts.length} Logged Attempts
+                                    </Badge>
+                                </Card>
+
+                                <Card className="bg-medical-card border-white/5 rounded-[40px] overflow-hidden shadow-2xl p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs font-mono">
+                                            <thead className="bg-slate-950 text-slate-400 text-[9px] font-black uppercase tracking-widest italic border-b border-white/5">
+                                                <tr>
+                                                    <th className="p-5">Attempt / Order ID</th>
+                                                    <th className="p-5">User ID</th>
+                                                    <th className="p-5">Customer Info</th>
+                                                    <th className="p-5">Plan</th>
+                                                    <th className="p-5">Amount</th>
+                                                    <th className="p-5">Status</th>
+                                                    <th className="p-5">Razorpay Payment ID</th>
+                                                    <th className="p-5">Failure Reason</th>
+                                                    <th className="p-5 text-right">Attempt Time</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-slate-300">
+                                                {safeAttempts.map((att) => (
+                                                    <tr key={att.attemptId || att.orderId} className="hover:bg-white/5 transition-colors">
+                                                        <td className="p-5 font-mono text-primary font-bold">
+                                                            {att.attemptId || att.orderId}
+                                                        </td>
+                                                        <td className="p-5 font-mono text-slate-400 text-[11px] truncate max-w-[120px]">
+                                                            {att.userId || '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            <span className="font-bold text-white block">{att.userName || '—'}</span>
+                                                            <span className="text-[10px] text-slate-500">{att.userPhone || att.userEmail || '—'}</span>
+                                                        </td>
+                                                        <td className="p-5 font-sans font-bold text-white truncate max-w-[140px]">
+                                                            {att.planName || 'Registration'}
+                                                        </td>
+                                                        <td className="p-5 font-sans font-black italic text-white text-sm">
+                                                            ₹{att.amount || 149}
+                                                        </td>
+                                                        <td className="p-5 font-sans">
+                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider inline-flex items-center gap-1.5 ${
+                                                                att.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                                att.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                                                'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                                            }`}>
+                                                                ● {att.status || 'PENDING'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-5 font-mono text-[10px] text-slate-300 truncate max-w-[120px]">
+                                                            {att.razorpayPaymentId || '—'}
+                                                        </td>
+                                                        <td className="p-5 font-sans text-rose-400 text-[10px] truncate max-w-[160px]">
+                                                            {att.failureReason || '—'}
+                                                        </td>
+                                                        <td className="p-5 text-right font-sans text-slate-400 text-[10px] whitespace-nowrap">
+                                                            {att.createdAt ? new Date(att.createdAt).toLocaleString('en-IN') : '—'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+
+                                                {safeAttempts.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan="9" className="p-12 text-center text-slate-500 font-sans text-xs uppercase font-bold">
+                                                            No payment attempt records logged yet.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </Card>
+                            </div>
+                        )}
+
+                        {/* SUB-TAB 4: REVENUE ANALYTICS (Section 19) */}
+                        {activePaymentSubTab === 'analytics' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {Object.entries(planStats).map(([pId, stat]) => {
+                                        const share = totalVerifiedRevenue > 0 ? ((stat.revenue / totalVerifiedRevenue) * 100).toFixed(1) : '0';
+                                        return (
+                                            <Card key={pId} className="p-6 bg-medical-card border-white/5 rounded-3xl shadow-xl space-y-4">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <span className="text-xs font-black text-white italic uppercase">{stat.name}</span>
+                                                        <span className="text-[10px] text-slate-500 block">Unit: ₹{stat.price}</span>
+                                                    </div>
+                                                    <Badge className="bg-primary/10 text-primary border border-primary/20 text-[9px] font-black">
+                                                        {stat.count} Orders
+                                                    </Badge>
+                                                </div>
+
+                                                <div className="flex justify-between items-baseline pt-2 border-t border-white/5">
+                                                    <span className="text-2xl font-black italic text-white font-poppins">
+                                                        ₹{stat.revenue.toLocaleString('en-IN')}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-slate-400">{share}% Share</span>
+                                                </div>
+
+                                                <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden">
+                                                    <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${Math.min(100, Number(share))}%` }} />
+                                                </div>
+                                            </Card>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </main>
 
             {/* Modals */}
@@ -4506,6 +5197,69 @@ export default function AdminPanel() {
                                 </Button>
                             </div>
                         </form>
+                    </Card>
+                </div>
+            )}
+
+            {/* Admin Payment Receipt Modal (Section 17) */}
+            <PaymentReceiptModal
+                isOpen={!!adminReceiptPayment}
+                onClose={() => setAdminReceiptPayment(null)}
+                paymentData={adminReceiptPayment}
+            />
+
+            {/* Modal: User Payment Attempts Audit (Section 11 & 12) */}
+            {selectedUserAttempts && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                    <Card className="w-full max-w-2xl bg-medical-card border-white/10 p-8 rounded-[40px] shadow-2xl relative max-h-[85vh] overflow-y-auto">
+                        <div className="flex items-start justify-between mb-6">
+                            <div>
+                                <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase tracking-widest mb-2">
+                                    PAYMENT ATTEMPTS AUDIT
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                    Attempts for {selectedUserAttempts.userName || selectedUserAttempts.name || selectedUserAttempts.userId}
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    UID: <span className="font-mono text-primary font-bold">{selectedUserAttempts.userId || selectedUserAttempts.uid}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setSelectedUserAttempts(null)}
+                                className="p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3">
+                            {selectedUserAttempts.attempts && selectedUserAttempts.attempts.length > 0 ? (
+                                selectedUserAttempts.attempts.map((att, i) => (
+                                    <div key={att.attemptId || i} className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-2 text-xs">
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-bold text-white uppercase">{att.planName || 'Plan'} (₹{att.amount})</span>
+                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                att.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                                att.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                                'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                            }`}>
+                                                ● {att.status}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-400 font-mono">
+                                            <div>Attempt ID: {att.attemptId || att.orderId}</div>
+                                            <div className="text-right">Payment ID: {att.razorpayPaymentId || '—'}</div>
+                                            {att.failureReason && (
+                                                <div className="col-span-2 text-rose-400 font-sans">Reason: {att.failureReason}</div>
+                                            )}
+                                            <div className="col-span-2 text-slate-500">Timestamp: {att.createdAt ? new Date(att.createdAt).toLocaleString('en-IN') : '—'}</div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-slate-500 text-center py-8">No specific payment attempts logged for this user.</p>
+                            )}
+                        </div>
                     </Card>
                 </div>
             )}

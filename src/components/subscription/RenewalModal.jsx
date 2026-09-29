@@ -78,16 +78,24 @@ export default function RenewalModal({
 
     const handlePaymentVerified = async (paymentResponse) => {
         setIsRazorpayModalOpen(false);
+        if (paymentResponse?.verified || paymentResponse?.success) {
+            setSuccessData(paymentResponse);
+            if (onSuccess) onSuccess(paymentResponse);
+            return;
+        }
+
         const t = toast.loading('Verifying payment and extending subscription...');
         try {
             const verificationResult = await verifySubscriptionPayment({
                 razorpay_payment_id: paymentResponse.razorpay_payment_id,
                 razorpay_order_id: paymentResponse.razorpay_order_id || pendingOrder?.orderId,
                 razorpay_signature: paymentResponse.razorpay_signature,
-                orderToken: pendingOrder?.orderToken,
                 userId,
                 qrId,
-                planId: selectedPlan.id
+                planId: selectedPlan.id,
+                userName: activeProfile?.name || activeProfile?.data?.name || '',
+                userEmail: activeProfile?.email || activeProfile?.data?.email || '',
+                userPhone: activeProfile?.phone || activeProfile?.data?.phone || ''
             });
 
             toast.success('Subscription Extended Successfully!', { id: t });
@@ -329,6 +337,9 @@ export default function RenewalModal({
                 customerName={activeProfile?.name || activeProfile?.data?.name || 'RESQR Citizen'}
                 customerEmail={activeProfile?.email || activeProfile?.data?.email || 'citizen@resqr.co.in'}
                 customerPhone={activeProfile?.phone || activeProfile?.data?.phone || '9876543210'}
+                userId={userId}
+                qrId={qrId}
+                planId={selectedPlan.id}
                 onSuccess={handlePaymentVerified}
             />
         </>

@@ -1036,6 +1036,9 @@ export default function CreateIdentity() {
                 customerName={citizenName || 'RESQR Citizen'}
                 customerEmail={citizenEmail || 'citizen@resqr.co.in'}
                 customerPhone={phoneNumber || '9876543210'}
+                userId={auth.currentUser?.uid}
+                qrId={expansionProfileId || (auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_new')}
+                planId="initial_3m"
                 onSuccess={(paymentInfo) => {
                     toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
                     handleCreateIdentitySubmit(paymentInfo.razorpay_payment_id);

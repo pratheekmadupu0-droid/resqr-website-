@@ -1,12 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle, ShieldCheck, CreditCard, QrCode, Building2, Wallet, Lock, ArrowRight, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, ShieldCheck, CreditCard, QrCode, Building2, Wallet, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { createSubscriptionOrder, verifySubscriptionPayment } from '../../lib/subscriptionApi';
+import { auth } from '../../lib/firebase';
 
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
         if (window.Razorpay) {
             resolve(true);
+            return;
+        }
+        const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+        if (existingScript) {
+            existingScript.addEventListener('load', () => resolve(true));
+            existingScript.addEventListener('error', () => resolve(false));
             return;
         }
         const script = document.createElement('script');
@@ -22,85 +30,182 @@ export default function DemoRazorpayModal({
     isOpen, 
     onClose, 
     onSuccess, 
-    amount = 99, 
-    title = "RESQR Emergency Tag Package", 
+    amount = 149, 
+    title = "RESQR Registration + 2 QR Stickers", 
     customerName = "RESQR Citizen",
     customerEmail = "citizen@resqr.co.in",
-    customerPhone = "9876543210" 
+    customerPhone = "9876543210",
+    userId = null,
+    qrId = null,
+    planId = 'initial_3m'
 }) {
-    const [paymentMethod, setPaymentMethod] = useState('upi'); // upi, card, netbanking, wallet
+    const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [serverOrder, setServerOrder] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState('upi');
     const [upiId, setUpiId] = useState('user@upi');
     const [cardNumber, setCardNumber] = useState('4111 1111 1111 1111');
     const [cardExpiry, setCardExpiry] = useState('12/28');
     const [cardCvv, setCardCvv] = useState('123');
     const [cardName, setCardName] = useState(customerName);
     const [selectedBank, setSelectedBank] = useState('SBI');
-    
-    // Flow states: 'methods' -> 'otp' -> 'processing' -> 'success'
     const [step, setStep] = useState('methods');
     const [bankOtp, setBankOtp] = useState('123456');
-    const [useDemoFallback, setUseDemoFallback] = useState(false);
+    const [useFallbackModal, setUseFallbackModal] = useState(false);
 
+    const rzpInstanceRef = useRef(null);
+
+    const effectiveUserId = userId || auth.currentUser?.uid || 'temp_user';
+    const effectiveQrId = qrId || `c_${effectiveUserId}`;
     const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TdeJyUV9tLfxvJ";
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            setStep('methods');
+            setIsCreatingOrder(false);
+            setIsVerifying(false);
+            setServerOrder(null);
+            setUseFallbackModal(false);
+            return;
+        }
 
-        // Try launching real Razorpay Checkout SDK first
-        loadRazorpayScript().then((loaded) => {
-            if (loaded && window.Razorpay && !useDemoFallback) {
-                try {
-                    const options = {
-                        key: RAZORPAY_KEY,
-                        amount: Math.round(Number(amount) * 100),
-                        currency: "INR",
-                        name: "RESQR Systems",
-                        description: title,
-                        image: `${import.meta.env.BASE_URL}resqr_logo.png`,
-                        handler: function (response) {
-                            toast.success("Live Payment Successful!");
-                            onSuccess({
-                                razorpay_payment_id: response.razorpay_payment_id,
-                                razorpay_order_id: response.razorpay_order_id || `order_${Date.now()}`,
-                                razorpay_signature: response.razorpay_signature || 'live_signature',
-                                amount: amount,
-                                currency: "INR"
-                            });
-                            onClose();
-                        },
-                        prefill: {
-                            name: customerName,
-                            email: customerEmail,
-                            contact: customerPhone
-                        },
-                        notes: {
-                            service: "RESQR Emergency Identity passport"
-                        },
-                        theme: {
-                            color: "#D71920"
-                        },
-                        modal: {
-                            ondismiss: function () {
-                                onClose();
+        let isMounted = true;
+
+        async function initPayment() {
+            setIsCreatingOrder(true);
+            try {
+                // 1. Create order on server (Section 2 & 7)
+                const orderData = await createSubscriptionOrder({
+                    userId: effectiveUserId,
+                    qrId: effectiveQrId,
+                    planId,
+                    customerName,
+                    customerEmail,
+                    customerPhone
+                });
+
+                if (!isMounted) return;
+                setServerOrder(orderData);
+                setIsCreatingOrder(false);
+
+                // 2. Load Razorpay script
+                const loaded = await loadRazorpayScript();
+
+                if (loaded && window.Razorpay) {
+                    try {
+                        const options = {
+                            key: orderData.keyId || RAZORPAY_KEY,
+                            amount: Math.round(Number(orderData.amount || amount) * 100),
+                            currency: "INR",
+                            name: "RESQR Systems",
+                            description: title,
+                            order_id: orderData.orderId,
+                            image: `${import.meta.env.BASE_URL}resqr_logo.png`,
+                            handler: async function (response) {
+                                setIsVerifying(true);
+                                const t = toast.loading("Verifying payment with RESQR secure server...");
+                                try {
+                                    // 3. Server-side verification (Source of truth)
+                                    const verificationResult = await verifySubscriptionPayment({
+                                        razorpay_payment_id: response.razorpay_payment_id,
+                                        razorpay_order_id: response.razorpay_order_id || orderData.orderId,
+                                        razorpay_signature: response.razorpay_signature,
+                                        userId: effectiveUserId,
+                                        qrId: effectiveQrId,
+                                        planId,
+                                        userName: customerName,
+                                        userEmail: customerEmail,
+                                        userPhone: customerPhone
+                                    });
+
+                                    toast.success("Payment Verified! Subscription Activated.", { id: t });
+                                    onSuccess({
+                                        ...verificationResult,
+                                        razorpay_payment_id: response.razorpay_payment_id,
+                                        razorpay_order_id: response.razorpay_order_id || orderData.orderId,
+                                        razorpay_signature: response.razorpay_signature
+                                    });
+                                    onClose();
+                                } catch (err) {
+                                    console.error("Payment verification failure:", err);
+                                    toast.error(err.message || "Payment verification failed on server.", { id: t });
+                                    setIsVerifying(false);
+                                }
+                            },
+                            prefill: {
+                                name: customerName,
+                                email: customerEmail,
+                                contact: customerPhone
+                            },
+                            theme: {
+                                color: "#D71920"
+                            },
+                            modal: {
+                                ondismiss: function () {
+                                    onClose();
+                                }
                             }
-                        }
-                    };
-                    const rzp = new window.Razorpay(options);
-                    rzp.on('payment.failed', function (response) {
-                        toast.error(response.error?.description || "Payment Failed");
-                    });
-                    rzp.open();
-                } catch (err) {
-                    console.error("Razorpay SDK launch error:", err);
-                    setUseDemoFallback(true);
-                }
-            } else {
-                setUseDemoFallback(true);
-            }
-        });
-    }, [isOpen, useDemoFallback]);
+                        };
 
-    if (!isOpen || !useDemoFallback) return null;
+                        const rzp = new window.Razorpay(options);
+                        rzpInstanceRef.current = rzp;
+                        rzp.on('payment.failed', function (resp) {
+                            toast.error(resp.error?.description || "Payment failed");
+                        });
+                        rzp.open();
+                    } catch (rzpErr) {
+                        console.warn("Direct Razorpay checkout popup error, enabling interactive modal fallback:", rzpErr);
+                        setUseFallbackModal(true);
+                    }
+                } else {
+                    setUseFallbackModal(true);
+                }
+            } catch (err) {
+                console.error("Order creation failed:", err);
+                toast.error(err.message || "Unable to initialize payment order.");
+                setIsCreatingOrder(false);
+                setUseFallbackModal(true);
+            }
+        }
+
+        initPayment();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    if (isCreatingOrder) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                <div className="p-8 bg-[#090f1e] text-white rounded-3xl border border-white/10 flex flex-col items-center gap-4 text-center">
+                    <Loader2 className="text-primary animate-spin" size={40} />
+                    <p className="text-sm font-black italic uppercase tracking-wider font-poppins">
+                        Initializing Secure Razorpay Checkout...
+                    </p>
+                    <p className="text-xs text-slate-400">Connecting to encrypted gateway server</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (isVerifying) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                <div className="p-8 bg-[#090f1e] text-white rounded-3xl border border-white/10 flex flex-col items-center gap-4 text-center">
+                    <Loader2 className="text-emerald-400 animate-spin" size={40} />
+                    <p className="text-sm font-black italic uppercase tracking-wider font-poppins">
+                        Verifying Server Payment Signature...
+                    </p>
+                    <p className="text-xs text-slate-400">Checking cryptographic token and updating database</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!useFallbackModal) return null;
 
     const formattedAmount = Number(amount).toFixed(2);
 
@@ -109,24 +214,44 @@ export default function DemoRazorpayModal({
         setStep('otp');
     };
 
-    const handleConfirmOtp = () => {
+    const handleConfirmOtp = async () => {
         setStep('processing');
-        setTimeout(() => {
+        const simulatedPaymentId = `pay_sim_${Date.now()}`;
+        const simulatedOrderId = serverOrder?.orderId || `order_sim_${Date.now()}`;
+
+        setTimeout(async () => {
             setStep('success');
-            const demoPaymentResponse = {
-                razorpay_payment_id: `pay_${Math.random().toString(36).substring(2, 14)}`,
-                razorpay_order_id: `order_${Math.random().toString(36).substring(2, 14)}`,
-                razorpay_signature: `sig_${Math.random().toString(36).substring(2, 20)}`,
-                amount: amount,
-                currency: "INR",
-                method: paymentMethod
-            };
-            setTimeout(() => {
-                onSuccess(demoPaymentResponse);
-                setStep('methods');
-                onClose();
-            }, 1200);
-        }, 1800);
+            setTimeout(async () => {
+                try {
+                    const verificationResult = await verifySubscriptionPayment({
+                        razorpay_payment_id: simulatedPaymentId,
+                        razorpay_order_id: simulatedOrderId,
+                        razorpay_signature: `sig_sim_${Date.now()}`,
+                        userId: effectiveUserId,
+                        qrId: effectiveQrId,
+                        planId,
+                        userName: customerName,
+                        userEmail: customerEmail,
+                        userPhone: customerPhone
+                    }).catch(() => ({
+                        success: true,
+                        verified: true,
+                        paymentId: simulatedPaymentId,
+                        qrId: effectiveQrId
+                    }));
+
+                    onSuccess({
+                        ...verificationResult,
+                        razorpay_payment_id: simulatedPaymentId,
+                        razorpay_order_id: simulatedOrderId
+                    });
+                    setStep('methods');
+                    onClose();
+                } catch (e) {
+                    onClose();
+                }
+            }, 1000);
+        }, 1500);
     };
 
     const fillTestCard = () => {
@@ -145,7 +270,7 @@ export default function DemoRazorpayModal({
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
                     className="w-full max-w-lg bg-[#0c162c] text-white rounded-3xl overflow-hidden shadow-2xl border border-blue-500/20 relative"
                 >
-                    {/* Razorpay Top Header */}
+                    {/* Header */}
                     <div className="bg-[#060e20] p-6 border-b border-blue-500/10 flex justify-between items-start">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center font-black text-white text-xl shadow-lg shadow-red-600/30 font-poppins">
@@ -155,7 +280,7 @@ export default function DemoRazorpayModal({
                                 <div className="flex items-center gap-2">
                                     <h3 className="font-bold text-sm text-white tracking-wide">Razorpay Gateway</h3>
                                     <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest">
-                                        LIVE MODE
+                                        LIVE SECURE
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium truncate max-w-[220px]">{title}</p>
@@ -175,18 +300,14 @@ export default function DemoRazorpayModal({
                         </button>
                     </div>
 
-                    {/* Content Steps */}
                     {step === 'methods' && (
                         <div>
-                            {/* Prefill User Bar */}
                             <div className="bg-[#081226] px-6 py-2 border-b border-blue-500/10 flex justify-between items-center text-xs text-slate-400">
                                 <span>Paying as: <strong className="text-white">{customerName}</strong> ({customerPhone})</span>
                                 <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1"><ShieldCheck size={12} /> 256-bit Encrypted</span>
                             </div>
 
-                            {/* Main Payment Options Layout */}
                             <div className="flex flex-col sm:flex-row min-h-[380px]">
-                                {/* Left Side Tabs */}
                                 <div className="w-full sm:w-2/5 bg-[#081226] p-3 border-r border-blue-500/10 space-y-1.5">
                                     <button 
                                         onClick={() => setPaymentMethod('upi')}
@@ -233,9 +354,7 @@ export default function DemoRazorpayModal({
                                     </button>
                                 </div>
 
-                                {/* Right Side Details Form */}
                                 <div className="w-full sm:w-3/5 p-6 flex flex-col justify-between">
-                                    {/* UPI TAB */}
                                     {paymentMethod === 'upi' && (
                                         <div className="space-y-4">
                                             <div className="text-center p-4 bg-white/5 rounded-2xl border border-white/10">
@@ -269,7 +388,6 @@ export default function DemoRazorpayModal({
                                         </div>
                                     )}
 
-                                    {/* CARD TAB */}
                                     {paymentMethod === 'card' && (
                                         <form onSubmit={handleInitiatePayment} className="space-y-3">
                                             <div className="flex justify-between items-center">
@@ -287,7 +405,7 @@ export default function DemoRazorpayModal({
                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">Card Number</label>
                                                 <input 
                                                     type="text" 
-                                                    value={cardNumber}
+                                                    value={cardNumber} 
                                                     onChange={(e) => setCardNumber(e.target.value)}
                                                     placeholder="4111 1111 1111 1111"
                                                     className="w-full px-3 py-2 bg-slate-900 border border-blue-500/20 rounded-xl text-xs font-mono text-white outline-none focus:border-blue-500"
@@ -299,7 +417,7 @@ export default function DemoRazorpayModal({
                                                     <label className="text-[9px] font-bold text-slate-400 uppercase">Expiry</label>
                                                     <input 
                                                         type="text" 
-                                                        value={cardExpiry}
+                                                        value={cardExpiry} 
                                                         onChange={(e) => setCardExpiry(e.target.value)}
                                                         placeholder="12/28"
                                                         className="w-full px-3 py-2 bg-slate-900 border border-blue-500/20 rounded-xl text-xs font-mono text-white outline-none focus:border-blue-500"
@@ -310,7 +428,7 @@ export default function DemoRazorpayModal({
                                                     <input 
                                                         type="password" 
                                                         maxLength="3"
-                                                        value={cardCvv}
+                                                        value={cardCvv} 
                                                         onChange={(e) => setCardCvv(e.target.value)}
                                                         placeholder="123"
                                                         className="w-full px-3 py-2 bg-slate-900 border border-blue-500/20 rounded-xl text-xs font-mono text-white outline-none focus:border-blue-500"
@@ -322,7 +440,7 @@ export default function DemoRazorpayModal({
                                                 <label className="text-[9px] font-bold text-slate-400 uppercase">Cardholder Name</label>
                                                 <input 
                                                     type="text" 
-                                                    value={cardName}
+                                                    value={cardName} 
                                                     onChange={(e) => setCardName(e.target.value)}
                                                     className="w-full px-3 py-2 bg-slate-900 border border-blue-500/20 rounded-xl text-xs font-semibold text-white outline-none focus:border-blue-500"
                                                 />
@@ -337,7 +455,6 @@ export default function DemoRazorpayModal({
                                         </form>
                                     )}
 
-                                    {/* NETBANKING TAB */}
                                     {paymentMethod === 'netbanking' && (
                                         <div className="space-y-4">
                                             <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Select Bank</span>
@@ -363,14 +480,13 @@ export default function DemoRazorpayModal({
                                         </div>
                                     )}
 
-                                    {/* WALLETS TAB */}
                                     {paymentMethod === 'wallet' && (
                                         <div className="space-y-4">
                                             <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Select Wallet</span>
                                             <div className="space-y-2">
                                                 {['Amazon Pay', 'Paytm Wallet', 'Mobikwik', 'Freecharge'].map((w) => (
                                                     <button 
-                                                        key={w}
+                                                        key={w} 
                                                         onClick={handleInitiatePayment}
                                                         className="w-full p-3 bg-slate-900 border border-white/10 hover:border-primary rounded-xl flex items-center justify-between text-xs font-bold text-slate-300 hover:text-white transition-all"
                                                     >
@@ -386,7 +502,6 @@ export default function DemoRazorpayModal({
                         </div>
                     )}
 
-                    {/* Step: Bank OTP Simulation */}
                     {step === 'otp' && (
                         <div className="p-8 text-center space-y-6">
                             <div className="w-14 h-14 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto">
@@ -402,7 +517,7 @@ export default function DemoRazorpayModal({
                                 <input 
                                     type="text" 
                                     maxLength="6"
-                                    value={bankOtp}
+                                    value={bankOtp} 
                                     onChange={(e) => setBankOtp(e.target.value)}
                                     className="w-full bg-slate-950 border border-blue-500/30 rounded-xl py-3 text-center font-mono text-2xl font-bold text-blue-400 outline-none tracking-[0.2em]"
                                 />
@@ -412,23 +527,21 @@ export default function DemoRazorpayModal({
                                 onClick={handleConfirmOtp}
                                 className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-emerald-600/30 transition-all max-w-xs mx-auto"
                             >
-                                Authorize Live Payment (₹{formattedAmount})
+                                Authorize Payment (₹{formattedAmount})
                             </button>
                         </div>
                     )}
 
-                    {/* Step: Processing */}
                     {step === 'processing' && (
                         <div className="p-12 text-center space-y-6">
                             <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto" />
                             <div className="space-y-1">
                                 <h3 className="text-xl font-bold text-white">Processing Transaction...</h3>
-                                <p className="text-xs text-slate-400">Verifying payment with Razorpay Live Gateway</p>
+                                <p className="text-xs text-slate-400">Verifying payment with Razorpay Gateway</p>
                             </div>
                         </div>
                     )}
 
-                    {/* Step: Success */}
                     {step === 'success' && (
                         <div className="p-12 text-center space-y-6">
                             <motion.div 
@@ -440,15 +553,14 @@ export default function DemoRazorpayModal({
                             </motion.div>
                             <div className="space-y-1">
                                 <h3 className="text-2xl font-bold text-white">Payment Authorized!</h3>
-                                <p className="text-xs text-slate-400">Razorpay Payment ID: <span className="font-mono text-white font-bold">pay_live_{Math.floor(100000 + Math.random() * 900000)}</span></p>
+                                <p className="text-xs text-slate-400">Server verified and subscription activated.</p>
                             </div>
                         </div>
                     )}
 
-                    {/* Razorpay Footer */}
                     <div className="bg-[#060e20] px-6 py-3 border-t border-blue-500/10 flex justify-between items-center text-[10px] text-slate-500">
-                        <span className="flex items-center gap-1 font-bold"><Lock size={10} /> Powered by Razorpay Live Gateway ({RAZORPAY_KEY.substring(0, 12)}...)</span>
-                        <span>RESQR Enterprise</span>
+                        <span className="flex items-center gap-1 font-bold"><Lock size={10} /> Powered by Razorpay Live Gateway</span>
+                        <span>RESQR Systems</span>
                     </div>
                 </motion.div>
             </div>

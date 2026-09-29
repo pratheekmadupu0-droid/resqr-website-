@@ -4,12 +4,12 @@
  * cryptographic verification, subscription status, and payment history.
  */
 
-import { db, auth } from './firebase';
-import { ref, get, update, push, set } from 'firebase/database';
-import { SUBSCRIPTION_PLANS, calculateNewExpiry, calculateSubscriptionStatus } from './subscriptionConfig';
+import { db } from './firebase';
+import { ref, get } from 'firebase/database';
+import { SUBSCRIPTION_PLANS, calculateSubscriptionStatus } from './subscriptionConfig';
 
 /**
- * Creates a Razorpay order on the backend.
+ * Creates a Razorpay order securely on the backend.
  */
 export async function createSubscriptionOrder({
     userId,
@@ -19,210 +19,72 @@ export async function createSubscriptionOrder({
     customerEmail = '',
     customerPhone = ''
 }) {
-    try {
-        const response = await fetch('/api/subscription/create-order', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userId,
-                qrId,
-                planId,
-                customerName,
-                customerEmail,
-                customerPhone
-            })
-        });
+    const response = await fetch('/api/subscription/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            userId,
+            qrId,
+            planId,
+            customerName,
+            customerEmail,
+            customerPhone
+        })
+    });
 
-        if (response.ok) {
-            const data = await response.json();
-            return data;
-        }
-    } catch (e) {
-        console.warn('Backend create-order endpoint offline, using secure client-side order generator:', e);
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Failed to initialize payment order with server.');
     }
 
-    // Direct fallback for local dev / client execution
-    const plan = SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.initial_3m;
-    const orderId = `order_resqr_${Math.random().toString(36).substring(2, 12)}`;
-    return {
-        success: true,
-        orderId,
-        amount: plan.amount,
-        currency: 'INR',
-        planId,
-        planName: plan.name,
-        durationMonths: plan.durationMonths,
-        keyId: import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_live_TdeJyUV9tLfxvJ',
-        customer: {
-            name: customerName,
-            email: customerEmail,
-            phone: customerPhone
-        }
-    };
+    const data = await response.json();
+    return data;
 }
 
 /**
- * Verifies Razorpay payment on the backend and activates/extends the subscription.
+ * Cryptographically verifies Razorpay payment on the server and activates/extends the subscription.
  */
 export async function verifySubscriptionPayment({
     razorpay_payment_id,
     razorpay_order_id,
     razorpay_signature,
-    orderToken,
     userId,
     qrId,
-    planId
+    planId,
+    userName = '',
+    userEmail = '',
+    userPhone = ''
 }) {
-    if (!razorpay_payment_id) {
-        throw new Error('Payment ID is required.');
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+        throw new Error('Complete Razorpay payment credentials are required for verification.');
     }
 
-    try {
-        const response = await fetch('/api/subscription/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                razorpay_payment_id,
-                razorpay_order_id,
-                razorpay_signature,
-                orderToken,
-                userId,
-                qrId,
-                planId
-            })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            return data;
-        } else {
-            const errData = await response.json().catch(() => ({}));
-            if (errData.error) {
-                throw new Error(errData.message || errData.error);
-            }
-        }
-    } catch (apiErr) {
-        console.warn('Backend verify-payment endpoint notice, committing verified state directly to RTDB:', apiErr.message);
-    }
-
-    // Direct Realtime Database Commit Fallback (source of truth consistency)
-    const plan = SUBSCRIPTION_PLANS[planId] || SUBSCRIPTION_PLANS.initial_3m;
-    const now = new Date();
-    const nowIso = now.toISOString();
-
-    // 1. Fetch current subscription to properly implement renewal logic
-    let existingSub = null;
-    try {
-        const subSnap = await get(ref(db, `subscriptions/${qrId}`));
-        if (subSnap.exists()) {
-            existingSub = subSnap.val();
-        } else {
-            const userSubSnap = await get(ref(db, `users/${userId}/subscription`));
-            if (userSubSnap.exists()) existingSub = userSubSnap.val();
-        }
-    } catch (e) {}
-
-    // Check duplicate payment
-    try {
-        const paySnap = await get(ref(db, `paymentHistory/${razorpay_payment_id}`));
-        if (paySnap.exists() && paySnap.val().status === 'SUCCESSFUL') {
-            return {
-                success: true,
-                duplicate: true,
-                message: 'Payment already processed previously.',
-                paymentId: razorpay_payment_id
-            };
-        }
-    } catch (e) {}
-
-    const newExpiryIso = calculateNewExpiry(existingSub?.expiresAt, plan.durationMonths, now);
-    const activatedAtIso = existingSub?.activatedAt || nowIso;
-
-    const subscriptionRecord = {
-        id: `sub_${qrId}`,
-        userId,
-        qrId,
-        planId,
-        planName: plan.name,
-        durationMonths: plan.durationMonths,
-        amount: plan.amount,
-        currency: 'INR',
-        status: 'ACTIVE',
-        activatedAt: activatedAtIso,
-        expiresAt: newExpiryIso,
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id || `ord_${Date.now()}`,
-        paymentStatus: 'paid',
-        createdAt: existingSub?.createdAt || nowIso,
-        updatedAt: nowIso,
-        renewedAt: nowIso,
-        renewalCount: (existingSub?.renewalCount || 0) + (plan.type === 'registration' ? 0 : 1)
-    };
-
-    const paymentRecord = {
-        paymentId: razorpay_payment_id,
-        orderId: razorpay_order_id || `ord_${Date.now()}`,
-        userId,
-        qrId,
-        planId,
-        planName: plan.name,
-        durationMonths: plan.durationMonths,
-        amount: plan.amount,
-        currency: 'INR',
-        status: 'SUCCESSFUL',
-        timestamp: nowIso,
-        epoch: now.getTime(),
-        type: plan.type
-    };
-
-    const updates = {};
-    updates[`subscriptions/${qrId}`] = subscriptionRecord;
-    updates[`users/${userId}/subscription`] = subscriptionRecord;
-    updates[`users/${userId}/profiles/${qrId}/subscription`] = subscriptionRecord;
-    updates[`profiles/${qrId}/subscription`] = subscriptionRecord;
-    updates[`paymentHistory/${razorpay_payment_id}`] = paymentRecord;
-    updates[`profiles/${qrId}/payment_status`] = 'paid';
-    updates[`profiles/${qrId}/payment_id`] = razorpay_payment_id;
-    updates[`profiles/${qrId}/subscriptionStatus`] = 'ACTIVE';
-    updates[`profiles/${qrId}/subscriptionExpiresAt`] = newExpiryIso;
-    updates[`users/${userId}/profiles/${qrId}/payment_status`] = 'paid';
-    updates[`users/${userId}/profiles/${qrId}/subscriptionStatus`] = 'ACTIVE';
-    updates[`users/${userId}/profiles/${qrId}/subscriptionExpiresAt`] = newExpiryIso;
-
-    await update(ref(db), updates);
-
-    // Audit log
-    try {
-        await push(ref(db, `subscriptionAudits/${qrId}`), {
-            action: plan.type === 'registration' ? 'INITIAL_REGISTRATION_ACTIVATED' : 'SUBSCRIPTION_RENEWAL_EXTENDED',
+    const response = await fetch('/api/subscription/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            razorpay_payment_id,
+            razorpay_order_id,
+            razorpay_signature,
             userId,
             qrId,
             planId,
-            amount: plan.amount,
-            previousExpiry: existingSub?.expiresAt || null,
-            newExpiry: newExpiryIso,
-            paymentId: razorpay_payment_id,
-            timestamp: nowIso
-        });
-    } catch (e) {}
+            userName,
+            userEmail,
+            userPhone
+        })
+    });
 
-    return {
-        success: true,
-        verified: true,
-        status: 'ACTIVE',
-        qrId,
-        planId,
-        planName: plan.name,
-        durationMonths: plan.durationMonths,
-        amount: plan.amount,
-        activatedAt: activatedAtIso,
-        expiresAt: newExpiryIso,
-        paymentId: razorpay_payment_id
-    };
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.success) {
+        throw new Error(data.message || data.error || 'Cryptographic payment verification failed on server.');
+    }
+
+    return data;
 }
 
 /**
- * Fetches subscription status from serverless backend or RTDB.
+ * Fetches subscription status from serverless backend or RTDB fallback.
  */
 export async function getSubscriptionStatus(qrId, userId) {
     if (!qrId && !userId) return null;
@@ -251,7 +113,6 @@ export async function getSubscriptionStatus(qrId, userId) {
             if (userSubSnap.exists()) sub = userSubSnap.val();
         }
         if (!sub && qrId) {
-            // Check profiles node
             const profileSnap = await get(ref(db, `profiles/${qrId}/subscription`));
             if (profileSnap.exists()) sub = profileSnap.val();
         }
@@ -272,24 +133,51 @@ export async function getSubscriptionStatus(qrId, userId) {
 }
 
 /**
- * Fetches all payment and renewal history for a user or QR.
+ * Fetches all verified payment history for a user or QR.
  */
 export async function getPaymentHistory(userId, qrId) {
     try {
-        const historySnap = await get(ref(db, 'paymentHistory'));
-        if (!historySnap.exists()) return [];
+        // First try canonical payments collection
+        const paymentsSnap = await get(ref(db, 'payments'));
+        let payments = [];
 
-        const all = Object.values(historySnap.val());
-        return all
+        if (paymentsSnap.exists()) {
+            payments = Object.values(paymentsSnap.val());
+        } else {
+            const legacySnap = await get(ref(db, 'paymentHistory'));
+            if (legacySnap.exists()) {
+                payments = Object.values(legacySnap.val());
+            }
+        }
+
+        return payments
             .filter(item => {
                 if (!item) return false;
                 if (userId && item.userId === userId) return true;
                 if (qrId && item.qrId === qrId) return true;
                 return false;
             })
-            .sort((a, b) => (b.epoch || 0) - (a.epoch || 0));
+            .sort((a, b) => new Date(b.createdAt || b.paidAt || b.timestamp || 0) - new Date(a.createdAt || a.paidAt || a.timestamp || 0));
     } catch (e) {
         console.error('Failed to fetch payment history:', e);
+        return [];
+    }
+}
+
+/**
+ * Fetches payment attempts for a user or admin audit.
+ */
+export async function getPaymentAttempts(userId) {
+    try {
+        const attemptsSnap = await get(ref(db, 'paymentAttempts'));
+        if (!attemptsSnap.exists()) return [];
+
+        const all = Object.values(attemptsSnap.val());
+        return all
+            .filter(item => !userId || item.userId === userId)
+            .sort((a, b) => (b.epoch || 0) - (a.epoch || 0));
+    } catch (e) {
+        console.error('Failed to fetch payment attempts:', e);
         return [];
     }
 }

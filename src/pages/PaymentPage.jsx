@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CreditCard, ShieldCheck, Lock, ChevronRight, Zap, Loader2 } from 'lucide-react';
+import { CreditCard, ShieldCheck, Lock, ChevronRight, Zap, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -9,25 +9,28 @@ import { db, auth } from '../lib/firebase';
 import { ref, onValue, update, get } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import toast from 'react-hot-toast';
+import { SUBSCRIPTION_PLANS } from '../lib/subscriptionConfig';
+import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 
 export default function PaymentPage() {
     const navigate = useNavigate();
-    const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selectedProduct, setSelectedProduct] = useState(null);
-    const DEFAULT_PRODUCTS = [
-        { id: 'digital', title: 'Digital QR', price: 99, best: true },
-        { id: 'band', title: 'QR Band', price: 299, best: false },
-        { id: 'bracelet', title: 'QR Bracelet', price: 399, best: false },
-        { id: 'keychain', title: 'Key Chain', price: 199, base: false }
-    ];
+    const [selectedPlanId, setSelectedPlanId] = useState('initial_3m');
+    const [activeSlug, setActiveSlug] = useState(null);
+    const [activeUser, setActiveUser] = useState(null);
+    const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
 
     useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
             if (!user) {
-                toast.error("Please login to proceed to payment.");
+                toast.error("Please login to proceed to checkout.");
                 navigate('/login?redirect_to=/payment');
             } else {
+                setActiveUser(user);
+                const currentSlug = localStorage.getItem('resqr_active_slug') || `c_${user.uid}`;
+                setActiveSlug(currentSlug);
+
+                // Sync pending profile if exists
                 const pendingProfileJson = localStorage.getItem('resqr_pending_profile');
                 if (pendingProfileJson) {
                     try {
@@ -48,137 +51,19 @@ export default function PaymentPage() {
 
                         localStorage.removeItem('resqr_pending_profile');
                         localStorage.setItem('resqr_active_slug', nameSlug);
+                        setActiveSlug(nameSlug);
                     } catch (err) {
                         console.error("Failed to sync pending profile:", err);
                     }
                 }
+                setLoading(false);
             }
-        });
-
-        const prodRef = ref(db, 'config/products');
-        const unsub = onValue(prodRef, async (snapshot) => {
-            const data = snapshot.val();
-            let list = [];
-            if (data) {
-                list = Object.entries(data).map(([id, val]) => ({ id, ...val }));
-            } else {
-                list = DEFAULT_PRODUCTS;
-            }
-            
-            setProducts(list.length > 0 ? list : DEFAULT_PRODUCTS);
-            
-            // NEW: Fetch pending profile to determine price
-            const activeSlug = localStorage.getItem('resqr_active_slug');
-            const currentUser = auth.currentUser;
-            
-            if (activeSlug && currentUser) {
-                try {
-                    const profileRef = ref(db, `users/${currentUser.uid}/profiles/${activeSlug}`);
-                    const profileSnap = await get(profileRef);
-                    if (profileSnap.exists()) {
-                        const pData = profileSnap.val();
-                        const dynamicProduct = {
-                            id: 'dynamic',
-                            title: pData.scannerType === 'facial' ? 'Facial Identity' : 'QR Identity',
-                            price: pData.price || (pData.scannerType === 'facial' ? 149 : 99),
-                            best: true
-                        };
-                        setSelectedProduct(dynamicProduct);
-                    } else {
-                        const best = list.find(p => p.best) || list[0];
-                        setSelectedProduct(best);
-                    }
-                } catch (err) {
-                    console.error("Error fetching dynamic price:", err);
-                    setSelectedProduct(list.find(p => p.best) || list[0]);
-                }
-            } else {
-                const best = list.find(p => p.best) || list[0];
-                setSelectedProduct(best);
-            }
-            
-            setLoading(false);
         });
 
         return () => {
             unsubscribeAuth();
-            unsub();
         };
     }, [navigate]);
-
-    const handlePayment = async () => {
-        if (!selectedProduct) {
-            toast.error("Please select a product first.");
-            return;
-        }
-
-        // Launch Razorpay Live Checkout
-        const loadScript = () => {
-            return new Promise((resolve) => {
-                if (window.Razorpay) return resolve(true);
-                const script = document.createElement('script');
-                script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-                script.onload = () => resolve(true);
-                script.onerror = () => resolve(false);
-                document.body.appendChild(script);
-            });
-        };
-
-        const res = await loadScript();
-        if (!res || !window.Razorpay) {
-            toast.error("Could not load payment gateway. Please check your internet connection.");
-            return;
-        }
-
-        const currentUser = auth.currentUser;
-        const options = {
-            key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_TdeJyUV9tLfxvJ",
-            amount: Math.round(Number(selectedProduct.price) * 100),
-            currency: "INR",
-            name: "RESQR",
-            description: selectedProduct.title,
-            image: `${import.meta.env.BASE_URL}resqr_logo.png`,
-            handler: async function (response) {
-                const t = toast.loading("Confirming activation...");
-                try {
-                    let activeSlug = localStorage.getItem('resqr_active_slug');
-                    const finalPaymentData = {
-                        payment_status: 'paid',
-                        payment_id: response.razorpay_payment_id,
-                        payment_date: new Date().toISOString(),
-                        last_updated: new Date().toISOString()
-                    };
-
-                    if (activeSlug) {
-                        await update(ref(db, `profiles/${activeSlug}`), finalPaymentData);
-                        const uid = activeSlug.includes('_') ? (activeSlug.startsWith('c_') ? activeSlug.replace('c_', '') : activeSlug.split('_')[0]) : (currentUser?.uid);
-                        if (uid) {
-                            await update(ref(db, `users/${uid}/profiles/${activeSlug}`), finalPaymentData);
-                        }
-                    }
-
-                    toast.success('Payment Verified! Identity Activated.', { id: t });
-                    navigate('/success');
-                } catch (error) {
-                    console.error("Payment save error:", error);
-                    toast.error("Payment received, but error activating profile. Contact support.", { id: t });
-                }
-            },
-            prefill: {
-                name: currentUser?.displayName || '',
-                email: currentUser?.email || '',
-            },
-            theme: {
-                color: "#E63946"
-            }
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (resp) {
-            toast.error(resp.error?.description || "Payment failed");
-        });
-        rzp.open();
-    };
 
     if (loading) {
         return (
@@ -188,10 +73,10 @@ export default function PaymentPage() {
         );
     }
 
-    if (!selectedProduct) return null;
-
-    const subtotal = selectedProduct.price / 1.18;
-    const gst = selectedProduct.price - subtotal;
+    const availablePlans = Object.values(SUBSCRIPTION_PLANS);
+    const selectedPlan = SUBSCRIPTION_PLANS[selectedPlanId] || SUBSCRIPTION_PLANS.initial_3m;
+    const subtotal = selectedPlan.amount / 1.18;
+    const gst = selectedPlan.amount - subtotal;
 
     return (
         <div className="min-h-screen bg-medical-bg py-24 px-4 text-white font-manrope">
@@ -208,49 +93,105 @@ export default function PaymentPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
                     <div className="lg:col-span-8">
                         <Card className="p-10 bg-medical-card border-white/5 rounded-[40px] shadow-2xl">
-                            <h2 className="text-2xl font-black italic uppercase mb-8">Selected Plan</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {products.map((p) => (
+                            <h2 className="text-2xl font-black italic uppercase mb-8">Select Emergency Plan</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                {availablePlans.map((p) => (
                                     <button
                                         key={p.id}
-                                        onClick={() => setSelectedProduct(p)}
-                                        className={`p-6 rounded-3xl border-2 transition-all ${selectedProduct.id === p.id ? 'border-primary bg-primary/5' : 'border-white/5'}`}
+                                        onClick={() => setSelectedPlanId(p.id)}
+                                        className={`p-6 rounded-3xl border-2 transition-all text-left flex flex-col justify-between ${
+                                            selectedPlanId === p.id 
+                                                ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20' 
+                                                : 'border-white/5 bg-slate-900/40 hover:border-white/20'
+                                        }`}
                                     >
-                                        <p className="text-[10px] font-black uppercase mb-2">{p.title}</p>
-                                        <p className="text-xl font-black italic">₹{p.price}</p>
+                                        <div>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <Badge className="text-[8px] font-black uppercase tracking-wider bg-white/10 text-slate-300 border-none">
+                                                    {p.durationMonths} MONTHS
+                                                </Badge>
+                                                {p.popular && (
+                                                    <span className="text-[8px] font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                                                        POPULAR
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm font-black uppercase text-white mb-1">{p.shortName || p.name}</p>
+                                            <p className="text-xs text-slate-400 font-medium line-clamp-2">{p.description}</p>
+                                        </div>
+                                        <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-baseline">
+                                            <span className="text-2xl font-black italic text-white font-poppins">₹{p.amount}</span>
+                                            {selectedPlanId === p.id && (
+                                                <CheckCircle2 size={16} className="text-primary" />
+                                            )}
+                                        </div>
                                     </button>
                                 ))}
                             </div>
 
                             <div className="mt-12">
-                                <Button className="w-full py-10 text-2xl font-black italic rounded-[30px] bg-primary text-white border-none uppercase tracking-tighter shadow-2xl shadow-primary/20" onClick={handlePayment}>
-                                    PAY NOW <ChevronRight size={24} className="ml-2" />
+                                <Button 
+                                    className="w-full py-8 text-xl font-black italic rounded-[24px] bg-primary hover:bg-primary-dark text-white border-none uppercase tracking-tighter shadow-2xl shadow-primary/20 flex items-center justify-center gap-3" 
+                                    onClick={() => setIsRazorpayOpen(true)}
+                                >
+                                    PAY ₹{selectedPlan.amount} VIA RAZORPAY <ChevronRight size={24} />
                                 </Button>
                             </div>
                         </Card>
                     </div>
 
                     <div className="lg:col-span-4">
-                        <Card className="p-10 bg-medical-card border-white/5 rounded-[40px] shadow-2xl">
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8">Order Summary</h3>
+                        <Card className="p-10 bg-medical-card border-white/5 rounded-[40px] shadow-2xl space-y-6">
+                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500">Order Summary</h3>
                             <div className="space-y-4">
                                 <div className="flex justify-between font-black italic text-xl">
-                                    <span>{selectedProduct.title}</span>
-                                    <span>₹{selectedProduct.price}</span>
+                                    <span className="truncate pr-2">{selectedPlan.name}</span>
+                                    <span>₹{selectedPlan.amount}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-slate-500 uppercase tracking-widest">
-                                    <span>GST (Included)</span>
+                                    <span>Plan Duration</span>
+                                    <span className="text-white font-bold">{selectedPlan.durationMonths} Months</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-slate-500 uppercase tracking-widest">
+                                    <span>GST (Included 18%)</span>
                                     <span>₹{gst.toFixed(2)}</span>
                                 </div>
                                 <div className="pt-4 border-t border-white/5 flex justify-between font-black text-3xl text-primary">
                                     <span>Total</span>
-                                    <span>₹{selectedProduct.price}</span>
+                                    <span>₹{selectedPlan.amount}</span>
                                 </div>
+                            </div>
+
+                            <div className="p-4 bg-slate-900/60 rounded-2xl border border-white/5 space-y-2 text-xs text-slate-400">
+                                <p className="flex items-center gap-2 font-bold text-white">
+                                    <ShieldCheck size={14} className="text-emerald-400" /> RESQR Guarantee
+                                </p>
+                                <p className="text-[11px] leading-relaxed">
+                                    Your existing QR token is permanently preserved on renewals. Emergency dispatch, hospital facial scans, and medical vault activate immediately upon backend verification.
+                                </p>
                             </div>
                         </Card>
                     </div>
                 </div>
             </div>
+
+            {/* Razorpay Gateway Modal */}
+            <DemoRazorpayModal
+                isOpen={isRazorpayOpen}
+                onClose={() => setIsRazorpayOpen(false)}
+                amount={selectedPlan.amount}
+                title={selectedPlan.name}
+                customerName={activeUser?.displayName || 'RESQR Citizen'}
+                customerEmail={activeUser?.email || 'citizen@resqr.co.in'}
+                customerPhone={activeUser?.phoneNumber || '9876543210'}
+                userId={activeUser?.uid}
+                qrId={activeSlug}
+                planId={selectedPlan.id}
+                onSuccess={(paymentInfo) => {
+                    toast.success("Payment Verified! Subscription Activated.");
+                    navigate('/success');
+                }}
+            />
         </div>
     );
 }
