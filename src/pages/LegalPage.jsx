@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, FileText, RefreshCcw, Truck, ChevronRight } from 'lucide-react';
 import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
 
 export default function LegalPage() {
     const [activeTab, setActiveTab] = useState('privacy');

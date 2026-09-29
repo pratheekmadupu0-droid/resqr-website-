@@ -21,7 +21,12 @@ export default function Dashboard() {
     const [userData, setUserData] = useState(null);
 
     useEffect(() => {
+        let unsubData = null;
         const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+            if (unsubData) {
+                unsubData();
+                unsubData = null;
+            }
             if (!currentUser) {
                 setLoading(false);
                 return;
@@ -31,7 +36,7 @@ export default function Dashboard() {
             
             // Listen to changes in the user's role and status
             const userRef = ref(db, `users/${uid}`);
-            onValue(userRef, (snapshot) => {
+            unsubData = onValue(userRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
                     setUserRole(data.role || 'citizen');
@@ -49,7 +54,10 @@ export default function Dashboard() {
             });
         });
 
-        return () => unsubscribeAuth();
+        return () => {
+            if (unsubData) unsubData();
+            unsubscribeAuth();
+        };
     }, [navigate]);
 
     if (loading) {

@@ -72,6 +72,8 @@ export default function DashboardCitizen() {
                     setSubscription(null);
                 }
             }
+        }, (err) => {
+            console.warn("Failed to listen to subscription status:", err);
         });
         return () => unsub();
     }, [activeProfile?.id]);
@@ -145,6 +147,9 @@ export default function DashboardCitizen() {
                     : [];
                 
                 setProfiles(profilesData);
+                setLoading(false);
+            }, (err) => {
+                console.warn("Failed to load citizen profiles:", err);
                 setLoading(false);
             });
         };

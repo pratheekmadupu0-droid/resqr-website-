@@ -4,7 +4,8 @@ import {
     Shield, ChevronRight, Activity, Heart, CheckCircle2,
     QrCode, Smartphone, Users, Lock, Zap, User, ScanLine,
     Play, Navigation, Sparkles, ArrowRight, HeartHandshake,
-    Droplet, AlertCircle, PhoneCall, Building2, Stethoscope, Siren, ShieldCheck, HelpCircle
+    Droplet, AlertCircle, PhoneCall, Building2, Stethoscope, Siren, ShieldCheck, HelpCircle,
+    ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
@@ -96,6 +97,9 @@ export default function LandingPage() {
             } else {
                 setUserCount('0');
             }
+        }, (error) => {
+            console.warn("Failed to fetch user count from RTDB:", error);
+            setUserCount('1,000+');
         });
         return () => unsubUsers();
     }, []);

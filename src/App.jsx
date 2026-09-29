@@ -11,6 +11,7 @@ import Footer from './components/Footer';
 import MobileNav from './components/MobileNav';
 import SiconBadge from './components/SiconBadge';
 import AppLoading from './components/ui/AppLoading';
+import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
 import { auth } from './lib/firebase';
 import { syncUserOnLogin } from './lib/userSync';
 
@@ -129,54 +130,56 @@ function App() {
             <ScrollToTop />
             {!isScanPage && <Navbar />}
             <main className={`flex-grow ${isScanPage ? 'pt-0' : 'pb-24 lg:pb-0'}`}>
-                <Suspense fallback={<AppLoading message="Loading RESQR..." />}>
-                <Routes>
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/about" element={<AboutUs />} />
-                    <Route path="/free-qr" element={<ViralQR />} />
-                    <Route path="/viral-id" element={<ViralQR />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/my-qr" element={<MyQR />} />
-                    <Route path="/emergency-preview" element={<EmergencyPreview />} />
-                    <Route path="/create-profile" element={<Navigate to="/login" replace />} />
-                    <Route path="/create-identity" element={<CreateIdentity />} />
-                    <Route path="/payment" element={<PaymentPage />} />
-                    <Route path="/privacy-settings" element={<PrivacySettings />} />
-                    <Route path="/success" element={<SuccessPage />} />
-                    <Route path="/e/:id" element={<EmergencyPage />} />
-                    <Route path="/qr/:profileId" element={<QRScanPage />} />
-                    <Route path="/admin" element={<AdminErrorBoundary><AdminPanel /></AdminErrorBoundary>} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/contact" element={<ContactUs />} />
-                    <Route path="/p/:username" element={<QRScanPage />} />
-                    <Route path="/u/:username" element={<QRScanPage />} />
-                    <Route path="/how-it-works" element={<HowItWorks />} />
-                    <Route path="/solutions/individuals" element={<SolutionsIndividuals />} />
-                    <Route path="/solutions/families" element={<SolutionsFamilies />} />
-                    <Route path="/solutions/doctors" element={<SolutionsDoctors />} />
-                    <Route path="/solutions/hospitals" element={<SolutionsHospitals />} />
-                    <Route path="/solutions/ambulances" element={<SolutionsAmbulances />} />
-                    <Route path="/solutions/first-responders" element={<SolutionsFirstResponders />} />
-                    <Route path="/solutions/enterprises" element={<SolutionsEnterprises />} />
-                    <Route path="/solutions/schools" element={<SolutionsSchools />} />
-                    <Route path="/solutions/government" element={<SolutionsGovernment />} />
-                    <Route path="/safety-privacy" element={<SafetyPrivacy />} />
-                    <Route path="/legal" element={<LegalPage />} />
-                    <Route path="/technology" element={<Technology />} />
-                    <Route path="/products" element={<ProductsPage />} />
-                    <Route path="/pricing" element={<PricingPage />} />
-                    <Route path="/partners" element={<PartnersPage />} />
-                    <Route path="/stories" element={<StoriesPage />} />
-                    <Route path="/emergency-awareness" element={<EmergencyAwareness />} />
-                    <Route path="/faq" element={<FAQPage />} />
-                    <Route path="/help-center" element={<HelpCenter />} />
-                    <Route path="/scanner" element={<ScannerPage />} />
-                    <Route path="/store" element={<StorePage />} />
-                    <Route path="/emergency-profile" element={<EmergencyPreview />} />
-                    <Route path="/:username" element={<QRScanPage />} />
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
-                </Suspense>
+                <GlobalErrorBoundary>
+                    <Suspense fallback={<AppLoading message="Loading RESQR..." />}>
+                    <Routes>
+                        <Route path="/" element={<LandingPage />} />
+                        <Route path="/about" element={<AboutUs />} />
+                        <Route path="/free-qr" element={<ViralQR />} />
+                        <Route path="/viral-id" element={<ViralQR />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/my-qr" element={<MyQR />} />
+                        <Route path="/emergency-preview" element={<EmergencyPreview />} />
+                        <Route path="/create-profile" element={<Navigate to="/login" replace />} />
+                        <Route path="/create-identity" element={<CreateIdentity />} />
+                        <Route path="/payment" element={<PaymentPage />} />
+                        <Route path="/privacy-settings" element={<PrivacySettings />} />
+                        <Route path="/success" element={<SuccessPage />} />
+                        <Route path="/e/:id" element={<EmergencyPage />} />
+                        <Route path="/qr/:profileId" element={<QRScanPage />} />
+                        <Route path="/admin" element={<AdminErrorBoundary><AdminPanel /></AdminErrorBoundary>} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/contact" element={<ContactUs />} />
+                        <Route path="/p/:username" element={<QRScanPage />} />
+                        <Route path="/u/:username" element={<QRScanPage />} />
+                        <Route path="/how-it-works" element={<HowItWorks />} />
+                        <Route path="/solutions/individuals" element={<SolutionsIndividuals />} />
+                        <Route path="/solutions/families" element={<SolutionsFamilies />} />
+                        <Route path="/solutions/doctors" element={<SolutionsDoctors />} />
+                        <Route path="/solutions/hospitals" element={<SolutionsHospitals />} />
+                        <Route path="/solutions/ambulances" element={<SolutionsAmbulances />} />
+                        <Route path="/solutions/first-responders" element={<SolutionsFirstResponders />} />
+                        <Route path="/solutions/enterprises" element={<SolutionsEnterprises />} />
+                        <Route path="/solutions/schools" element={<SolutionsSchools />} />
+                        <Route path="/solutions/government" element={<SolutionsGovernment />} />
+                        <Route path="/safety-privacy" element={<SafetyPrivacy />} />
+                        <Route path="/legal" element={<LegalPage />} />
+                        <Route path="/technology" element={<Technology />} />
+                        <Route path="/products" element={<ProductsPage />} />
+                        <Route path="/pricing" element={<PricingPage />} />
+                        <Route path="/partners" element={<PartnersPage />} />
+                        <Route path="/stories" element={<StoriesPage />} />
+                        <Route path="/emergency-awareness" element={<EmergencyAwareness />} />
+                        <Route path="/faq" element={<FAQPage />} />
+                        <Route path="/help-center" element={<HelpCenter />} />
+                        <Route path="/scanner" element={<ScannerPage />} />
+                        <Route path="/store" element={<StorePage />} />
+                        <Route path="/emergency-profile" element={<EmergencyPreview />} />
+                        <Route path="/:username" element={<QRScanPage />} />
+                        <Route path="*" element={<NotFound />} />
+                    </Routes>
+                    </Suspense>
+                </GlobalErrorBoundary>
             </main>
             {!isScanPage && <Footer />}
             {!isScanPage && <MobileNav />}
