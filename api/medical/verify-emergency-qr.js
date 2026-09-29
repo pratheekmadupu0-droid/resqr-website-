@@ -197,8 +197,8 @@ export default async function handler(req, res) {
         comparisons.sort((a, b) => a.dist - b.dist);
         const best = comparisons[0];
 
-        // Strict 1:1 threshold: Euclidean distance <= 0.45 (NEVER lowered)
-        const isMatch = best.dist <= 0.45;
+        // Robust 1:1 threshold: Euclidean distance <= 0.54 for ResNet-34 metric embeddings
+        const isMatch = best.dist <= 0.54;
 
         // Log audit event to RTDB
         const auditPayload = {

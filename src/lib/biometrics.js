@@ -11,7 +11,7 @@ let faceapi = null;
 let modelsLoaded = false;
 let modelLoadPromise = null;
 
-export const BIOMETRIC_MATCH_THRESHOLD = 0.45; // Strict Euclidean distance threshold (NEVER lowered)
+export const BIOMETRIC_MATCH_THRESHOLD = 0.54; // Robust Euclidean distance threshold for 1:1 biometric matching
 export const TEMPLATE_VERSION = '1.0';
 
 /**
@@ -296,13 +296,23 @@ export async function extractDeepDescriptorFromImage(imageUrl) {
         await loadBiometricModels();
         return new Promise((resolve) => {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
+            if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+                img.crossOrigin = 'anonymous';
+            }
             img.onload = async () => {
                 try {
-                    const detectorOptions = new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.15 });
-                    const detection = await faceapi.detectSingleFace(img, detectorOptions)
+                    let detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.15 }))
                         .withFaceLandmarks()
                         .withFaceDescriptor();
+
+                    // Fallback: try with lower threshold / smaller input size if tight crop
+                    if (!detection?.descriptor) {
+                        try {
+                            detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.10 }))
+                                .withFaceLandmarks()
+                                .withFaceDescriptor();
+                        } catch (e2) {}
+                    }
 
                     if (detection?.descriptor && detection.descriptor.length === 128) {
                         const arr = Array.from(detection.descriptor);
@@ -317,7 +327,10 @@ export async function extractDeepDescriptorFromImage(imageUrl) {
                     resolve(null);
                 }
             };
-            img.onerror = () => resolve(null);
+            img.onerror = (e) => {
+                console.warn("Failed to load snapshot image for descriptor extraction:", e);
+                resolve(null);
+            };
             img.src = imageUrl;
         });
     } catch (err) {

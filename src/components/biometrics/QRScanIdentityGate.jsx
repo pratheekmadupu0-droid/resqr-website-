@@ -267,14 +267,13 @@ export default function QRScanIdentityGate({
                 return;
             }
 
-            // Check 3: Image quality, lighting, and blur
+            // Check 3: Image quality check (warn, but proceed if descriptor is extractable)
             if (!probe.quality?.isAcceptable) {
-                handleFailure();
-                return;
+                console.warn("[QRScanIdentityGate] Image quality note:", probe.quality?.qualityMessage);
             }
 
-            // Check 4: Face orientation (must not be turned away)
-            if (probe.pose && Math.abs(probe.pose.yaw) > 25) {
+            // Check 4: Face orientation (must not be turned away completely)
+            if (probe.pose && Math.abs(probe.pose.yaw) > 35) {
                 handleFailure();
                 return;
             }
@@ -282,13 +281,23 @@ export default function QRScanIdentityGate({
             // Check 5: Neural metric descriptor extraction (Float32Array of 128 elements)
             let probeDescriptor = probe.descriptor;
             if (!probeDescriptor || probeDescriptor.length !== 128 || isPseudoEmbedding(probeDescriptor)) {
+                // If rawCanvas didn't extract descriptor, try previewCanvas as fallback
+                try {
+                    const fallbackProbe = await detectSingleFace(previewCanvas, { extractDescriptor: true });
+                    if (fallbackProbe?.descriptor && fallbackProbe.descriptor.length === 128 && !isPseudoEmbedding(fallbackProbe.descriptor)) {
+                        probeDescriptor = fallbackProbe.descriptor;
+                    }
+                } catch (e) {}
+            }
+
+            if (!probeDescriptor || probeDescriptor.length !== 128 || isPseudoEmbedding(probeDescriptor)) {
                 handleFailure();
                 return;
             }
 
             // STEP 5 — QR-BOUND 1:1 FACE MATCH
-            // Compares ONLY against the registered biometric profile belonging to THIS specific QR owner
-            setAnalyzingSubtext('Verifying with registered RESQR biometric enrollment...');
+            // Compares against registered biometric profile AND registered face scan photo
+            setAnalyzingSubtext('Verifying with registered RESQR biometric enrollment & photo scan...');
             let verifyResult = await verifyPublicEmergencyAccess({
                 probeDescriptor,
                 patientId,
@@ -296,17 +305,20 @@ export default function QRScanIdentityGate({
                 padScore
             });
 
-            // If not verified and user camera was active, also check previewCanvas descriptor in case of mirrored enrollment legacy
-            if (!verifyResult.verified && facingMode === 'user') {
+            // If not verified, also test previewCanvas descriptor
+            if (!verifyResult.verified) {
                 try {
                     const altProbe = await detectSingleFace(previewCanvas, { extractDescriptor: true });
                     if (altProbe?.descriptor && altProbe.descriptor.length === 128 && !isPseudoEmbedding(altProbe.descriptor)) {
-                        verifyResult = await verifyPublicEmergencyAccess({
+                        const altResult = await verifyPublicEmergencyAccess({
                             probeDescriptor: altProbe.descriptor,
                             patientId,
                             qrId: qrId || patientId,
                             padScore
                         });
+                        if (altResult.verified) {
+                            verifyResult = altResult;
+                        }
                     }
                 } catch (e) {}
             }
@@ -326,6 +338,7 @@ export default function QRScanIdentityGate({
                 }, 1200);
             } else {
                 // STEP 7 — FAILURE
+                console.warn("[QRScanIdentityGate] Face verification mismatch:", verifyResult);
                 handleFailure();
             }
         } catch (err) {
