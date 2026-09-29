@@ -1,4 +1,5 @@
 import Razorpay from 'razorpay';
+import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -36,15 +37,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: `Invalid plan specified: ${planId}` });
     }
 
-    const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!keyId || !keySecret) {
+    const configVal = validateRazorpayConfig();
+    if (!configVal.isValid) {
         return res.status(500).json({
-            error: 'CONFIG_ERROR',
-            message: 'Razorpay keys not configured on server. Check environment variables.'
+            error: configVal.error,
+            message: configVal.message
         });
     }
+
+    const activeCreds = await getActiveRazorpayCredentials();
+    if (!activeCreds) {
+        return res.status(500).json({
+            error: 'INVALID_CREDENTIALS',
+            message: 'Razorpay authentication failed on server.'
+        });
+    }
+
+    const { keyId, keySecret } = activeCreds;
 
     const cleanReceipt = `rcpt_${String(userId).slice(-6)}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 40);
     const now = new Date();

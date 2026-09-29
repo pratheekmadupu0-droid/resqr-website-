@@ -1,4 +1,4 @@
-import Razorpay from 'razorpay';
+import { validateRazorpayConfig, getActiveRazorpayCredentials, maskKeyId } from '../../lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -104,16 +104,26 @@ export default async function handler(req, res) {
         });
     }
 
-    // 2. Razorpay Credentials Verification (Section 2 & 24)
-    const keyId = process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!keyId || !keySecret) {
+    // 2. Razorpay Credentials Verification & Resolution (Section 2 & 24)
+    const configVal = validateRazorpayConfig();
+    if (!configVal.isValid) {
         return res.status(500).json({
-            error: 'CONFIG_ERROR',
-            message: 'Razorpay API credentials not configured on server. Check environment variables.'
+            success: false,
+            error: configVal.error,
+            message: configVal.message
         });
     }
+
+    const activeCreds = await getActiveRazorpayCredentials();
+    if (!activeCreds) {
+        return res.status(401).json({
+            success: false,
+            error: 'INVALID_CREDENTIALS',
+            message: 'Razorpay authentication failed. Verify that Key ID and Key Secret are active in your Razorpay dashboard.'
+        });
+    }
+
+    const { keyId, keySecret } = activeCreds;
 
     const { range = 'all', fromDate, toDate } = req.body || {};
 
@@ -247,6 +257,7 @@ export default async function handler(req, res) {
         let existingRecordsUpdated = 0;
         let duplicatesSkipped = 0;
         let errorsCount = 0;
+        let unmatchedCount = 0;
 
         const dbUpdates = {};
         const syncTimestamp = new Date().toISOString();
@@ -303,6 +314,9 @@ export default async function handler(req, res) {
 
                 // If completely unmatched, set UNMATCHED without faking (Section 9)
                 const isUnmatched = !matchedUserId;
+                if (isUnmatched) {
+                    unmatchedCount++;
+                }
                 const finalUserId = matchedUserId || null;
                 const finalUserName = isUnmatched ? 'UNMATCHED' : (matchedUserName || (rzpEmail ? rzpEmail.split('@')[0] : 'RESQR Citizen'));
 
@@ -438,6 +452,7 @@ export default async function handler(req, res) {
             newRecordsImported,
             existingRecordsUpdated,
             duplicatesSkipped,
+            unmatchedCount,
             errorsCount,
             ordersChecked: allRazorpayOrders.length,
             status: errorsCount === 0 ? 'SUCCESS' : 'COMPLETED_WITH_WARNINGS'
@@ -472,11 +487,19 @@ export default async function handler(req, res) {
             syncLog,
             persistedOnBackend,
             recordsChecked,
-            newRecordsImported,
-            existingRecordsUpdated,
+            recordsImported: newRecordsImported,
+            recordsUpdated: existingRecordsUpdated,
             duplicatesSkipped,
-            errorsCount,
+            unmatched: unmatchedCount,
+            errors: errorsCount,
             ordersChecked: allRazorpayOrders.length,
+            summary: {
+                totalPayments: recordsChecked,
+                paymentsCreated: newRecordsImported,
+                paymentsUpdated: existingRecordsUpdated,
+                totalOrders: allRazorpayOrders.length,
+                unmatchedPayments: unmatchedCount
+            },
             dbUpdates: persistedOnBackend ? null : dbUpdates,
             message: `Razorpay Synchronization Complete: ${recordsChecked} payment records checked, ${allRazorpayOrders.length} orders analyzed, ${newRecordsImported} imported, ${existingRecordsUpdated} updated, ${duplicatesSkipped} duplicates verified.`
         });

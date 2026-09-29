@@ -146,6 +146,8 @@ export default function AdminPanel() {
     const [paymentTypeFilter, setPaymentTypeFilter] = useState('ALL');
     const [paymentsPerPage, setPaymentsPerPage] = useState(25);
     const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
+    const [connectionStatus, setConnectionStatus] = useState(null);
+    const [isTestingConnection, setIsTestingConnection] = useState(false);
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -1822,9 +1824,53 @@ export default function AdminPanel() {
     const totalFilteredPages = Math.max(1, Math.ceil(filteredPaymentsList.length / paymentsPerPage));
     const paginatedPaymentsList = filteredPaymentsList.slice((paymentCurrentPage - 1) * paymentsPerPage, paymentCurrentPage * paymentsPerPage);
 
-    // Razorpay Historical Sync Handler
+    // Razorpay Connection Diagnostic Handler (Section 6 & 7)
+    const handleTestConnection = async (showToast = true) => {
+        setIsTestingConnection(true);
+        try {
+            const currentUser = auth.currentUser;
+            const token = currentUser ? await currentUser.getIdToken() : '';
+            const res = await fetch('/api/admin/payments/test-connection?refresh=true', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+            const data = await res.json();
+            setConnectionStatus(data);
+            if (data.success) {
+                if (showToast) toast.success(`Razorpay connection verified (${data.environment} Mode)!`);
+            } else {
+                if (showToast) toast.error(data.message || 'Razorpay connection test failed');
+            }
+            return data;
+        } catch (err) {
+            console.error("Test connection error:", err);
+            const errResult = {
+                success: false,
+                connection: 'Error',
+                message: `Connection diagnostic failed: ${err.message}`,
+                environment: 'UNKNOWN'
+            };
+            setConnectionStatus(errResult);
+            if (showToast) toast.error(errResult.message);
+            return errResult;
+        } finally {
+            setIsTestingConnection(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'payments' && !connectionStatus && !isTestingConnection) {
+            handleTestConnection(false);
+        }
+    }, [activeTab]);
+
+    // Razorpay Historical Sync Handler (Section 8 & 13)
     const handleSyncRazorpayHistory = async (rangeToSync = razorpaySyncRange, customStart = null, customEnd = null) => {
         setIsRazorpaySyncing(true);
+        const toastId = toast.loading('Synchronizing Razorpay payments...');
         try {
             const currentUser = auth.currentUser;
             const token = currentUser ? await currentUser.getIdToken() : '';
@@ -1843,7 +1889,8 @@ export default function AdminPanel() {
 
             const data = await res.json();
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Failed to sync Razorpay history');
+                const safeError = data.message || data.error || 'Failed to synchronize Razorpay history.';
+                throw new Error(safeError);
             }
 
             if (data.dbUpdates && Object.keys(data.dbUpdates).length > 0) {
@@ -1857,10 +1904,20 @@ export default function AdminPanel() {
             setSyncResultModalData(data);
             setIsSyncResultModalOpen(true);
             setIsRazorpaySyncModalOpen(false);
-            toast.success(`Synchronized ${data.summary?.totalPayments || 0} Razorpay records!`);
+
+            const imp = data.recordsImported ?? data.summary?.paymentsCreated ?? 0;
+            const upd = data.recordsUpdated ?? data.summary?.paymentsUpdated ?? 0;
+            const skp = data.duplicatesSkipped ?? 0;
+            const unm = data.unmatched ?? data.summary?.unmatchedPayments ?? 0;
+            const errs = data.errors ?? 0;
+
+            toast.success(
+                `Razorpay sync completed.\nImported: ${imp} | Updated: ${upd} | Skipped: ${skp} | Unmatched: ${unm} | Errors: ${errs}`,
+                { id: toastId, duration: 6000 }
+            );
         } catch (err) {
             console.error("Razorpay sync error:", err);
-            toast.error(`Sync failed: ${err.message}`);
+            toast.error(err.message || 'Razorpay configuration is incomplete on the server.', { id: toastId, duration: 6000 });
         } finally {
             setIsRazorpaySyncing(false);
         }
@@ -4238,12 +4295,87 @@ export default function AdminPanel() {
 
                             <div className="flex items-center gap-3">
                                 <Button
+                                    onClick={() => handleTestConnection(true)}
+                                    disabled={isTestingConnection}
+                                    className="h-12 px-5 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs uppercase tracking-wider border border-white/10 flex items-center gap-2 cursor-pointer transition-all"
+                                >
+                                    <RefreshCw size={15} className={isTestingConnection ? "animate-spin" : ""} />
+                                    {isTestingConnection ? 'Testing...' : 'Test Connection'}
+                                </Button>
+                                <Button
                                     onClick={() => setIsRazorpaySyncModalOpen(true)}
                                     disabled={isRazorpaySyncing}
                                     className="h-12 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black italic uppercase tracking-wider text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 cursor-pointer transition-all"
                                 >
                                     <Zap size={16} className={isRazorpaySyncing ? "animate-spin" : "fill-current"} />
-                                    {isRazorpaySyncing ? 'Synchronizing...' : 'Sync Razorpay History'}
+                                    {isRazorpaySyncing ? 'Synchronizing...' : 'Sync Razorpay'}
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Razorpay Gateway Diagnostic & Connection Status Bar (Section 7) */}
+                        <div className="bg-slate-950/60 p-5 rounded-3xl border border-white/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 flex-wrap text-xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Razorpay Connection:</span>
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                                        connectionStatus?.connection === 'Connected'
+                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            : connectionStatus?.connection === 'Error' || connectionStatus?.connection === 'Disconnected'
+                                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                    }`}>
+                                        <span className={`w-2 h-2 rounded-full ${
+                                            connectionStatus?.connection === 'Connected'
+                                                ? 'bg-emerald-400 animate-pulse'
+                                                : connectionStatus?.connection === 'Error' || connectionStatus?.connection === 'Disconnected'
+                                                ? 'bg-rose-400'
+                                                : 'bg-amber-400'
+                                        }`} />
+                                        {connectionStatus?.connection || 'Checking...'}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-slate-300">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Environment:</span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-white/5 font-mono text-[10px] font-bold text-white border border-white/5">
+                                        {connectionStatus?.environment || 'LIVE'}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-slate-300">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Key ID:</span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-white/5 font-mono text-[10px] text-slate-200 border border-white/5">
+                                        {connectionStatus?.keyIdMasked || 'Configured'}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 text-slate-300">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Secret:</span>
+                                    <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 font-mono text-[10px] text-emerald-400 border border-emerald-500/20 font-bold">
+                                        Configured
+                                    </span>
+                                </div>
+
+                                {connectionStatus?.lastSuccessfulConnection && (
+                                    <div className="flex items-center gap-1.5 text-slate-400">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Last Verified:</span>
+                                        <span className="text-[10px] font-mono text-slate-300">
+                                            {new Date(connectionStatus.lastSuccessfulConnection).toLocaleString('en-IN')}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    onClick={() => handleTestConnection(true)}
+                                    disabled={isTestingConnection}
+                                    className="h-9 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-[10px] uppercase tracking-wider border border-white/10 flex items-center gap-1.5 cursor-pointer transition-all"
+                                >
+                                    <RefreshCw size={12} className={isTestingConnection ? "animate-spin" : ""} />
+                                    {isTestingConnection ? 'Testing...' : 'Test Connection'}
                                 </Button>
                             </div>
                         </div>

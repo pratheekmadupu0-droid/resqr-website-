@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
@@ -54,10 +55,19 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: `Invalid plan specified: ${planId}` });
     }
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    const configVal = validateRazorpayConfig();
+    if (!configVal.isValid) {
+        return res.status(500).json({
+            error: configVal.error,
+            message: configVal.message
+        });
+    }
+
+    const activeCreds = await getActiveRazorpayCredentials();
+    const keySecret = activeCreds?.keySecret;
     if (!keySecret) {
         return res.status(500).json({
-            error: 'CONFIG_ERROR',
+            error: 'RAZORPAY_KEY_SECRET_MISSING',
             message: 'Razorpay Secret is not configured on server.'
         });
     }

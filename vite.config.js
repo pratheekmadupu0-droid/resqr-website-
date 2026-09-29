@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -26,6 +27,8 @@ function apiMiddlewarePlugin() {
             modulePath = './api/admin/emergency-profile.js';
           } else if (pathname === '/api/admin/payments/sync-razorpay') {
             modulePath = './api/admin/payments/sync-razorpay.js';
+          } else if (pathname === '/api/admin/payments/test-connection') {
+            modulePath = './api/admin/payments/test-connection.js';
           } else if (pathname.startsWith('/api/admin/users/') && pathname.endsWith('/emergency-profile')) {
             const match = pathname.match(/^\/api\/admin\/users\/([^/]+)\/emergency-profile$/);
             if (match) {
