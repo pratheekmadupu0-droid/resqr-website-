@@ -90,20 +90,18 @@ export default function MyQR() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-        // Brand mark
+        // Brand mark (Official QR Card Logo - Black Res + Red QR)
         const logo = new Image();
         logo.crossOrigin = 'anonymous';
-        logo.src = `${import.meta.env.BASE_URL}resqr_logo.png`;
+        logo.src = `${import.meta.env.BASE_URL}resqr_qr_logo.png`;
         await new Promise((resolve, reject) => {
             logo.onload = resolve;
             logo.onerror = () => reject(new Error('Failed to load logo for tag export'));
         });
 
-        const logoW = 450;
-        const logoH = (logo.height / logo.width) * logoW || 130;
-        ctx.filter = 'brightness(0)';
+        const logoW = 480;
+        const logoH = (logo.height / logo.width) * logoW || 135;
         ctx.drawImage(logo, (CANVAS_W - logoW) / 2, 70, logoW, logoH);
-        ctx.filter = 'none';
 
         // QR Code Matrix
         ctx.drawImage(canvas, (CANVAS_W - 720) / 2, logoH + 130, 720, 720);

@@ -16,6 +16,7 @@ import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
 import RenewalModal from '../components/subscription/RenewalModal';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
 import { ADMIN_EMAILS } from '../lib/subscriptionConfig';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 export default function EmergencyPage() {
     const { id } = useParams();
@@ -443,7 +444,7 @@ export default function EmergencyPage() {
 
                 <div className="max-w-xl mx-auto px-5 py-12 text-center">
                     <div className="flex flex-col items-center mb-6">
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                        <ResqrLogo className="h-10 w-auto mb-6" />
                         <div className="w-20 h-20 bg-red-600/10 border-2 border-red-500/30 rounded-full flex items-center justify-center mb-4">
                             <ShieldAlert size={40} className="text-red-500" />
                         </div>
@@ -609,7 +610,7 @@ export default function EmergencyPage() {
 
                 <div className="max-w-xl mx-auto px-5 pt-8">
                     <div className="flex flex-col items-center mb-6 text-center">
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-4" />
+                        <ResqrLogo className="h-10 w-auto mb-4" />
                     </div>
 
                     <QRScanIdentityGate
@@ -643,7 +644,7 @@ export default function EmergencyPage() {
             <div className="max-w-xl mx-auto space-y-8 pb-40 px-5 pt-12">
                 {/* Brand Header */}
                 <div className="flex flex-col items-center mb-6 text-center animate-in fade-in duration-700">
-                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                    <ResqrLogo className="h-10 w-auto mb-6" />
                     <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
                         Verified Rescue Identity
                     </Badge>
@@ -1077,8 +1078,10 @@ export default function EmergencyPage() {
                 )}
             </AnimatePresence>
 
-            <footer className="text-center py-20 bg-[#040812] border-t border-white/5 opacity-50">
-                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-8 w-auto mx-auto mb-6 grayscale" />
+            <footer className="text-center py-20 bg-[#040812] border-t border-white/5 opacity-80">
+                <div className="flex justify-center mb-6">
+                    <ResqrLogo className="h-8 w-auto object-contain" />
+                </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 italic">
                     GLOBAL EMERGENCY IDENTITY INFRASTRUCTURE
                 </p>

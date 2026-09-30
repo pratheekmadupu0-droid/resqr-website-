@@ -20,6 +20,7 @@ import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import { isPseudoEmbedding } from '../lib/biometrics';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import ResqrLogo from '../components/branding/ResqrLogo';
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../lib/subscriptionApi';
 import { addMonthsToDate } from '../lib/subscriptionConfig';
 import { 
@@ -941,7 +942,7 @@ export default function LoginPage() {
                 <div className="text-center mb-12">
                     <Link to="/" className="inline-block relative group">
                         <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="relative h-16 w-auto" />
+                        <ResqrLogo className="relative h-16 w-auto" />
                     </Link>
                     <p className="text-slate-500 font-bold uppercase tracking-[0.25em] text-[10px] italic mt-4">
                         Secure Enterprise-Grade Safety Network

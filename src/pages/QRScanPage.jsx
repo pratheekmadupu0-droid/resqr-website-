@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
 import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 export default function QRScanPage() {
     const { profileId, username } = useParams();
@@ -315,7 +316,7 @@ export default function QRScanPage() {
 
                 <div className="max-w-xl mx-auto px-5 pt-8">
                     <div className="flex flex-col items-center mb-6 text-center">
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-4" />
+                        <ResqrLogo className="h-10 w-auto mb-4" />
                     </div>
 
                     <QRScanIdentityGate
@@ -343,7 +344,7 @@ export default function QRScanPage() {
             <div className="max-w-xl mx-auto space-y-8 pb-40 px-5 pt-12">
                 {/* Brand Header */}
                 <div className="flex flex-col items-center mb-6 text-center animate-in fade-in duration-700">
-                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 w-auto mb-6" />
+                    <ResqrLogo className="h-10 w-auto mb-6" />
                     <Badge className="bg-red-600 text-white border-none px-6 py-2.5 tracking-[0.35em] uppercase italic font-black text-[10px] shadow-2xl shadow-red-600/30">
                         Verified Rescue Identity
                     </Badge>
@@ -671,8 +672,10 @@ export default function QRScanPage() {
                 )}
             </AnimatePresence>
 
-            <footer className="text-center py-20 bg-[#040812] border-t border-white/5 opacity-50">
-                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-8 w-auto mx-auto mb-6 grayscale" />
+            <footer className="text-center py-20 bg-[#040812] border-t border-white/5 opacity-80">
+                <div className="flex justify-center mb-6">
+                    <ResqrLogo className="h-8 w-auto object-contain" />
+                </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 italic">
                     GLOBAL EMERGENCY IDENTITY INFRASTRUCTURE
                 </p>

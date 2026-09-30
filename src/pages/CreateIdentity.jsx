@@ -17,6 +17,7 @@ import QRPreviewModal from '../components/common/QRPreviewModal';
 import { calculateAge } from '../lib/dateUtils';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import { isPseudoEmbedding } from '../lib/biometrics';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -496,7 +497,7 @@ export default function CreateIdentity() {
                 <div className="text-center mb-12">
                     <Link to="/dashboard" className="inline-block relative group">
                         <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="relative h-16 w-auto animate-pulse" />
+                        <ResqrLogo className="relative h-16 w-auto animate-pulse" />
                     </Link>
                     <p className="text-slate-500 font-bold uppercase tracking-[0.25em] text-[10px] italic mt-4">
                         Secure Multi-Identity Vault Expansion

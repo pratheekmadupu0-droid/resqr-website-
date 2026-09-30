@@ -22,6 +22,7 @@ import { onAuthStateChanged, sendSignInLinkToEmail, isSignInWithEmailLink, signI
 import { QRCodeCanvas } from 'qrcode.react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateAge } from '../lib/dateUtils';
+import ResqrLogo from '../components/branding/ResqrLogo';
 import WhatsAppMessaging from '../components/admin/WhatsAppMessaging';
 import PaymentReceiptModal from '../components/common/PaymentReceiptModal';
 import { 
@@ -1960,11 +1961,11 @@ export default function AdminPanel() {
         <div className="min-h-screen bg-medical-bg flex flex-col md:flex-row text-white font-manrope">
             {/* Sidebar */}
             <aside className="w-full md:w-72 bg-medical-card border-r border-white/5 p-8 space-y-10 shadow-2xl z-20">
-                <div className="flex items-center gap-3 px-2">
-                    <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                        <Shield className="text-white" size={24} />
-                    </div>
-                    <span className="font-black text-xl tracking-tighter uppercase italic">RESQR Admin</span>
+                <div className="flex flex-col gap-3 px-2">
+                    <Link to="/" className="inline-block">
+                        <ResqrLogo className="h-8 w-auto object-contain" />
+                    </Link>
+                    <span className="font-black text-xs tracking-widest uppercase text-slate-400 italic">ADMIN OPERATIONS</span>
                 </div>
 
                 <nav className="space-y-2">

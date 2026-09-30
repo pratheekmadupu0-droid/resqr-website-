@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/Badge';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect } from 'react';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 export default function ViralQR() {
     const [step, setStep] = useState('create'); // 'create', 'view'
@@ -55,7 +56,9 @@ export default function ViralQR() {
             <div className="min-h-screen bg-medical-bg page-bg-ganesha text-white font-manrope selection:bg-primary/30 py-10 px-4">
                 <div className="max-w-xl mx-auto space-y-8">
                     <div className="text-center mb-10">
-                        <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-12 mx-auto mb-6" />
+                        <div className="flex justify-center mb-6">
+                            <ResqrLogo className="h-12 w-auto object-contain" />
+                        </div>
                         <Badge className="bg-primary/20 text-primary border-none px-6 py-1 font-black italic tracking-widest text-[10px]">BASIC MEDICAL IDENTITY</Badge>
                     </div>
 

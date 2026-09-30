@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
 import { ref, onValue, get } from 'firebase/database';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import ResqrLogo from '../components/branding/ResqrLogo';
 import { Modal } from '../components/ui/Modal';
 
 function TypewriterHeroHeadline() {
@@ -386,7 +387,7 @@ export default function LandingPage() {
             {/* ================= FINAL CALL TO ACTION ================= */}
             <section className="py-24 bg-gradient-to-b from-[#080D1A] to-[#040812] border-t border-white/5 text-center relative overflow-hidden">
                 <div className="max-w-4xl mx-auto px-6 space-y-8 relative z-10">
-                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-12 w-auto mx-auto object-contain" />
+                    <ResqrLogo className="h-12 w-auto mx-auto object-contain" />
                     <h2 className="text-4xl sm:text-5xl md:text-6xl font-black italic uppercase tracking-tighter font-poppins text-white">
                         Ready when you are. <br />
                         <span className="text-primary italic">Create your RESQR identity today.</span>

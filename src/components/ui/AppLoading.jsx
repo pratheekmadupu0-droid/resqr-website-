@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import ResqrLogo from '../branding/ResqrLogo';
 
 /**
  * RESQR Cinematic Loading Screen
@@ -26,9 +27,7 @@ export default function AppLoading({ message = 'Preparing your emergency profile
                 <div className="resqr-loader-wrap" style={{ width: ring, height: ring }}>
                     <div className="resqr-loader-ring" />
                     <div className="resqr-loader-ring-2" />
-                    <img
-                        src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                        alt="RESQR"
+                    <ResqrLogo
                         className="resqr-loader-logo"
                         style={{ width: logo, height: 'auto' }}
                     />

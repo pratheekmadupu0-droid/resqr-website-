@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Twitter, Facebook, Instagram, Github, HeartHandshake } from 'lucide-react';
+import ResqrLogo from './branding/ResqrLogo';
 
 export default function Footer() {
     const currentYear = new Date().getFullYear();
@@ -49,7 +50,7 @@ export default function Footer() {
                     {/* Brand + CTA */}
                     <div className="space-y-5">
                         <Link to="/" className="inline-flex items-center gap-2">
-                            <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-10 sm:h-12 w-auto object-contain" />
+                            <ResqrLogo className="h-10 sm:h-12 w-auto object-contain" />
                         </Link>
                         <p className="text-slate-500 text-sm leading-relaxed font-medium">
                             The emergency identification system that keeps your important

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ShieldAlert, Home, QrCode, LayoutDashboard } from 'lucide-react';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 /**
  * NotFound — elegant 404 for unmatched routes.
@@ -15,11 +16,9 @@ export default function NotFound() {
             </div>
 
             <div className="relative z-10 w-full max-w-lg text-center space-y-7">
-                <img
-                    src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                    alt="RESQR"
-                    className="h-11 w-auto mx-auto object-contain"
-                />
+                <div className="flex justify-center">
+                    <ResqrLogo className="h-11 w-auto object-contain" />
+                </div>
 
                 <div className="inline-flex items-center gap-2 status-pill status-pill-danger">
                     <ShieldAlert size={13} /> Error 404

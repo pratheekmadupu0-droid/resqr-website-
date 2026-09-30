@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { ref, get } from 'firebase/database';
 import { ADMIN_EMAILS } from '../lib/subscriptionConfig';
+import ResqrLogo from './branding/ResqrLogo';
 
 export default function Navbar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -97,13 +98,9 @@ return (
             style={{ padding: '10px 16px', borderRadius: 0 }}
             aria-label="Main navigation"
         >
-            {/* Logo */}
+            {/* Official RESQR Brand Logo */}
             <Link to="/" className="flex items-center gap-2 shrink-0 group" aria-label="RESQR home">
-                <img
-                    src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                    alt="RESQR Logo"
-                    className="app-header-logo transition-transform group-hover:scale-105"
-                />
+                <ResqrLogo className="app-header-logo transition-transform group-hover:scale-105" />
             </Link>
 
             {/* Desktop links */}

@@ -1,13 +1,15 @@
 import React, { forwardRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import ResqrQrLogo from '../branding/ResqrQrLogo';
 
 /**
  * RESQRQRCodeCard
  *
  * The official unified RESQR Emergency QR Card component for every registered user.
- * Structure:
- * 1. Official RESQR Logo
- * 2. High-contrast QR Code (with excavate logo center)
+ * 
+ * DESIGN SPECIFICATION:
+ * 1. Official QR-Specific RESQR Logo (Black "Res" + Red "QR" with TM)
+ * 2. High-contrast, scannable QR Code
  * 3. Registered User Full Name (strictly from DB/auth, dynamic for all users)
  * 4. SCAN IN EMERGENCY
  * 5. POWERED BY RESQR.CO.IN
@@ -38,18 +40,16 @@ const RESQRQRCodeCard = forwardRef(function RESQRQRCodeCard(
             } ${className}`}
             style={{ maxWidth: '380px', width: '100%', margin: '0 auto' }}
         >
-            {/* 1. Official RESQR Brand Logo */}
-            <div className="mb-6 flex items-center justify-center w-full">
-                <img
-                    src={`${import.meta.env.BASE_URL}resqr_logo.png`}
-                    alt="RESQR"
-                    className="h-10 sm:h-12 w-auto object-contain brightness-0"
-                    loading="eager"
+            {/* 1. Official QR-Specific Brand Logo (Black Res + Red QR) */}
+            <div className="mb-6 flex items-center justify-center w-full px-4">
+                <ResqrQrLogo
+                    className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+                    alt="RESQR Official QR Badge"
                 />
             </div>
 
             {/* 2. QR Code Matrix */}
-            <div className="bg-white p-3.5 rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-slate-100 mb-6 relative">
+            <div className="bg-white p-3.5 rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-slate-100 mb-6 relative flex items-center justify-center">
                 <QRCodeCanvas
                     id={canvasId}
                     value={qrValue || 'https://resqr.co.in'}

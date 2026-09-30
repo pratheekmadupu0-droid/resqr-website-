@@ -11,6 +11,8 @@ import { ref, get } from 'firebase/database';
 import toast from 'react-hot-toast';
 import QRPreviewModal from '../components/common/QRPreviewModal';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import ResqrLogo from '../components/branding/ResqrLogo';
+import ResqrQrLogo from '../components/branding/ResqrQrLogo';
 
 export default function SuccessPage() {
     const qrRef = useRef();
@@ -193,7 +195,9 @@ export default function SuccessPage() {
 
                     {profile?.scannerType === 'facial' && profile?.facialImage ? (
                         <div className="bg-white p-6 rounded-[32px] border-8 border-slate-950 inline-block mb-10 text-center mx-auto">
-                            <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR Logo" className="h-10 w-auto object-contain mx-auto mb-4 brightness-0" />
+                            <div className="flex justify-center mb-4">
+                                <ResqrQrLogo className="h-10 w-auto object-contain" />
+                            </div>
                             <div className="w-[220px] h-[220px] rounded-[24px] overflow-hidden border-4 border-emerald-500 shadow-xl mx-auto">
                                 <img src={profile.facialImage} alt="Facial Profile" className="w-full h-full object-cover" />
                             </div>
@@ -321,7 +325,9 @@ export default function SuccessPage() {
                 </div>
 
                 <footer className="mt-24 opacity-60">
-                    <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 mx-auto mb-6" />
+                    <div className="flex justify-center mb-6">
+                        <ResqrLogo className="h-10 w-auto object-contain" />
+                    </div>
                     <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">
                         Powered by Guardian Blockchain • End-to-End Safety Infrastructure
                     </p>

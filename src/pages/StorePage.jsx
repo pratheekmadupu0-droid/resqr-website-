@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Card } from '../components/ui/Card';
 import toast from 'react-hot-toast';
 import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
+import ResqrLogo from '../components/branding/ResqrLogo';
 
 const products = [
     {
@@ -190,8 +191,10 @@ export default function StorePage() {
             </section>
 
             {/* Footer Placeholder for visual consistency */}
-            <footer className="py-24 text-center opacity-20">
-                <img src={`${import.meta.env.BASE_URL}resqr_logo.png`} alt="RESQR" className="h-10 mx-auto mb-6" />
+            <footer className="py-24 text-center opacity-70">
+                <div className="flex justify-center mb-6">
+                    <ResqrLogo className="h-10 w-auto object-contain" />
+                </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Official RESQR Merch Store • Secured by SSL</p>
             </footer>
 
