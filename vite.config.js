@@ -1,112 +1,110 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Populate process.env using Vite's built-in loadEnv (zero external dependencies)
-try {
-  const env = loadEnv('development', process.cwd(), '');
+// https://vitejs.dev/config/
+export default defineConfig(({ mode }) => {
+  // Load env file based on `mode` in the current working directory.
+  const env = loadEnv(mode, process.cwd(), '')
   for (const [k, v] of Object.entries(env)) {
     if (!process.env[k]) {
-      process.env[k] = v;
+      process.env[k] = v
     }
   }
-} catch (e) {}
 
-function apiMiddlewarePlugin() {
   return {
-    name: 'api-middleware',
-    configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        if (!req.url.startsWith('/api/')) return next();
-        try {
-          const urlObj = new URL(req.url, 'http://localhost');
-          const pathname = urlObj.pathname;
-          
-          let modulePath = null;
-          if (pathname === '/api/subscription/create-order') {
-            modulePath = './api/subscription/create-order.js';
-          } else if (pathname === '/api/subscription/verify-payment') {
-            modulePath = './api/subscription/verify-payment.js';
-          } else if (pathname === '/api/subscription/status') {
-            modulePath = './api/subscription/status.js';
-          } else if (pathname === '/api/webhooks/razorpay') {
-            modulePath = './api/webhooks/razorpay.js';
-          } else if (pathname === '/api/verify') {
-            modulePath = './api/verify.js';
-          } else if (pathname === '/api/admin/emergency-profile') {
-            modulePath = './api/admin/emergency-profile.js';
-          } else if (pathname === '/api/admin/payments/sync-razorpay') {
-            modulePath = './api/admin/payments/sync-razorpay.js';
-          } else if (pathname === '/api/admin/payments/test-connection') {
-            modulePath = './api/admin/payments/test-connection.js';
-          } else if (pathname.startsWith('/api/admin/users/') && pathname.endsWith('/emergency-profile')) {
-            const match = pathname.match(/^\/api\/admin\/users\/([^/]+)\/emergency-profile$/);
-            if (match) {
-              req.params = { userId: match[1] };
-              urlObj.searchParams.set('userId', match[1]);
-            }
-            modulePath = './api/admin/emergency-profile.js';
-          }
-
-          if (!modulePath) return next();
-
-          // Read body if POST
-          let body = {};
-          if (req.method === 'POST') {
-            const chunks = [];
-            for await (const chunk of req) {
-              chunks.push(chunk);
-            }
-            const rawBody = Buffer.concat(chunks).toString();
+    plugins: [
+      react(),
+      {
+        name: 'api-middleware',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            if (!req.url || !req.url.startsWith('/api/')) return next()
             try {
-              body = JSON.parse(rawBody);
-            } catch (e) {
-              body = rawBody;
+              const urlObj = new URL(req.url, 'http://localhost')
+              const pathname = urlObj.pathname
+
+              let modulePath = null
+              if (pathname === '/api/subscription/create-order') {
+                modulePath = './api/subscription/create-order.js'
+              } else if (pathname === '/api/subscription/verify-payment') {
+                modulePath = './api/subscription/verify-payment.js'
+              } else if (pathname === '/api/subscription/status') {
+                modulePath = './api/subscription/status.js'
+              } else if (pathname === '/api/webhooks/razorpay') {
+                modulePath = './api/webhooks/razorpay.js'
+              } else if (pathname === '/api/verify') {
+                modulePath = './api/verify.js'
+              } else if (pathname === '/api/admin/emergency-profile') {
+                modulePath = './api/admin/emergency-profile.js'
+              } else if (pathname === '/api/admin/payments/sync-razorpay') {
+                modulePath = './api/admin/payments/sync-razorpay.js'
+              } else if (pathname === '/api/admin/payments/test-connection') {
+                modulePath = './api/admin/payments/test-connection.js'
+              } else if (pathname.startsWith('/api/admin/users/') && pathname.endsWith('/emergency-profile')) {
+                const match = pathname.match(/^\/api\/admin\/users\/([^/]+)\/emergency-profile$/)
+                if (match) {
+                  req.params = { userId: match[1] }
+                  urlObj.searchParams.set('userId', match[1])
+                }
+                modulePath = './api/admin/emergency-profile.js'
+              }
+
+              if (!modulePath) return next()
+
+              // Read body if POST
+              let body = {}
+              if (req.method === 'POST') {
+                const chunks = []
+                for await (const chunk of req) {
+                  chunks.push(chunk)
+                }
+                const rawBody = Buffer.concat(chunks).toString()
+                try {
+                  body = JSON.parse(rawBody)
+                } catch (e) {
+                  body = rawBody
+                }
+              }
+
+              req.body = body
+              req.query = Object.fromEntries(urlObj.searchParams.entries())
+
+              res.status = (code) => {
+                res.statusCode = code
+                return res
+              }
+              res.json = (data) => {
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify(data))
+                return res
+              }
+
+              const handlerModule = await import(/* @vite-ignore */ `${modulePath}?t=${Date.now()}`)
+              const handler = handlerModule.default
+              await handler(req, res)
+            } catch (err) {
+              console.error('API middleware error:', err)
+              if (!res.headersSent) {
+                res.statusCode = 500
+                res.setHeader('Content-Type', 'application/json')
+                res.end(JSON.stringify({ error: err.message || 'Internal Server Error' }))
+              }
             }
-          }
-
-          req.body = body;
-          req.query = Object.fromEntries(urlObj.searchParams.entries());
-
-          res.status = (code) => {
-            res.statusCode = code;
-            return res;
-          };
-          res.json = (data) => {
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-            return res;
-          };
-
-          const handlerModule = await import(/* @vite-ignore */ `${modulePath}?t=${Date.now()}`);
-          const handler = handlerModule.default;
-          await handler(req, res);
-        } catch (err) {
-          console.error('API middleware error:', err);
-          if (!res.headersSent) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message || 'Internal Server Error' }));
-          }
+          })
         }
-      });
-    }
-  };
-}
-
-// https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react(), apiMiddlewarePlugin()],
-  base: '/',
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          // Firebase SDK is large and stable — cache it separately from app code
-          firebase: ['firebase/app', 'firebase/auth', 'firebase/database', 'firebase/analytics'],
-          // Animation + QR render libraries used across the app
-          vendor: ['framer-motion', 'qrcode.react', 'lucide-react'],
+      }
+    ],
+    base: '/',
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/database', 'firebase/analytics'],
+            vendor: ['framer-motion', 'qrcode.react', 'lucide-react'],
+          },
         },
       },
     },
-  },
+  }
 })
+
