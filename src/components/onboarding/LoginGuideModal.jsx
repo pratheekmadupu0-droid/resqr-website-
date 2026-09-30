@@ -8,10 +8,12 @@ import {
     FileText, QrCode, ExternalLink, ChevronRight, Check
 } from 'lucide-react';
 import ResqrLogo from '../branding/ResqrLogo';
-import { auth } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
+import { ref, get } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 
 const STORAGE_KEY = 'resqr_login_guide_completed';
+const REGISTERED_KEY = 'resqr_user_is_registered';
 
 // Google Icon Component
 function GoogleIcon() {
@@ -28,8 +30,11 @@ function GoogleIcon() {
 /**
  * LoginGuideModal
  * 
- * Interactive 4-step onboarding guide explaining how first-time visitors
- * log in with Google and complete the 5-step identity workflow:
+ * Interactive 4-step onboarding guide:
+ * Appears for UNREGISTERED visitors and users.
+ * Does NOT appear for REGISTERED users.
+ * 
+ * Flow:
  * 1. Open RESQR Login
  * 2. Authenticate with Google Account
  * 3. 5-Step Identity Setup (Face -> Personal -> Medical -> Insurance -> Payment)
@@ -41,7 +46,8 @@ export default function LoginGuideModal() {
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState(1);
     const [activeSetupTab, setActiveSetupTab] = useState(0);
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isRegistered, setIsRegistered] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
 
     // Check if current route is an emergency scan or raw terminal view
     const isScanRoute = location.pathname.startsWith('/e/') || 
@@ -49,34 +55,69 @@ export default function LoginGuideModal() {
                         location.pathname.startsWith('/u/') || 
                         location.pathname.startsWith('/p/');
 
-    // 1. Listen to Firebase auth state
+    // 1. Authoritative Registration Check via Firebase RTDB
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            setCurrentUser(user);
             if (user) {
-                setIsAuthenticated(true);
-                setIsOpen(false); // Close automatically if logged in
+                try {
+                    const snap = await get(ref(db, `users/${user.uid}`));
+                    if (snap.exists()) {
+                        const data = snap.val() || {};
+                        const userRegistered = Boolean(
+                            data.profileCompleted ||
+                            data.registrationStatus === 'COMPLETED' ||
+                            data.serviceStatus === 'ACTIVE' ||
+                            data.paymentStatus === 'SUCCESS' ||
+                            data.completedSteps?.[7] ||
+                            data.completedSteps?.[6] ||
+                            (data.profiles && Object.keys(data.profiles).length > 0)
+                        );
+
+                        if (userRegistered) {
+                            setIsRegistered(true);
+                            setIsOpen(false);
+                            localStorage.setItem(REGISTERED_KEY, 'true');
+                            return;
+                        }
+                    }
+                } catch (err) {
+                    console.warn("Could not query user registration:", err);
+                }
+                setIsRegistered(false);
             } else {
-                setIsAuthenticated(false);
+                setIsRegistered(false);
+                localStorage.removeItem(REGISTERED_KEY);
             }
         });
         return () => unsubscribe();
     }, []);
 
-    // 2. Check first-time visitor status
+    // 2. Determine whether to show the guide
     useEffect(() => {
-        if (isAuthenticated || isScanRoute) return;
+        // If the user is registered or on emergency scan views, NEVER show
+        if (isRegistered || isScanRoute) {
+            setIsOpen(false);
+            return;
+        }
 
-        const hasCompleted = localStorage.getItem(STORAGE_KEY);
-        if (!hasCompleted) {
-            // Give 1.2s delay for seamless page hydration
+        const wasRegistered = localStorage.getItem(REGISTERED_KEY) === 'true';
+        if (wasRegistered) {
+            setIsOpen(false);
+            return;
+        }
+
+        // If the user is unregistered (not logged in or logged in without completed registration)
+        const hasDismissed = localStorage.getItem(STORAGE_KEY);
+        if (!hasDismissed) {
             const timer = setTimeout(() => {
-                if (!auth.currentUser && !localStorage.getItem(STORAGE_KEY)) {
+                if (!isRegistered && !isScanRoute && !localStorage.getItem(REGISTERED_KEY) && !localStorage.getItem(STORAGE_KEY)) {
                     setIsOpen(true);
                 }
             }, 1200);
             return () => clearTimeout(timer);
         }
-    }, [isAuthenticated, isScanRoute]);
+    }, [isRegistered, isScanRoute]);
 
     // 3. Global listener for manual reopen trigger ("Login Guide" in footer/help)
     useEffect(() => {
@@ -128,7 +169,7 @@ export default function LoginGuideModal() {
         navigate('/login');
     };
 
-    if (!isOpen) return null;
+    if (!isOpen || isRegistered) return null;
 
     const setupSteps = [
         {
@@ -187,7 +228,7 @@ export default function LoginGuideModal() {
                             <ResqrLogo className="h-7 sm:h-8 w-auto object-contain" />
                             <span className="hidden sm:inline-block h-4 w-px bg-white/15" />
                             <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
-                                First-Time Visitor Guide
+                                {currentUser ? 'Registration Setup Guide' : 'First-Time Visitor Guide'}
                             </span>
                         </div>
 
@@ -534,7 +575,7 @@ export default function LoginGuideModal() {
                                     onClick={handleLoginRedirect}
                                     className="flex-1 px-8 py-4 rounded-2xl bg-primary hover:bg-primary-dark text-white font-black italic uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all"
                                 >
-                                    <Lock size={14} /> LOGIN WITH GOOGLE
+                                    <Lock size={14} /> {currentUser ? 'CONTINUE 5-STEP REGISTRATION' : 'LOGIN WITH GOOGLE'}
                                 </button>
                             )}
                         </div>
