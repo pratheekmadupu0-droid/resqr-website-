@@ -12,6 +12,7 @@ import MobileNav from './components/MobileNav';
 import SiconBadge from './components/SiconBadge';
 import AppLoading from './components/ui/AppLoading';
 import GlobalErrorBoundary from './components/common/GlobalErrorBoundary';
+import LoginGuideModal from './components/onboarding/LoginGuideModal';
 import { auth } from './lib/firebase';
 import { syncUserOnLogin } from './lib/userSync';
 
@@ -186,6 +187,7 @@ function App() {
             {!isScanPage && <Footer />}
             {!isScanPage && <MobileNav />}
             <SiconBadge />
+            <LoginGuideModal />
         </div>
     );
 }

@@ -24,6 +24,12 @@ export default function FAQPage() {
         },
         {
             cat: 'USERS',
+            q: 'How do I log in for the first time?',
+            a: 'Tap the Login button at the top of the website, choose your portal, and authenticate via secure OTP or email. You can launch our interactive 4-step onboarding guide anytime.',
+            hasGuideAction: true
+        },
+        {
+            cat: 'USERS',
             q: 'How do I register?',
             a: 'Create an account on the RESQR Portal using secure Mobile OTP authentication, fill in demographics, and lock your primary emergency contact numbers.'
         },
@@ -105,9 +111,18 @@ export default function FAQPage() {
                         <div className="text-xs text-slate-500 italic font-bold">No items found under this category yet.</div>
                     ) : (
                         faqs.filter(faq => faq.cat === activeCategory).map((faq, idx) => (
-                            <Card key={idx} className="p-8 border border-white/5">
-                                <h3 className="text-lg font-black uppercase italic tracking-tight font-poppins text-white mb-3">{faq.q}</h3>
+                            <Card key={idx} className="p-8 border border-white/5 space-y-3">
+                                <h3 className="text-lg font-black uppercase italic tracking-tight font-poppins text-white mb-2">{faq.q}</h3>
                                 <p className="text-slate-400 text-xs leading-relaxed font-semibold">{faq.a}</p>
+                                {faq.hasGuideAction && (
+                                    <button
+                                        type="button"
+                                        onClick={() => window.dispatchEvent(new CustomEvent('resqr-open-login-guide'))}
+                                        className="mt-2 text-xs font-black uppercase tracking-wider text-primary hover:underline flex items-center gap-1.5"
+                                    >
+                                        Launch Login Guide Tour →
+                                    </button>
+                                )}
                             </Card>
                         ))
                     )}

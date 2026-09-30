@@ -95,6 +95,14 @@ export default function Footer() {
                     <span className="w-1 h-1 rounded-full bg-slate-700" />
                     <Link to="/login" className="text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-widest">Register</Link>
                     <span className="w-1 h-1 rounded-full bg-slate-700" />
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('resqr-open-login-guide'))}
+                        className="text-xs font-bold text-primary hover:underline uppercase tracking-widest"
+                    >
+                        Login Guide
+                    </button>
+                    <span className="w-1 h-1 rounded-full bg-slate-700" />
                     <Link to="/scanner" className="text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-widest">Scan RESQR</Link>
                     <span className="w-1 h-1 rounded-full bg-slate-700" />
                     <Link to="/free-qr" className="text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-widest">Free QR</Link>

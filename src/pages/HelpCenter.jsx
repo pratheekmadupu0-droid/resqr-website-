@@ -32,6 +32,13 @@ export default function HelpCenter() {
                     <p className="text-slate-400 text-xs leading-relaxed font-semibold">
                         Read step-by-step layout tutorials explaining profile integrations, NFC tagging, and emergency coordinate settings.
                     </p>
+                    <button
+                        type="button"
+                        onClick={() => window.dispatchEvent(new CustomEvent('resqr-open-login-guide'))}
+                        className="text-xs font-black uppercase tracking-wider text-primary hover:underline flex items-center gap-1.5 pt-2"
+                    >
+                        Open First-Time Login Guide →
+                    </button>
                 </Card>
 
                 <Card className="p-8 border border-white/5 space-y-4">
