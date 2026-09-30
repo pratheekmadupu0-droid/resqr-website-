@@ -3,8 +3,9 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, ArrowRight, ArrowLeft, Shield, ShieldCheck, 
-    Smartphone, Mail, Lock, QrCode, HeartPulse, User,
-    CheckCircle2, Sparkles, AlertCircle, KeyRound, ExternalLink
+    Smartphone, Camera, HeartPulse, User,
+    CheckCircle2, Sparkles, CreditCard, Lock,
+    FileText, QrCode, ExternalLink, ChevronRight, Check
 } from 'lucide-react';
 import ResqrLogo from '../branding/ResqrLogo';
 import { auth } from '../../lib/firebase';
@@ -12,20 +13,34 @@ import { onAuthStateChanged } from 'firebase/auth';
 
 const STORAGE_KEY = 'resqr_login_guide_completed';
 
+// Google Icon Component
+function GoogleIcon() {
+    return (
+        <svg className="w-5 h-5 mr-3 inline-block shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+    );
+}
+
 /**
  * LoginGuideModal
  * 
  * Interactive 4-step onboarding guide explaining how first-time visitors
- * can log in and access their RESQR emergency account.
- * 
- * Automatically appears for first-time unauthenticated visitors.
- * Can be manually reopened anytime via custom event 'resqr-open-login-guide'.
+ * log in with Google and complete the 5-step identity workflow:
+ * 1. Open RESQR Login
+ * 2. Authenticate with Google Account
+ * 3. 5-Step Identity Setup (Face -> Personal -> Medical -> Insurance -> Payment)
+ * 4. Get Your Emergency QR Tag & Physical Stickers
  */
 export default function LoginGuideModal() {
     const navigate = useNavigate();
     const location = useLocation();
     const [isOpen, setIsOpen] = useState(false);
     const [step, setStep] = useState(1);
+    const [activeSetupTab, setActiveSetupTab] = useState(0);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
 
     // Check if current route is an emergency scan or raw terminal view
@@ -55,7 +70,6 @@ export default function LoginGuideModal() {
         if (!hasCompleted) {
             // Give 1.2s delay for seamless page hydration
             const timer = setTimeout(() => {
-                // Double check auth before opening
                 if (!auth.currentUser && !localStorage.getItem(STORAGE_KEY)) {
                     setIsOpen(true);
                 }
@@ -115,6 +129,39 @@ export default function LoginGuideModal() {
     };
 
     if (!isOpen) return null;
+
+    const setupSteps = [
+        {
+            icon: Camera,
+            title: '1. Face Registration',
+            desc: '3-angle neural biometric face enrollment for hospital verification.',
+            badge: 'Biometrics'
+        },
+        {
+            icon: User,
+            title: '2. Personal Details',
+            desc: 'Full name, phone, SOS next-of-kin contacts & personalized username.',
+            badge: 'Demographics'
+        },
+        {
+            icon: HeartPulse,
+            title: '3. Medical Profile',
+            desc: 'Blood group, critical allergies, chronic conditions & medications.',
+            badge: 'Health Dossier'
+        },
+        {
+            icon: ShieldCheck,
+            title: '4. Insurance Details',
+            desc: 'Health insurance policy number & cashless coverage network.',
+            badge: 'Insurance'
+        },
+        {
+            icon: CreditCard,
+            title: '5. Payment & Activation',
+            desc: 'One-time ₹149 activation plan. 2 reflective stickers dispatched.',
+            badge: 'Delivery'
+        }
+    ];
 
     return (
         <AnimatePresence>
@@ -180,14 +227,15 @@ export default function LoginGuideModal() {
                             </div>
                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary italic">
                                 {step === 1 && 'Step 1: Open Login'}
-                                {step === 2 && 'Step 2: Enter Details'}
-                                {step === 3 && 'Step 3: Identity Verification'}
-                                {step === 4 && 'Step 4: Access Vault'}
+                                {step === 2 && 'Step 2: Google Sign-In'}
+                                {step === 3 && 'Step 3: 5-Step Identity Setup'}
+                                {step === 4 && 'Step 4: Get Emergency QR'}
                             </span>
                         </div>
 
                         {/* Animated Step Panes */}
                         <AnimatePresence mode="wait">
+                            {/* STEP 1: OPEN RESQR LOGIN */}
                             {step === 1 && (
                                 <motion.div
                                     key="step1"
@@ -245,12 +293,13 @@ export default function LoginGuideModal() {
                                             Tap <strong className="text-white">Login</strong> at the top of the RESQR website to access your RESQR account.
                                         </p>
                                         <p className="text-xs text-slate-400 font-medium">
-                                            If you are on mobile, you will find the Login action easily accessible in the top header and bottom menu.
+                                            On mobile, you can easily tap the Login or Create RESQR action from the top header or bottom navigation.
                                         </p>
                                     </div>
                                 </motion.div>
                             )}
 
+                            {/* STEP 2: GOOGLE ACCOUNT AUTHENTICATION */}
                             {step === 2 && (
                                 <motion.div
                                     key="step2"
@@ -260,56 +309,53 @@ export default function LoginGuideModal() {
                                     transition={{ duration: 0.2 }}
                                     className="space-y-5"
                                 >
-                                    {/* Visual Mock of Details Input */}
-                                    <div className="bg-[#050811] rounded-2xl p-5 border border-white/10 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                                                Choose Portal & Enter ID
-                                            </span>
-                                            <span className="text-[9px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-                                                Citizen / Provider
+                                    {/* Visual Mock of Google Login */}
+                                    <div className="bg-[#050811] rounded-2xl p-6 border border-white/10 space-y-4 text-center">
+                                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                            <span>Secure Authentication</span>
+                                            <span className="text-emerald-400 flex items-center gap-1">
+                                                <ShieldCheck size={12} /> Google OAuth 2.0
                                             </span>
                                         </div>
 
-                                        <div className="space-y-2.5">
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/10 flex items-center justify-between">
-                                                <div className="flex items-center gap-2.5 text-slate-300 text-xs font-semibold">
-                                                    <Smartphone size={14} className="text-primary" />
-                                                    <span>+91 98765 43210</span>
-                                                </div>
-                                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">Phone / OTP</span>
-                                            </div>
-
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 flex items-center justify-between text-slate-500 text-xs">
-                                                <div className="flex items-center gap-2.5 font-semibold">
-                                                    <Mail size={14} />
-                                                    <span>user@resqr.co.in</span>
-                                                </div>
-                                                <span className="text-[9px] font-bold uppercase tracking-wider">Email</span>
+                                        <div className="py-2">
+                                            {/* Google Login Button Mock */}
+                                            <div className="w-full py-4 px-6 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black italic uppercase text-xs tracking-wider shadow-lg flex items-center justify-center gap-2 border border-slate-200 cursor-pointer">
+                                                <GoogleIcon /> Continue with Google
                                             </div>
                                         </div>
 
-                                        <div className="p-2.5 bg-primary/10 rounded-xl border border-primary/20 flex items-center gap-2 text-[10px] font-bold text-slate-300">
-                                            <Shield size={13} className="text-primary shrink-0" />
-                                            <span>Passwordless verification keeps your emergency health keys secure.</span>
+                                        <div className="grid grid-cols-2 gap-3 text-left">
+                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase">
+                                                    <Check size={12} /> Instant 1-Click
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-medium">No manual passwords to remember</p>
+                                            </div>
+                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
+                                                <div className="flex items-center gap-1.5 text-primary text-[10px] font-black uppercase">
+                                                    <Shield size={12} /> Enterprise Auth
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 font-medium">Secured with Firebase Google OAuth</p>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <h3 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
-                                            Enter Your Details
+                                            Sign In with Google
                                         </h3>
                                         <p className="text-sm font-semibold text-slate-300 leading-relaxed">
-                                            Use the phone number or email associated with your RESQR account.
+                                            Authenticate seamlessly with your Google account. One tap securely opens your emergency identity vault.
                                         </p>
-                                        <div className="p-3 bg-white/5 rounded-2xl border border-white/10 text-xs text-slate-400 font-medium space-y-1">
-                                            <p className="text-slate-200 font-bold">• If you already have a RESQR account: <span className="text-emerald-400">Login</span></p>
-                                            <p className="text-slate-200 font-bold">• If you are new to RESQR: <span className="text-primary">Choose Register / Get Started</span></p>
-                                        </div>
+                                        <p className="text-xs text-slate-400 font-medium">
+                                            Existing members are instantly restored to their dashboard, while new users proceed to the quick 5-step emergency setup.
+                                        </p>
                                     </div>
                                 </motion.div>
                             )}
 
+                            {/* STEP 3: 5-STEP EMERGENCY IDENTITY SETUP */}
                             {step === 3 && (
                                 <motion.div
                                     key="step3"
@@ -319,55 +365,70 @@ export default function LoginGuideModal() {
                                     transition={{ duration: 0.2 }}
                                     className="space-y-5"
                                 >
-                                    {/* Visual Mock of OTP Verification Screen */}
-                                    <div className="bg-[#050811] rounded-2xl p-5 border border-white/10 space-y-4 text-center">
-                                        <div className="w-12 h-12 bg-primary/10 border border-primary/20 text-primary rounded-2xl flex items-center justify-center mx-auto">
-                                            <KeyRound size={22} />
+                                    {/* Visual List of 5 Setup Steps */}
+                                    <div className="bg-[#050811] rounded-2xl p-4 border border-white/10 space-y-2.5">
+                                        <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                5-Step Identity Workflow
+                                            </span>
+                                            <span className="text-[9px] font-mono text-primary">~3 MINS TOTAL</span>
                                         </div>
 
-                                        <div>
-                                            <p className="text-xs font-black uppercase tracking-wider text-white">Enter 6-Digit Code</p>
-                                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Secure OTP sent to your registered device</p>
-                                        </div>
-
-                                        {/* Mock OTP input boxes */}
-                                        <div className="flex justify-center gap-2">
-                                            {['•', '•', '•', '', '', ''].map((val, idx) => (
-                                                <div 
-                                                    key={idx}
-                                                    className={`w-9 h-11 rounded-xl border flex items-center justify-center text-sm font-mono font-bold ${
-                                                        idx === 3 
-                                                            ? 'border-primary bg-primary/10 text-primary animate-pulse' 
-                                                            : val 
-                                                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' 
-                                                                : 'border-white/10 bg-[#0C1322] text-slate-600'
-                                                    }`}
-                                                >
-                                                    {val || (idx === 3 ? '|' : '')}
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-[10px] font-bold text-amber-300 flex items-center justify-center gap-1.5">
-                                            <AlertCircle size={13} className="shrink-0" />
-                                            <span>Never share your verification code or OTP with anyone.</span>
+                                        <div className="space-y-2">
+                                            {setupSteps.map((s, idx) => {
+                                                const Icon = s.icon;
+                                                const isSelected = activeSetupTab === idx;
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        onClick={() => setActiveSetupTab(idx)}
+                                                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                                            isSelected 
+                                                                ? 'bg-[#11192A] border-primary/40 shadow-[0_0_15px_rgba(230,57,70,0.15)]' 
+                                                                : 'bg-[#0C1322] border-white/5 hover:border-white/15'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                                isSelected ? 'bg-primary text-white' : 'bg-white/5 text-slate-400'
+                                                            }`}>
+                                                                <Icon size={14} />
+                                                            </div>
+                                                            <div className="min-w-0 text-left">
+                                                                <p className={`text-xs font-black uppercase tracking-tight truncate ${
+                                                                    isSelected ? 'text-white' : 'text-slate-300'
+                                                                }`}>
+                                                                    {s.title}
+                                                                </p>
+                                                                <p className="text-[10px] text-slate-500 font-medium truncate">
+                                                                    {s.desc}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 bg-white/5 px-2 py-0.5 rounded-md shrink-0">
+                                                            {s.badge}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <h3 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
-                                            Verify Your Identity
+                                            Complete 5-Step Setup
                                         </h3>
                                         <p className="text-sm font-semibold text-slate-300 leading-relaxed">
-                                            Complete the secure verification step to continue.
+                                            New users complete 5 quick steps: <strong className="text-white">Face Registration</strong>, <strong className="text-white">Personal Details</strong>, <strong className="text-white">Medical Profile</strong>, <strong className="text-white">Insurance</strong>, and <strong className="text-white">Payment</strong>.
                                         </p>
                                         <p className="text-xs text-slate-400 font-medium">
-                                            RESQR uses end-to-end encrypted authentication protocols to protect your medical dossiers from unauthorized access.
+                                            Each step automatically saves your draft in real-time, ensuring you never lose your emergency configuration.
                                         </p>
                                     </div>
                                 </motion.div>
                             )}
 
+                            {/* STEP 4: GET YOUR RESQR QR CODE & STICKERS */}
                             {step === 4 && (
                                 <motion.div
                                     key="step4"
@@ -377,58 +438,60 @@ export default function LoginGuideModal() {
                                     transition={{ duration: 0.2 }}
                                     className="space-y-5"
                                 >
-                                    {/* Visual Mock of Dashboard Features */}
-                                    <div className="bg-[#050811] rounded-2xl p-5 border border-white/10 space-y-3">
+                                    {/* Visual Mock of Final QR Card & Deliverables */}
+                                    <div className="bg-[#050811] rounded-2xl p-5 border border-white/10 space-y-4">
                                         <div className="flex items-center justify-between pb-2 border-b border-white/5">
                                             <div className="flex items-center gap-2">
                                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                                                 <span className="text-[10px] font-black uppercase tracking-wider text-white">
-                                                    RESQR Vault Hub
+                                                    Official Emergency QR Activated
                                                 </span>
                                             </div>
-                                            <span className="text-[9px] font-mono text-slate-500">NODE ACTIVE</span>
+                                            <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                                                LIVE PROTECTION
+                                            </span>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2.5">
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
-                                                <div className="flex items-center gap-1.5 text-primary text-[10px] font-black uppercase">
-                                                    <QrCode size={12} /> Scannable QR
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {/* Digital QR Preview Tile */}
+                                            <div className="p-3.5 bg-[#0C1322] rounded-2xl border border-white/5 space-y-2 text-center">
+                                                <div className="w-10 h-10 bg-primary/10 border border-primary/20 text-primary rounded-xl flex items-center justify-center mx-auto">
+                                                    <QrCode size={20} />
                                                 </div>
-                                                <p className="text-[10px] text-slate-400 font-medium">Instant tag preview & downloads</p>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-white tracking-wider">Digital QR Card</p>
+                                                    <p className="text-[9px] text-slate-400 font-medium">Instant scannable vanity link & tag downloads</p>
+                                                </div>
                                             </div>
 
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
-                                                <div className="flex items-center gap-1.5 text-emerald-400 text-[10px] font-black uppercase">
-                                                    <HeartPulse size={12} /> Medical Data
+                                            {/* Physical Deliverable Tile */}
+                                            <div className="p-3.5 bg-[#0C1322] rounded-2xl border border-white/5 space-y-2 text-center">
+                                                <div className="w-10 h-10 bg-gold/10 border border-gold/20 text-gold rounded-xl flex items-center justify-center mx-auto">
+                                                    <Sparkles size={20} />
                                                 </div>
-                                                <p className="text-[10px] text-slate-400 font-medium">Blood group, allergies, conditions</p>
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase text-white tracking-wider">Physical Stickers</p>
+                                                    <p className="text-[9px] text-slate-400 font-medium">2 reflective smart stickers dispatched to your door</p>
+                                                </div>
                                             </div>
+                                        </div>
 
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
-                                                <div className="flex items-center gap-1.5 text-blue-400 text-[10px] font-black uppercase">
-                                                    <ShieldCheck size={12} /> SOS Contacts
-                                                </div>
-                                                <p className="text-[10px] text-slate-400 font-medium">Emergency next-of-kin relay</p>
-                                            </div>
-
-                                            <div className="p-3 bg-[#0C1322] rounded-xl border border-white/5 space-y-1">
-                                                <div className="flex items-center gap-1.5 text-amber-400 text-[10px] font-black uppercase">
-                                                    <Sparkles size={12} /> Stickers & Cards
-                                                </div>
-                                                <p className="text-[10px] text-slate-400 font-medium">Physical reflective smart tags</p>
-                                            </div>
+                                        <div className="p-2.5 bg-slate-950 rounded-xl border border-white/5 text-center">
+                                            <p className="text-[10px] text-slate-400 font-medium">
+                                                Permanent Secure Token: <span className="text-emerald-400 font-mono">resqr.co.in/yourname</span>
+                                            </p>
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
                                         <h3 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
-                                            Access Your RESQR
+                                            Get Your RESQR Tag
                                         </h3>
                                         <p className="text-sm font-semibold text-slate-300 leading-relaxed">
-                                            You're ready to access your RESQR dashboard and manage your account.
+                                            Once payment is verified, your scannable Emergency QR badge is live and your reflective physical stickers are dispatched!
                                         </p>
                                         <p className="text-xs text-slate-400 font-medium">
-                                            Complete your RESQR registration and profile details to activate your lifetime emergency identity.
+                                            First responders and bystanders can now scan your QR code or verify your face to access your vital medical data in seconds.
                                         </p>
                                     </div>
                                 </motion.div>
@@ -471,7 +534,7 @@ export default function LoginGuideModal() {
                                     onClick={handleLoginRedirect}
                                     className="flex-1 px-8 py-4 rounded-2xl bg-primary hover:bg-primary-dark text-white font-black italic uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-xl shadow-primary/30 hover:scale-[1.02] active:scale-98 transition-all"
                                 >
-                                    <Lock size={14} /> LOGIN TO RESQR
+                                    <Lock size={14} /> LOGIN WITH GOOGLE
                                 </button>
                             )}
                         </div>
@@ -493,7 +556,7 @@ export default function LoginGuideModal() {
                                     }}
                                     className="text-primary hover:underline font-bold"
                                 >
-                                    New to RESQR? Create an account →
+                                    Ready? Start Your Setup →
                                 </button>
                             </div>
                         )}
