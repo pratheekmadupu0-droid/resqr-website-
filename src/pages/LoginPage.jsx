@@ -1377,44 +1377,6 @@ export default function LoginPage() {
                                         </div>
                                     </div>
                                 </Card>
-
-                                {/* Card 5: 100% Free Demo Environment */}
-                                <Card 
-                                    className="p-8 md:p-10 bg-gradient-to-r from-amber-950/30 via-slate-900/80 to-amber-950/20 border-amber-500/30 hover:border-amber-400 hover:shadow-[0_15px_40px_rgba(245,158,11,0.15)] transition-all duration-300 rounded-[35px] backdrop-blur-md relative overflow-hidden"
-                                >
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-16 h-16 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-400 text-2xl border border-amber-500/30 shrink-0">
-                                                ⚡
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="inline-block text-[9px] font-black tracking-widest text-amber-400 uppercase bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full italic">
-                                                        DEVELOPER & ADMIN SANDBOX
-                                                    </span>
-                                                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest">
-                                                        100% FREE
-                                                    </span>
-                                                </div>
-                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                    Interactive Demo Mode (10 Roles)
-                                                </h3>
-                                                <p className="text-slate-400 text-sm font-medium mt-1">
-                                                    Experience full RESQR system across all 10 roles without real payments, subscriptions, or live phone verification.
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <Link
-                                                to="/demo"
-                                                className="w-full sm:w-auto bg-amber-400 hover:bg-amber-300 text-slate-950 py-3.5 px-8 text-xs font-black uppercase tracking-wider rounded-2xl inline-flex items-center justify-center gap-2 shadow-xl shadow-amber-400/20 transition-all"
-                                            >
-                                                Open Demo Hub <Sparkles size={16} />
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </Card>
                             </div>
                         </motion.div>
                     )}
