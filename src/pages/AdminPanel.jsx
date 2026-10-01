@@ -9,7 +9,6 @@ import {
     ShieldCheck, Key, Copy, Receipt, DollarSign, Calendar, FileText, Download,
     Zap, ChevronLeft, History as HistoryIcon
 } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -1568,6 +1567,7 @@ export default function AdminPanel() {
     const startCameraScanner = async () => {
         setDecryptedPatient(null);
         try {
+            const { Html5Qrcode } = await import('html5-qrcode');
             // Need to clean up any existing one first
             if (cameraScanner) {
                 try { await cameraScanner.stop(); } catch(e){}
@@ -1616,6 +1616,7 @@ export default function AdminPanel() {
         setDecryptedPatient(null);
         const t = toast.loading("Decoding uploaded image file...");
         try {
+            const { Html5Qrcode } = await import('html5-qrcode');
             const uploaderScanner = new Html5Qrcode("hidden-scanner-container");
             const decodedText = await uploaderScanner.scanFile(file, true);
             toast.success("QR Code resolved!", { id: t });
