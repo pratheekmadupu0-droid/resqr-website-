@@ -104,55 +104,68 @@ export default function SubscriptionCard({
                 {/* Subscription Validity Information */}
                 <div className="md:col-span-2 space-y-5">
                     {/* Status Message based on state */}
-                    {statusInfo.isActive && !statusInfo.isExpiringSoon && (
+                    {statusInfo.isDigital ? (
                         <div className="space-y-1">
                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
-                                Service Validity Status
+                                RESQR Status
+                            </span>
+                            <div className="flex items-baseline gap-3 flex-wrap">
+                                <span className="text-3xl font-black italic text-emerald-400 font-poppins">
+                                    RESQR Active (Digital QR)
+                                </span>
+                                <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black tracking-widest uppercase">
+                                    DIGITAL PROFILE ACTIVE
+                                </Badge>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2">
+                                Your digital RESQR emergency profile is active and accessible via dashboard. Choose an upgrade plan whenever you want physical reflective stickers & extended validity.
+                            </p>
+                        </div>
+                    ) : statusInfo.isActive && !statusInfo.isExpiringSoon ? (
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                                RESQR Status
                             </span>
                             <div className="flex items-baseline gap-3 flex-wrap">
                                 <span className="text-3xl font-black italic text-white font-poppins">
-                                    Valid Until: {statusInfo.formattedExpiry}
+                                    RESQR Active
                                 </span>
                                 <span className="text-xs font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
-                                    {statusInfo.daysRemaining} DAYS REMAINING
+                                    Valid until: {statusInfo.formattedExpiry} ({statusInfo.daysRemaining} days remaining)
                                 </span>
                             </div>
                             <p className="text-xs text-slate-400 mt-2">
                                 Your emergency response network, hospital face-verification protocol, and GPS dispatch are operational.
                             </p>
                         </div>
-                    )}
-
-                    {statusInfo.isExpiringSoon && (
+                    ) : statusInfo.isExpiringSoon ? (
                         <div className="p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2">
                             <div className="flex items-center gap-2 text-amber-400">
                                 <AlertTriangle size={18} />
                                 <span className="text-xs font-black uppercase tracking-wider">
-                                    Service Expiring Soon
+                                    RESQR Validity Expiring Soon
                                 </span>
                             </div>
                             <div className="text-2xl font-black italic text-white font-poppins">
-                                Valid Until: {statusInfo.formattedExpiry}
+                                Your RESQR validity expires on {statusInfo.formattedExpiry}.
                             </div>
-                            <p className="text-xs text-amber-200/80">
-                                Only <strong className="text-amber-300 font-bold">{statusInfo.daysRemaining} days remaining</strong>. Renew now to avoid interruption in your emergency rescue services. Unused validity is preserved.
+                            <p className="text-xs text-amber-200/80 font-medium">
+                                Choose a plan to continue your uninterrupted emergency protection. Only <strong className="text-amber-300 font-bold">{statusInfo.daysRemaining} days remaining</strong>. Unused days will be preserved.
                             </p>
                         </div>
-                    )}
-
-                    {statusInfo.isExpired && (
+                    ) : (
                         <div className="p-5 bg-rose-500/10 border border-rose-500/30 rounded-2xl space-y-2">
                             <div className="flex items-center gap-2 text-rose-400">
                                 <AlertTriangle size={18} />
                                 <span className="text-xs font-black uppercase tracking-wider">
-                                    Service Expired
+                                    RESQR Validity Expired
                                 </span>
                             </div>
                             <div className="text-2xl font-black italic text-white font-poppins">
-                                Your RESQR service has expired.
+                                RESQR Validity Expired — Choose a plan to continue
                             </div>
                             <p className="text-xs text-rose-200/80">
-                                Renew your plan to reactivate your RESQR emergency service and 1:1 facial verification. Your medical data, insurance details, and QR token remain safely preserved.
+                                Choose one of the renewal plans below to reactivate your RESQR emergency protection. All your user profile, emergency contacts, medical records, and QR identifier remain safely preserved.
                             </p>
                         </div>
                     )}

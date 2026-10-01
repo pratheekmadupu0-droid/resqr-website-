@@ -16,17 +16,25 @@ import LoginGuideModal from './components/onboarding/LoginGuideModal';
 import { auth } from './lib/firebase';
 import { syncUserOnLogin } from './lib/userSync';
 
+import DemoFloatingBar from './components/demo/DemoFloatingBar';
+
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const MyQR = lazy(() => import('./pages/MyQR'));
 const EmergencyPreview = lazy(() => import('./pages/EmergencyPreview'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const PrivacySettings = lazy(() => import('./pages/PrivacySettings'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const CreatePetProfile = lazy(() => import('./pages/CreatePetProfile'));
+const PetDashboard = lazy(() => import('./pages/PetDashboard'));
+const PetQRScanPage = lazy(() => import('./pages/PetQRScanPage'));
 const SuccessPage = lazy(() => import('./pages/SuccessPage'));
 const EmergencyPage = lazy(() => import('./pages/EmergencyPage'));
 const QRScanPage = lazy(() => import('./pages/QRScanPage'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const AdminEmergencyProfilePage = lazy(() => import('./pages/AdminEmergencyProfilePage'));
+const DemoAdminPanel = lazy(() => import('./pages/DemoAdminPanel'));
+const DemoAmbulancePage = lazy(() => import('./pages/DemoAmbulancePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CreateIdentity = lazy(() => import('./pages/CreateIdentity'));
 const ContactUs = lazy(() => import('./pages/ContactUs'));
@@ -111,7 +119,7 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/pet/') || location.pathname.startsWith('/pet-qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'create-pet', 'pet-dashboard', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings', 'privacy-policy', 'demo', 'demo-admin'].includes(location.pathname.split('/')[1]));
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -130,6 +138,7 @@ function App() {
     return (
         <div className="min-h-screen flex flex-col bg-slate-950 text-white">
             <ScrollToTop />
+            <DemoFloatingBar />
             {!isScanPage && <Navbar />}
             <main className={`flex-grow ${isScanPage ? 'pt-0' : 'pb-24 lg:pb-0'}`}>
                 <GlobalErrorBoundary>
@@ -140,17 +149,25 @@ function App() {
                         <Route path="/free-qr" element={<ViralQR />} />
                         <Route path="/viral-id" element={<ViralQR />} />
                         <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/pet-dashboard" element={<PetDashboard />} />
+                        <Route path="/create-pet" element={<CreatePetProfile />} />
                         <Route path="/my-qr" element={<MyQR />} />
                         <Route path="/emergency-preview" element={<EmergencyPreview />} />
                         <Route path="/create-profile" element={<Navigate to="/login" replace />} />
                         <Route path="/create-identity" element={<CreateIdentity />} />
                         <Route path="/payment" element={<PaymentPage />} />
                         <Route path="/privacy-settings" element={<PrivacySettings />} />
+                        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                         <Route path="/success" element={<SuccessPage />} />
                         <Route path="/e/:id" element={<EmergencyPage />} />
                         <Route path="/qr/:profileId" element={<QRScanPage />} />
+                        <Route path="/pet/:petId" element={<PetQRScanPage />} />
+                        <Route path="/pet-qr/:petId" element={<PetQRScanPage />} />
                         <Route path="/admin" element={<AdminErrorBoundary><AdminPanel /></AdminErrorBoundary>} />
                         <Route path="/admin/users/:userId/emergency-profile" element={<AdminErrorBoundary><AdminEmergencyProfilePage /></AdminErrorBoundary>} />
+                        <Route path="/demo" element={<AdminErrorBoundary><DemoAdminPanel /></AdminErrorBoundary>} />
+                        <Route path="/demo-admin" element={<AdminErrorBoundary><DemoAdminPanel /></AdminErrorBoundary>} />
+                        <Route path="/demo/ambulance" element={<DemoAmbulancePage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/contact" element={<ContactUs />} />
                         <Route path="/p/:username" element={<QRScanPage />} />

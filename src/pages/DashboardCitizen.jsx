@@ -857,20 +857,36 @@ export default function DashboardCitizen() {
                 </div>
 
                 {/* ADDITIONAL IDENTITY NODE - AS REQUESTED */}
-                <div className="pt-20 border-t border-white/5 space-y-10">
+                <div className="pt-20 border-t border-white/5 space-y-8">
                     <div className="text-center">
                         <h2 className="text-4xl font-black uppercase italic tracking-tighter font-poppins mb-2">Powering Multiple Identities?</h2>
                         <p className="text-slate-500 font-bold text-xs uppercase tracking-[0.3em]">Add another Pet, Vehicle, or Family Member to your ResQR Vault.</p>
                     </div>
-                    <button onClick={() => navigate('/create-identity')} className="w-full h-32 border-2 border-dashed border-white/10 rounded-[40px] flex items-center justify-center gap-6 group hover:border-primary/50 transition-all active:scale-95">
-                        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all">
-                            <Plus size={32} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xl font-black italic uppercase tracking-widest group-hover:text-primary transition-all">Create Another Identity Block</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Expansion Node Ready • Secure Setup</p>
-                        </div>
-                    </button>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Option 1: Create Citizen Identity */}
+                        <button onClick={() => navigate('/create-identity')} className="h-32 p-6 border-2 border-dashed border-white/10 rounded-[35px] flex items-center justify-start gap-5 group hover:border-primary/50 transition-all active:scale-95 bg-white/5 text-left">
+                            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all shrink-0">
+                                <Plus size={28} />
+                            </div>
+                            <div>
+                                <p className="text-lg font-black italic uppercase tracking-wider text-white group-hover:text-primary transition-colors">Family / Vehicle Identity</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Expansion Node • Emergency Vault</p>
+                            </div>
+                        </button>
+
+                        {/* Option 2: Pet RESQR Dashboard & Registration */}
+                        <button onClick={() => navigate('/pet-dashboard')} className="h-32 p-6 border-2 border-dashed border-white/10 rounded-[35px] flex items-center justify-start gap-5 group hover:border-primary/50 transition-all active:scale-95 bg-gradient-to-r from-primary/5 to-transparent text-left">
+                            <div className="w-14 h-14 rounded-2xl bg-primary/20 text-primary flex items-center justify-center border border-primary/30 group-hover:bg-primary group-hover:text-white transition-all shrink-0 text-2xl">
+                                🐾
+                            </div>
+                            <div>
+                                <p className="text-lg font-black italic uppercase tracking-wider text-white group-hover:text-primary transition-colors">Pet RESQR Vault</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Lost Pet Mode • Live GPS Telemetry</p>
+                            </div>
+                        </button>
+                    </div>
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-20">
                          {profiles.length > 1 && profiles.map(p => (
                              <button key={p.id} onClick={() => { setSelectedProfileId(p.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`h-16 rounded-2xl border transition-all font-black uppercase italic tracking-widest text-[10px] px-4 ${p.id === selectedProfileId ? 'bg-primary border-primary text-white' : 'bg-[#11192A] border-white/5 text-slate-500 hover:border-white/20'}`}>

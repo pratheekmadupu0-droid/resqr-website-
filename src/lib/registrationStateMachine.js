@@ -30,8 +30,8 @@ export const STEP_METADATA = [
     { number: 2, id: 'personal', title: 'Personal Details', shortTitle: 'Personal', desc: 'Identity, contacts & username' },
     { number: 3, id: 'medical', title: 'Medical Details', shortTitle: 'Medical', desc: 'Blood group, conditions & allergies' },
     { number: 4, id: 'insurance', title: 'Insurance Details', shortTitle: 'Insurance', desc: 'Policy & cashless coverage' },
-    { number: 5, id: 'plan', title: 'QR / Plan Selection', shortTitle: 'QR & Plan', desc: 'Emergency tag design & sticker pack' },
-    { number: 6, id: 'payment', title: 'Razorpay Payment', shortTitle: 'Payment', desc: '₹149 one-time activation (3 mo. validity)' },
+    { number: 5, id: 'plan', title: 'QR / Plan Selection', shortTitle: 'QR & Plan', desc: '₹149 Digital QR or ₹199 QR + 3 Months' },
+    { number: 6, id: 'payment', title: 'Razorpay Payment', shortTitle: 'Payment', desc: 'Secure Razorpay checkout & activation' },
     { number: 7, id: 'completed', title: 'Registration Completed', shortTitle: 'Completed', desc: 'Dossier generated' },
     { number: 8, id: 'activated', title: 'Service & QR Activated', shortTitle: 'Activated', desc: 'Live protection' }
 ];

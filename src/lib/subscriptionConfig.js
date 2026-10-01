@@ -3,21 +3,62 @@
  * Central source of truth for subscription plans, pricing, durations, and status calculations.
  */
 
-export const SUBSCRIPTION_PLANS = {
-    // Initial Registration Plan
+export const INITIAL_REGISTRATION_OPTIONS = {
+    // Option 1 — ₹149: Registration + Digital RESQR QR
+    initial_digital: {
+        id: 'initial_digital',
+        name: 'Registration + Digital RESQR QR',
+        shortName: 'Digital RESQR',
+        type: 'registration_digital',
+        amount: 149,
+        durationMonths: null,
+        description: 'Includes RESQR account registration, user profile creation, digital RESQR QR, instant QR activation, emergency profile access, and digital QR in dashboard.',
+        features: [
+            'RESQR account registration',
+            'User profile creation',
+            'Digital RESQR QR',
+            'Instant QR activation',
+            'Access to emergency profile',
+            'Digital QR in user dashboard'
+        ],
+        popular: false,
+        badge: 'DIGITAL QR'
+    },
+    // Option 2 — ₹199: Registration + RESQR QR + 3-Month Validity
     initial_3m: {
         id: 'initial_3m',
-        name: 'RESQR Registration + 2 QR Stickers',
-        shortName: '3 Months (Initial)',
+        name: 'Registration + RESQR QR + 3-Month Validity',
+        shortName: 'RESQR QR + 3 Months',
         type: 'registration',
-        amount: 149,
+        amount: 199,
         durationMonths: 3,
-        description: 'Includes account registration, 3-angle face enrollment, emergency profile, 2 reflective QR stickers, and 3 months of active RESQR emergency protection.',
-        stickersIncluded: 2,
-        popular: false,
-        badge: 'NEW REGISTRATION'
-    },
-    // Renewal / Upgrade Plans
+        description: 'Includes RESQR account registration, user profile creation, RESQR QR, QR activation, emergency profile access, and 3 full months of validity.',
+        features: [
+            'RESQR account registration',
+            'User profile creation',
+            'RESQR QR',
+            'Instant QR activation',
+            'Access to emergency profile',
+            'Validity for 3 months'
+        ],
+        popular: true,
+        badge: 'RECOMMENDED'
+    }
+};
+
+export const INITIAL_REGISTRATION_PLANS = [
+    INITIAL_REGISTRATION_OPTIONS.initial_digital,
+    INITIAL_REGISTRATION_OPTIONS.initial_3m
+];
+
+export const SUBSCRIPTION_PLANS = {
+    // Initial Registration Options (Section 1)
+    ...INITIAL_REGISTRATION_OPTIONS,
+    // Aliases for initial plans
+    initial_149: INITIAL_REGISTRATION_OPTIONS.initial_digital,
+    initial_199: INITIAL_REGISTRATION_OPTIONS.initial_3m,
+    
+    // Existing Renewal / Upgrade Plans — DO NOT MODIFY OR DUPLICATE
     renewal_3m: {
         id: 'renewal_3m',
         name: '3 Months Renewal',
@@ -167,6 +208,28 @@ export function calculateSubscriptionStatus(subscription, now = new Date()) {
         };
     }
 
+    // Handle Option 1: ₹149 Registration + Digital RESQR QR (Digital tier access)
+    const isDigitalPlan = subscription.planId === 'initial_digital' || 
+                          subscription.planId === 'initial_149' || 
+                          subscription.type === 'registration_digital' ||
+                          subscription.isDigitalOnly;
+
+    if (isDigitalPlan) {
+        return {
+            status: 'ACTIVE',
+            daysRemaining: 9999,
+            isExpired: false,
+            isExpiringSoon: false,
+            isActive: true,
+            isDigital: true,
+            isSuspended: false,
+            isRevoked: false,
+            formattedExpiry: 'Digital Access Active',
+            badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+            dotClass: 'bg-emerald-400 ring-2 ring-emerald-400/30'
+        };
+    }
+
     const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt) : null;
     if (!expiresAt || isNaN(expiresAt.getTime())) {
         return {
@@ -313,9 +376,12 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
         (p && (p.id === 'jwala-shyam' || p.id === 'shyam-madupu'))
     );
 
-    // Check expiration against current time
-    const expiry = u.serviceExpiryDate || p.serviceExpiryDate || p.subscriptionExpiresAt || s?.expiresAt || (isAdminAccount ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null);
-    const isExpired = !isAdminAccount && expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
+    const planId = u.planId || p.planId || s?.planId || 'initial_3m';
+    const isDigital = planId === 'initial_digital' || planId === 'initial_149' || s?.type === 'registration_digital' || s?.isDigitalOnly;
+
+    // Check expiration against current time (only for plans with an expiry date)
+    const expiry = isDigital ? null : (u.serviceExpiryDate || p.serviceExpiryDate || p.subscriptionExpiresAt || s?.expiresAt || (isAdminAccount ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null));
+    const isExpired = !isAdminAccount && !isDigital && expiry && !isNaN(new Date(expiry).getTime()) && new Date(expiry).getTime() <= Date.now();
 
     // 1. Payment status evaluation
     let paymentStatus = u.paymentStatus || p.paymentStatus || (
@@ -406,6 +472,8 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
         emergencyProfileStatus === 'ACTIVE'
     );
 
+    const defaultAmount = planId === 'initial_digital' || planId === 'initial_149' ? 149 : 199;
+
     return {
         registrationStatus,
         paymentStatus,
@@ -414,9 +482,10 @@ export function evaluateUserStatus(user = {}, profile = {}, subscription = null)
         qrStatus,
         isActive,
         isExpired: Boolean(isExpired),
+        isDigital: Boolean(isDigital),
         serviceExpiryDate: expiry,
-        amountPaid: u.amountPaid || p.amountPaid || s?.amount || (paymentStatus === 'SUCCESS' ? 149 : 0),
-        planId: u.planId || p.planId || s?.planId || 'initial_3m',
+        amountPaid: u.amountPaid || p.amountPaid || s?.amount || (paymentStatus === 'SUCCESS' ? defaultAmount : 0),
+        planId,
         paymentId: u.paymentId || p.paymentId || s?.paymentId || null
     };
 }

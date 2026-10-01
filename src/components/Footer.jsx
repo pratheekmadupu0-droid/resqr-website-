@@ -10,6 +10,7 @@ export default function Footer() {
             heading: 'RESQR',
             links: [
                 { name: 'About RESQR', to: '/about' },
+                { name: 'Pet RESQR', to: '/pet-dashboard' },
                 { name: 'How It Works', to: '/how-it-works' },
                 { name: 'Products', to: '/products' },
                 { name: 'Pricing', to: '/pricing' },
@@ -19,7 +20,8 @@ export default function Footer() {
         {
             heading: 'Legal & Safety',
             links: [
-                { name: 'Privacy Policy', to: '/safety-privacy' },
+                { name: 'Privacy Policy', to: '/privacy-policy' },
+                { name: 'Privacy Settings', to: '/privacy-settings' },
                 { name: 'Terms of Service', to: '/legal' },
                 { name: 'Emergency Awareness', to: '/emergency-awareness' },
                 { name: 'Technology', to: '/technology' },

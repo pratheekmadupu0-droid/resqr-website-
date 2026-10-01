@@ -85,7 +85,9 @@ export default function Navbar() {
 
     const desktopLinks = [
         { name: 'Home', path: '/' },
+        { name: 'Pet RESQR', path: '/pet-dashboard' },
         { name: 'How It Works', path: '/how-it-works' },
+        { name: 'Store', path: '/store' },
         { name: 'About', path: '/about' },
         { name: 'Contact', path: '/contact' },
     ];
@@ -125,6 +127,13 @@ return (
                         Admin
                     </Link>
                 )}
+                <Link
+                    to="/demo"
+                    className={`text-[13px] font-black uppercase tracking-[0.14em] transition-colors flex items-center gap-1 ${isActive('/demo') ? 'text-amber-400' : 'text-amber-400/80 hover:text-amber-300'}`}
+                >
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    Demo Hub
+                </Link>
             </div>
 
             {/* Desktop auth actions */}

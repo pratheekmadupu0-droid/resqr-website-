@@ -63,6 +63,16 @@ export default function ProductsPage() {
             image: 'https://images.unsplash.com/photo-1619121822248-03863a8421bb?q=80&w=800&auto=format&fit=crop'
         },
         {
+            id: 'pet-tag',
+            name: 'PET RESQR SMART TAG',
+            price: 299,
+            desc: 'Waterproof laser-etched aluminium collar tag with Lost Pet Mode and finder GPS location alerts.',
+            useCase: 'Dogs, cats, and companion animals.',
+            available: true,
+            badge: '🐾 Pet Safety',
+            image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=800&auto=format&fit=crop'
+        },
+        {
             id: 'ring',
             name: 'NFC TITANIUM RING',
             price: 499,

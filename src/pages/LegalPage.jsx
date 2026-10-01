@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, FileText, RefreshCcw, Truck, ChevronRight } from 'lucide-react';
+import { Shield, FileText, RefreshCcw, Truck, ChevronRight, ExternalLink, Sliders } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 
@@ -17,16 +18,33 @@ export default function LegalPage() {
     const content = {
         privacy: (
             <div className="space-y-6">
-                <h2 className="text-3xl font-black italic text-primary underline decoration-primary decoration-4 underline-offset-8 uppercase tracking-tighter mb-8">Privacy Policy</h2>
-                <div className="space-y-4 text-white opacity-70 leading-relaxed text-sm">
-                    <p className="font-bold text-white opacity-100 italic">Effective Date: March 1, 2026</p>
-                    <p>At **RESQR** (resqr.co.in), we prioritize your safety and the privacy of your sensitive medical data. This policy outlines how we handle your personal information.</p>
-                    <h3 className="text-lg font-black text-white italic underline decoration-primary/30 decoration-2 underline-offset-4 uppercase tracking-widest mt-6">1. Information Collection</h3>
-                    <p>We collect medical details, emergency contacts, and personal identifiers provided by you to create your RESQR profile. This information is only accessed when your QR tag is explicitly scanned.</p>
-                    <h3 className="text-lg font-black text-white italic underline decoration-primary/30 decoration-2 underline-offset-4 uppercase tracking-widest mt-6">2. Data Security</h3>
-                    <p>Your profiles are stored using industry-standard **256-bit AES encryption**. We do not sell or trade your personal medical history with third-party advertising networks.</p>
-                    <h3 className="text-lg font-black text-white italic underline decoration-primary/30 decoration-2 underline-offset-4 uppercase tracking-widest mt-6">3. User Control</h3>
-                    <p>You have full control over your data. You can edit or deactivate your profile at any time through our secure dashboard.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6 mb-6">
+                    <div>
+                        <h2 className="text-3xl font-black italic text-primary uppercase tracking-tighter">Privacy & Data Governance</h2>
+                        <p className="text-xs text-slate-400 mt-1">Digital Personal Data Protection (DPDP) Act 2023 Compliant · Version 1.0</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Link to="/privacy-policy" className="btn-app-primary py-2 px-4 text-xs inline-flex items-center gap-2">
+                            <ExternalLink size={14} /> Full 20-Section Policy
+                        </Link>
+                        <Link to="/privacy-settings" className="btn-app-secondary py-2 px-4 text-xs inline-flex items-center gap-2">
+                            <Sliders size={14} /> Privacy Center
+                        </Link>
+                    </div>
+                </div>
+
+                <div className="space-y-4 text-white opacity-80 leading-relaxed text-sm">
+                    <p className="font-bold text-white opacity-100 italic">Effective Date: October 2026 · Plain Language Summary</p>
+                    <p>At <strong>RESQR</strong> (resqr.co.in), operated by Sicon Technologies, we treat personal health data as a sacred trust. We adhere strictly to data minimization, purpose limitation, transparent consent, and granular access controls.</p>
+                    
+                    <h3 className="text-base font-black text-white italic uppercase tracking-wider mt-6">1. Purpose-Based Processing</h3>
+                    <p>We only collect data strictly necessary to operate your emergency QR identification system, facilitate authenticated medical emergency workflows, and contact designated family members during critical moments.</p>
+
+                    <h3 className="text-base font-black text-white italic uppercase tracking-wider mt-6">2. Public QR Privacy & Masked Relays</h3>
+                    <p>Public QR scans never expose raw phone numbers, full medical dossiers, or private residential addresses to unverified passersby. Contact is mediated through secure masked relays (+91 ••••• ••XX) and instant WhatsApp alerts.</p>
+
+                    <h3 className="text-base font-black text-white italic uppercase tracking-wider mt-6">3. Data Principal Rights & Self-Serve Controls</h3>
+                    <p>You maintain full sovereignty over your data. Through the <Link to="/privacy-settings" className="text-primary underline">Privacy Center</Link>, you can instantly view your personal data inventory, download a complete JSON archive, modify consent permissions, review access audit logs, or request account deletion.</p>
                 </div>
             </div>
         ),

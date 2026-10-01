@@ -9,7 +9,13 @@
 import { db, auth } from './firebase';
 import { ref, get, push, serverTimestamp, set, update } from 'firebase/database';
 import CryptoJS from 'crypto-js';
-import { isPseudoEmbedding, extractDeepDescriptorFromImage } from './biometrics';
+import { 
+    isPseudoEmbedding, 
+    extractDeepDescriptorFromImage, 
+    getFaceVerificationConfig, 
+    convertThresholdToMaxDistance, 
+    calculateSimilarityScore 
+} from './biometrics';
 
 const MEDICAL_JWT_SECRET = 'resqr_trauma_medical_sec_key_2026';
 const SESSION_EXPIRATION_MS = 15 * 60 * 1000; // 15 minutes
@@ -471,10 +477,15 @@ export async function verifyPublicEmergencyAccess({
         comparisons.sort((a, b) => a.dist - b.dist);
         const best = comparisons[0];
         const minDistance = Number(best.dist.toFixed(4));
-        const MATCH_THRESHOLD = 0.54; // Robust 1:1 threshold for ResNet-34 metric embeddings
+        
+        // Dynamically load Admin Face Verification configuration (default 60% similarity threshold for injury tolerance)
+        const faceConfig = await getFaceVerificationConfig();
+        const configuredPercent = Number(faceConfig?.similarityThreshold) || 60;
+        const MATCH_THRESHOLD = convertThresholdToMaxDistance(configuredPercent);
+        const similarityScore = calculateSimilarityScore(minDistance);
         const isMatch = minDistance <= MATCH_THRESHOLD;
 
-        console.log(`[RESQR BIOMETRIC VERIFICATION AUDIT] Target: ${cleanId}, Best View: ${best.view}, Min Distance: ${minDistance}, Threshold: ${MATCH_THRESHOLD}, Result: ${isMatch ? 'VERIFIED (MATCH)' : 'DENIED (MISMATCH)'}`);
+        console.log(`[RESQR BIOMETRIC VERIFICATION AUDIT] Target: ${cleanId}, Best View: ${best.view}, Min Distance: ${minDistance}, Similarity Score: ${similarityScore}%, Threshold: ${configuredPercent}% (dist <= ${MATCH_THRESHOLD}), Result: ${isMatch ? 'VERIFIED (MATCH)' : 'DENIED (MISMATCH)'}`);
 
         // Audit log in Firebase RTDB
         const auditLogData = {
@@ -482,6 +493,9 @@ export async function verifyPublicEmergencyAccess({
             patientId: cleanId,
             matchedView: best.view,
             minDistance,
+            similarityScore,
+            thresholdPercent: configuredPercent,
+            maxDistanceThreshold: MATCH_THRESHOLD,
             result: isMatch ? 'VERIFIED' : 'FAILED',
             timestamp: new Date().toISOString(),
             epoch: Date.now(),

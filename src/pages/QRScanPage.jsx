@@ -18,6 +18,8 @@ import HospitalFaceVerificationModal from '../components/biometrics/HospitalFace
 import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
 import ResqrLogo from '../components/branding/ResqrLogo';
+import { maskPhoneNumber } from '../lib/privacyConfig';
+import { logPrivacyAudit } from '../lib/privacyAudit';
 
 export default function QRScanPage() {
     const { profileId, username } = useParams();
@@ -182,6 +184,13 @@ export default function QRScanPage() {
             await push(ref(db, `profiles/${actualPid}/scans`), scanData);
             if (actualUid && actualPid) {
                 await push(ref(db, `users/${actualUid}/profiles/${actualPid}/scans`), scanData);
+                await logPrivacyAudit({
+                    userId: actualUid,
+                    action: 'QR_SCANNED',
+                    role: 'public_bystander',
+                    resourceId: actualPid,
+                    details: { coords: (lat && lng) ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'No GPS' }
+                });
             }
             setScanRecorded(true);
         } catch (e) {
@@ -218,6 +227,16 @@ export default function QRScanPage() {
             const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
             const waMessage = encodeURIComponent(`🚨 *RESQR EMERGENCY ALERT* 🚨\n\nI have just scanned the emergency identity of *${publicUser.name}*.\n\n📍 *CURRENT LOCATION:* ${mapsUrl}\n\n⚕️ *PROTOCOL:* High Priority Rescue Dispatch Requested.`);
             const waPhone = sanPh.startsWith('+') ? sanPh.substring(1) : sanPh;
+            
+            let targetUid = resolvedPatientId.includes('_') ? (resolvedPatientId.startsWith('c_') ? resolvedPatientId.replace('c_', '') : resolvedPatientId.split('_')[0]) : resolvedPatientId;
+            logPrivacyAudit({
+                userId: targetUid,
+                action: 'EMERGENCY_LOCATION_SENT',
+                role: 'public_bystander',
+                resourceId: resolvedPatientId,
+                details: { dispatchChannel: 'WhatsApp Relay' }
+            });
+
             window.open(`https://wa.me/${waPhone}?text=${waMessage}`, '_blank');
         } else {
             toast.error("Emergency contact phone number not available.");
@@ -406,8 +425,19 @@ export default function QRScanPage() {
                                 onClick={() => {
                                     const rawPh = publicUser.emergencyContact.phone;
                                     const sanPh = rawPh?.replace(/[^0-9+]/g, '');
-                                    if (sanPh) window.location.href = `tel:${sanPh}`;
-                                    else toast.error("Emergency contact phone number not available.");
+                                    if (sanPh) {
+                                        let targetUid = resolvedPatientId.includes('_') ? (resolvedPatientId.startsWith('c_') ? resolvedPatientId.replace('c_', '') : resolvedPatientId.split('_')[0]) : resolvedPatientId;
+                                        logPrivacyAudit({
+                                            userId: targetUid,
+                                            action: 'EMERGENCY_CALL_TRIGGERED',
+                                            role: 'public_bystander',
+                                            resourceId: resolvedPatientId,
+                                            details: { maskedNumber: maskPhoneNumber(rawPh) }
+                                        });
+                                        window.location.href = `tel:${sanPh}`;
+                                    } else {
+                                        toast.error("Emergency contact phone number not available.");
+                                    }
                                 }}
                                 className="h-24 bg-red-600 text-white rounded-[30px] flex flex-col items-center justify-center gap-1 shadow-2xl shadow-red-600/30 active:scale-95 transition-all group overflow-hidden"
                             >
@@ -415,8 +445,8 @@ export default function QRScanPage() {
                                     <Phone size={26} fill="white" />
                                     <span className="font-black uppercase italic tracking-widest text-2xl">Connect Call</span>
                                 </div>
-                                <span className="text-xs opacity-75 font-mono font-bold tracking-widest">
-                                    {publicUser.emergencyContact.phone ? publicUser.emergencyContact.phone.replace(/\d(?=\d{4})/g, '*') : 'Tap to dial'}
+                                <span className="text-xs opacity-85 font-mono font-bold tracking-widest">
+                                    {publicUser.emergencyContact.phone ? maskPhoneNumber(publicUser.emergencyContact.phone) : 'Masked Emergency Relay'}
                                 </span>
                             </button>
 

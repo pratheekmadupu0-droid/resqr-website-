@@ -4,7 +4,13 @@ import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../lib/raz
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 const PLAN_CATALOG = {
-    initial_3m: { name: 'RESQR Registration + 2 QR Stickers', amount: 149, durationMonths: 3, type: 'registration' },
+    // Initial Registration Options (Section 1)
+    initial_digital: { name: 'Registration + Digital RESQR QR', amount: 149, durationMonths: null, type: 'registration_digital' },
+    initial_149: { name: 'Registration + Digital RESQR QR', amount: 149, durationMonths: null, type: 'registration_digital' },
+    initial_3m: { name: 'Registration + RESQR QR + 3-Month Validity', amount: 199, durationMonths: 3, type: 'registration' },
+    initial_199: { name: 'Registration + RESQR QR + 3-Month Validity', amount: 199, durationMonths: 3, type: 'registration' },
+    
+    // Existing Renewal / Upgrade Plans — UNCHANGED
     renewal_3m: { name: '3 Months Renewal', amount: 299, durationMonths: 3, type: 'renewal' },
     renewal_6m: { name: '6 Months Renewal', amount: 599, durationMonths: 6, type: 'renewal' },
     renewal_12m: { name: '12 Months Renewal', amount: 1199, durationMonths: 12, type: 'renewal' },
@@ -136,23 +142,25 @@ export default async function handler(req, res) {
             } catch (e) {}
         }
 
-        // 4. Calculate New Expiry Date (Section 15: PRESERVE SAME QR TOKEN, ONLY EXTEND EXPIRY)
-        let newExpiryDate;
-        const existingExpiresAt = existingSub?.expiresAt ? new Date(existingSub.expiresAt) : null;
-
-        if (existingExpiresAt && !isNaN(existingExpiresAt.getTime()) && existingExpiresAt.getTime() > now.getTime()) {
-            // Renewed BEFORE expiry: EXISTING EXPIRY + PLAN DURATION
-            newExpiryDate = addMonths(existingExpiresAt, plan.durationMonths);
-        } else {
-            // Renewed AFTER expiry or initial registration: NOW + PLAN DURATION
-            newExpiryDate = addMonths(now, plan.durationMonths);
+        // 4. Calculate Expiry Date dynamically on the backend
+        let newExpiryIso = null;
+        if (plan.durationMonths) {
+            const existingExpiresAt = existingSub?.expiresAt ? new Date(existingSub.expiresAt) : null;
+            let newExpiryDate;
+            if (existingExpiresAt && !isNaN(existingExpiresAt.getTime()) && existingExpiresAt.getTime() > now.getTime()) {
+                // Renewed BEFORE expiry: EXISTING EXPIRY + PLAN DURATION
+                newExpiryDate = addMonths(existingExpiresAt, plan.durationMonths);
+            } else {
+                // Initial registration or renewed after expiry: NOW + PLAN DURATION (3 months for ₹199)
+                newExpiryDate = addMonths(now, plan.durationMonths);
+            }
+            newExpiryIso = newExpiryDate.toISOString();
         }
 
-        const newExpiryIso = newExpiryDate.toISOString();
         const activatedAtIso = existingSub?.activatedAt || nowIso;
         const receiptNumber = `REC-${cleanUserId.slice(-4).toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
-        // 5. Canonical Payment Record (Section 4 Schema)
+        // 5. Canonical Payment Record (Section 5 Schema)
         const paymentRecord = {
             paymentId: razorpay_payment_id,
             userId: cleanUserId,
@@ -160,9 +168,15 @@ export default async function handler(req, res) {
             userEmail: resolvedEmail,
             userPhone: resolvedPhone,
             qrId: cleanQrId,
+            orderId: razorpay_order_id,
             razorpayOrderId: razorpay_order_id,
             razorpayPaymentId: razorpay_payment_id,
             razorpaySignature: razorpay_signature,
+            purchaseAmount: plan.amount,
+            purchaseDate: nowIso,
+            activationDate: activatedAtIso,
+            validityStartDate: activatedAtIso,
+            validityEndDate: newExpiryIso,
             planId: planId,
             planName: plan.name,
             amount: plan.amount,
@@ -180,26 +194,31 @@ export default async function handler(req, res) {
             type: plan.type
         };
 
-        // 6. Canonical Subscription Record
+        // 6. Canonical Subscription Record (Section 5 Schema)
         const subscriptionRecord = {
             id: `sub_${cleanQrId}`,
             userId: cleanUserId,
             qrId: cleanQrId,
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            purchaseAmount: plan.amount,
+            purchaseDate: nowIso,
+            activationDate: activatedAtIso,
+            validityStartDate: activatedAtIso,
+            validityEndDate: newExpiryIso,
             planId: planId,
             planName: plan.name,
-            durationMonths: plan.durationMonths,
+            durationMonths: plan.durationMonths || null,
             amount: plan.amount,
             currency: 'INR',
             status: 'ACTIVE',
             activatedAt: activatedAtIso,
             expiresAt: newExpiryIso,
-            paymentId: razorpay_payment_id,
-            orderId: razorpay_order_id,
             paymentStatus: 'paid',
             createdAt: existingSub?.createdAt || nowIso,
             updatedAt: nowIso,
             renewedAt: nowIso,
-            renewalCount: (existingSub?.renewalCount || 0) + (plan.type === 'registration' ? 0 : 1)
+            renewalCount: (existingSub?.renewalCount || 0) + (plan.type === 'registration' || plan.type === 'registration_digital' ? 0 : 1)
         };
 
         // 7. Atomic Multi-path Updates to Realtime Database

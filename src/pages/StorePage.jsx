@@ -48,6 +48,26 @@ const products = [
         image: 'https://images.unsplash.com/photo-1619121822248-03863a8421bb?q=80&w=800&auto=format&fit=crop',
         tag: 'Elite',
         features: ['Grade A Titanium', 'Lifetime Shine', 'Necklace Chain Included', 'Fire Resistant']
+    },
+    {
+        id: 'pet-collar-tag',
+        name: 'Pet RESQR Smart Collar Tag',
+        description: 'Waterproof, anodized aluminium collar tag with laser QR for dogs and cats. Instant finder GPS alerts.',
+        price: 299,
+        originalPrice: 599,
+        image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=800&auto=format&fit=crop',
+        tag: '🐾 Pet Safety',
+        features: ['Anodized Aluminium', '100% Waterproof & Scratchproof', 'Collar Ring Included', 'Lost Pet Mode Enabled']
+    },
+    {
+        id: 'pet-badge-keychain',
+        name: 'Pet Parent Emergency Card & Tag',
+        description: 'Durable dual-sided QR keychain and wallet badge stating "My Pet is Home Alone" with emergency vet contacts.',
+        price: 249,
+        originalPrice: 499,
+        image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=800&auto=format&fit=crop',
+        tag: '🐾 Pet Companion',
+        features: ['Heavy-Duty PVC', 'Home Alone Alert Badge', 'Key Ring Attached', 'Instant Contact Relay']
     }
 ];
 

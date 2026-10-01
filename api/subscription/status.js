@@ -59,17 +59,24 @@ export default async function handler(req, res) {
         }
 
         // Evaluate status
+        const isDigitalPlan = subscription.planId === 'initial_digital' || 
+                              subscription.planId === 'initial_149' || 
+                              subscription.type === 'registration_digital' ||
+                              subscription.isDigitalOnly;
+
         let calculatedStatus = 'ACTIVE';
         let isSuspended = subscription.status === 'SUSPENDED';
         let isRevoked = subscription.status === 'REVOKED';
 
-        const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt) : null;
-        let daysRemaining = 0;
+        const expiresAt = subscription.expiresAt || subscription.validityEndDate ? new Date(subscription.expiresAt || subscription.validityEndDate) : null;
+        let daysRemaining = isDigitalPlan ? 9999 : 0;
 
         if (isRevoked) {
             calculatedStatus = 'REVOKED';
         } else if (isSuspended) {
             calculatedStatus = 'SUSPENDED';
+        } else if (isDigitalPlan) {
+            calculatedStatus = 'ACTIVE';
         } else if (!expiresAt || isNaN(expiresAt.getTime()) || expiresAt.getTime() <= nowMs) {
             calculatedStatus = 'EXPIRED';
             daysRemaining = 0;
@@ -121,17 +128,22 @@ export default async function handler(req, res) {
             isExpiringSoon,
             isSuspended,
             isRevoked,
+            isDigital: Boolean(isDigitalPlan),
             daysRemaining,
             qrId: subscription.qrId || cleanQrId,
             userId: subscription.userId || cleanUserId,
             planId: subscription.planId,
             planName: subscription.planName,
             durationMonths: subscription.durationMonths,
-            amount: subscription.amount,
+            amount: subscription.amount || subscription.purchaseAmount,
+            purchaseAmount: subscription.purchaseAmount || subscription.amount,
+            purchaseDate: subscription.purchaseDate || subscription.activatedAt,
+            validityStartDate: subscription.validityStartDate || subscription.activatedAt,
+            validityEndDate: subscription.validityEndDate || subscription.expiresAt,
             currency: subscription.currency || 'INR',
             activatedAt: subscription.activatedAt,
-            expiresAt: subscription.expiresAt,
-            formattedExpiry: expiresAt ? expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null,
+            expiresAt: subscription.expiresAt || subscription.validityEndDate,
+            formattedExpiry: isDigitalPlan ? 'Digital Access Active' : (expiresAt ? expiresAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : null),
             renewalCount: subscription.renewalCount || 0
         });
     } catch (err) {

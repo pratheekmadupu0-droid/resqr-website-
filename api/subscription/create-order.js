@@ -4,7 +4,13 @@ import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../lib/raz
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 const PLAN_PRICES = {
-    initial_3m: { name: 'RESQR Registration + 2 QR Stickers', amount: 149, durationMonths: 3, type: 'registration' },
+    // Initial Registration Options (Section 1)
+    initial_digital: { name: 'Registration + Digital RESQR QR', amount: 149, durationMonths: null, type: 'registration_digital' },
+    initial_149: { name: 'Registration + Digital RESQR QR', amount: 149, durationMonths: null, type: 'registration_digital' },
+    initial_3m: { name: 'Registration + RESQR QR + 3-Month Validity', amount: 199, durationMonths: 3, type: 'registration' },
+    initial_199: { name: 'Registration + RESQR QR + 3-Month Validity', amount: 199, durationMonths: 3, type: 'registration' },
+    
+    // Existing Renewal / Upgrade Plans — UNCHANGED
     renewal_3m: { name: '3 Months Renewal', amount: 299, durationMonths: 3, type: 'renewal' },
     renewal_6m: { name: '6 Months Renewal', amount: 599, durationMonths: 6, type: 'renewal' },
     renewal_12m: { name: '12 Months Renewal', amount: 1199, durationMonths: 12, type: 'renewal' },

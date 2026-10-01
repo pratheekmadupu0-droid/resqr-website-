@@ -39,6 +39,14 @@ import {
     getEmergencyProfileStatusBadge,
     getQrStatusBadge
 } from '../lib/subscriptionConfig';
+import { CUSTOMER_CATEGORIES, CUSTOMER_CATEGORY_TYPES } from '../lib/agentCategoriesConfig';
+import { getAgentPlansConfig, setAgentPlansConfig } from '../lib/agents';
+import { 
+    getFaceVerificationConfig, 
+    saveFaceVerificationConfig, 
+    DEFAULT_FACE_VERIFICATION_CONFIG, 
+    convertThresholdToMaxDistance 
+} from '../lib/biometrics';
 
 export default function AdminPanel() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -149,6 +157,23 @@ export default function AdminPanel() {
     const [paymentCurrentPage, setPaymentCurrentPage] = useState(1);
     const [connectionStatus, setConnectionStatus] = useState(null);
     const [isTestingConnection, setIsTestingConnection] = useState(false);
+
+    // Emergency Face Verification Configuration States
+    const [faceVerificationConfig, setFaceVerificationConfig] = useState(DEFAULT_FACE_VERIFICATION_CONFIG);
+    const [isSavingFaceConfig, setIsSavingFaceConfig] = useState(false);
+
+    const handleSaveFaceVerificationConfig = async () => {
+        setIsSavingFaceConfig(true);
+        try {
+            await saveFaceVerificationConfig(faceVerificationConfig, auth.currentUser?.email || 'ADMIN');
+            toast.success('Emergency Face Verification settings saved successfully.');
+        } catch (err) {
+            console.error('Failed to save face verification config:', err);
+            toast.error('Failed to update face verification settings: ' + (err.message || err));
+        } finally {
+            setIsSavingFaceConfig(false);
+        }
+    };
 
     const safeUsers = Array.isArray(users) ? users.filter(Boolean) : [];
     const safeProfiles = Array.isArray(profilesList) ? profilesList.filter(Boolean) : [];
@@ -547,6 +572,14 @@ export default function AdminPanel() {
             }
         });
 
+        // Face Verification System Settings listener
+        const faceConfigRef = ref(db, 'systemSettings/faceVerification');
+        const unsubFaceConfig = onValue(faceConfigRef, (snap) => {
+            if (snap.exists()) {
+                setFaceVerificationConfig({ ...DEFAULT_FACE_VERIFICATION_CONFIG, ...snap.val() });
+            }
+        });
+
         return () => {
             unsubscribeAuth();
             unsubUsers();
@@ -562,6 +595,7 @@ export default function AdminPanel() {
             unsubSubAudits();
             unsubLastSync();
             unsubSyncHistory();
+            unsubFaceConfig();
         };
     }, [navigate]);
 
@@ -1689,7 +1723,15 @@ export default function AdminPanel() {
     const netPlatformRevenue = Math.max(0, totalVerifiedRevenue - totalRefundAmount);
     const unmatchedPaymentsCount = allUnifiedPayments.filter(p => p.userId === 'UNMATCHED' || !p.userId || p.userEmail === 'unmatched@razorpay.resqr').length;
 
-    const registrationPayments = verifiedSuccessPayments.filter(p => p.type === 'registration' || p.planId === 'initial_3m' || p.type === 'registration_expansion');
+    const registrationPayments = verifiedSuccessPayments.filter(p => 
+        p.type === 'registration' || 
+        p.type === 'registration_digital' || 
+        p.planId === 'initial_3m' || 
+        p.planId === 'initial_digital' || 
+        p.planId === 'initial_149' || 
+        p.planId === 'initial_199' || 
+        p.type === 'registration_expansion'
+    );
     const renewalPayments = verifiedSuccessPayments.filter(p => p.type === 'renewal' || (p.planId && p.planId.startsWith('renewal_')));
     const regRevenue = registrationPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
     const renRevenue = renewalPayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
@@ -1938,7 +1980,8 @@ export default function AdminPanel() {
         : '0.0';
 
     const planStats = {
-        'initial_3m': { name: 'Initial Registration (3M)', price: 149, count: 0, revenue: 0 },
+        'initial_digital': { name: 'Initial Digital QR', price: 149, count: 0, revenue: 0 },
+        'initial_3m': { name: 'Initial QR + 3M', price: 199, count: 0, revenue: 0 },
         'renewal_3m': { name: 'Renewal 3 Months', price: 299, count: 0, revenue: 0 },
         'renewal_6m': { name: 'Renewal 6 Months', price: 599, count: 0, revenue: 0 },
         'renewal_12m': { name: 'Renewal 12 Months', price: 1199, count: 0, revenue: 0 },
@@ -1947,7 +1990,14 @@ export default function AdminPanel() {
     };
 
     verifiedSuccessPayments.forEach(p => {
-        const pId = p.planId || (p.type === 'registration' ? 'initial_3m' : null);
+        let pId = p.planId;
+        if (!pId) {
+            if (p.type === 'registration_digital' || p.amount === 149) {
+                pId = 'initial_digital';
+            } else if (p.type === 'registration' || p.amount === 199) {
+                pId = 'initial_3m';
+            }
+        }
         if (pId && planStats[pId]) {
             planStats[pId].count += 1;
             planStats[pId].revenue += (Number(p.amount) || planStats[pId].price);
@@ -2060,6 +2110,12 @@ export default function AdminPanel() {
                                 <Plus size={18} /> New Campaign
                             </Button>
                         )}
+                        <Link
+                            to="/demo"
+                            className="px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-950 rounded-xl font-black uppercase text-xs tracking-wider flex items-center gap-1.5 shadow-lg shadow-amber-400/20 transition-all"
+                        >
+                            ⚡ Demo Hub & Simulator
+                        </Link>
                         <Button 
                             onClick={handleMigrateAges} 
                             disabled={isMigrating}
@@ -3746,6 +3802,205 @@ export default function AdminPanel() {
                             </Card>
                         </div>
 
+                        {/* Emergency Face Verification & Injury Tolerance Configuration Card */}
+                        <Card className="bg-medical-card border border-white/5 overflow-hidden rounded-[36px] shadow-2xl relative p-8">
+                            <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent" />
+                            
+                            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-6 border-b border-white/5">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500">
+                                            <Camera size={20} />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                                    Emergency QR Face Verification Settings
+                                                </h3>
+                                                <Badge className="bg-sky-500/10 text-sky-400 border-sky-500/30 text-[9px] uppercase tracking-widest font-black italic">
+                                                    1:1 User Binding
+                                                </Badge>
+                                            </div>
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.25em] mt-0.5 italic">
+                                                Accident trauma tolerance, similarity threshold calibration & anti-spoof controls
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    onClick={handleSaveFaceVerificationConfig}
+                                    disabled={isSavingFaceConfig}
+                                    className="h-11 px-6 bg-red-600 hover:bg-red-500 text-white font-black italic uppercase tracking-widest text-[10px] rounded-2xl flex items-center gap-2 shadow-lg shadow-red-600/25 transition-all cursor-pointer"
+                                >
+                                    {isSavingFaceConfig ? (
+                                        <>
+                                            <RefreshCw size={14} className="animate-spin" />
+                                            SAVING...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={14} />
+                                            SAVE CONFIGURATION
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6">
+                                {/* Left Column: Threshold Slider & Calibration */}
+                                <div className="space-y-6">
+                                    <div className="p-5 rounded-2xl bg-slate-950/60 border border-white/5 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <span className="text-xs font-black uppercase italic tracking-wider text-white block">
+                                                    Facial Similarity Threshold
+                                                </span>
+                                                <span className="text-[10px] text-slate-400">
+                                                    Configurable match acceptance range (60% – 70%)
+                                                </span>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-2xl font-black italic text-red-400 font-poppins">
+                                                    {faceVerificationConfig.similarityThreshold || 60}%
+                                                </span>
+                                                <span className="text-[9px] font-mono text-slate-500 block">
+                                                    Max Dist: {convertThresholdToMaxDistance(faceVerificationConfig.similarityThreshold || 60)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <input
+                                            type="range"
+                                            min="60"
+                                            max="70"
+                                            step="1"
+                                            value={faceVerificationConfig.similarityThreshold || 60}
+                                            onChange={(e) => setFaceVerificationConfig(prev => ({
+                                                ...prev,
+                                                similarityThreshold: Number(e.target.value)
+                                            }))}
+                                            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-500"
+                                        />
+
+                                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                                            <span className="text-emerald-400 font-black italic">
+                                                60% (Recommended for Accidents/Injuries)
+                                            </span>
+                                            <span className="text-sky-400 font-black italic">
+                                                70% (Strict Matching)
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Medical & Accident Tolerance Advisory */}
+                                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-slate-300 space-y-2">
+                                        <div className="flex items-center gap-2 text-amber-400 font-black italic text-[11px] uppercase tracking-wider">
+                                            <ShieldAlert size={14} /> Accident & Facial Trauma Tolerance Advisory
+                                        </div>
+                                        <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                                            During accidents, victims may suffer scratches, cuts, swelling, bandages, or dirt. The <strong className="text-white font-bold">60% threshold</strong> (Euclidean distance $\le 0.58$) ensures genuine injured victims are successfully verified while strictly rejecting unrelated persons ($d \ge 0.75$). Match scores are never displayed to emergency bystanders.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Defenses & Security Toggles */}
+                                <div className="space-y-4">
+                                    {/* Verification Master Switch */}
+                                    <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-black uppercase italic tracking-wider text-white block">
+                                                Emergency QR Face Verification Gate
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                Enforce 1:1 facial identity verification when public scans QR
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFaceVerificationConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                                                faceVerificationConfig.enabled ? 'bg-red-600' : 'bg-slate-800'
+                                            }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                                                faceVerificationConfig.enabled ? 'right-1' : 'left-1'
+                                            }`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Passive Liveness Detection (PAD) */}
+                                    <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-black uppercase italic tracking-wider text-white block">
+                                                Passive Presentation Attack Detection (PAD)
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                Optical sensor variance check to reject printed photos & screen spoofs
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFaceVerificationConfig(prev => ({ ...prev, livenessRequired: !prev.livenessRequired }))}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                                                faceVerificationConfig.livenessRequired ? 'bg-emerald-600' : 'bg-slate-800'
+                                            }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                                                faceVerificationConfig.livenessRequired ? 'right-1' : 'left-1'
+                                            }`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Single Face Enforcement */}
+                                    <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-black uppercase italic tracking-wider text-white block">
+                                                Single Face Enforcement
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                Requires exactly 1 face in camera view to avoid crowd ambiguity
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFaceVerificationConfig(prev => ({ ...prev, singleFaceRequired: !prev.singleFaceRequired }))}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                                                faceVerificationConfig.singleFaceRequired ? 'bg-sky-600' : 'bg-slate-800'
+                                            }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                                                faceVerificationConfig.singleFaceRequired ? 'right-1' : 'left-1'
+                                            }`} />
+                                        </button>
+                                    </div>
+
+                                    {/* Rate Limiting & Fallback */}
+                                    <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+                                        <div>
+                                            <span className="text-xs font-black uppercase italic tracking-wider text-white block">
+                                                Anti-Brute Force Protection
+                                            </span>
+                                            <span className="text-[10px] text-slate-400">
+                                                Limits to 3 failed attempts before locking and triggering emergency fallback
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFaceVerificationConfig(prev => ({ ...prev, rateLimitingEnabled: !prev.rateLimitingEnabled }))}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${
+                                                faceVerificationConfig.rateLimitingEnabled ? 'bg-purple-600' : 'bg-slate-800'
+                                            }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white transition-transform absolute top-1 ${
+                                                faceVerificationConfig.rateLimitingEnabled ? 'right-1' : 'left-1'
+                                            }`} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+
                         {/* Audit Log Table */}
                         <Card className="bg-medical-card border border-white/5 overflow-hidden rounded-[36px] shadow-2xl relative">
                             <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent" />
@@ -4261,6 +4516,68 @@ export default function AdminPanel() {
                                         )}
                                     </tbody>
                                 </table>
+                            </div>
+                        </Card>
+
+                        {/* Section: Agent Customer Categories & Partner Plans Configuration */}
+                        <Card className="bg-medical-card border-white/5 rounded-[40px] p-8 shadow-2xl space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] font-black uppercase tracking-widest">
+                                            FEATURE 4: PARTNER ARCHITECTURE
+                                        </Badge>
+                                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                                            Multi-Tenant Active
+                                        </span>
+                                    </div>
+                                    <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                        Agent Customer Categories & Configurable Bulk Plans
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-0.5">
+                                        Dynamically managed packages for Family Plans, Schools, Colleges, Corporate Enterprises, and Individual Customers.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {Object.values(CUSTOMER_CATEGORIES).map((cat) => (
+                                    <div key={cat.id} className="p-6 rounded-3xl bg-slate-950/70 border border-white/5 space-y-4">
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <span className="text-[10px] font-mono text-primary font-bold">{cat.idPrefix}-XXXX</span>
+                                                <h4 className="text-base font-black italic uppercase text-white font-poppins mt-0.5">{cat.name}</h4>
+                                                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">{cat.shortDesc}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2 pt-3 border-t border-white/5 text-xs">
+                                            <div className="flex justify-between text-slate-400 text-[11px]">
+                                                <span>Hierarchy:</span>
+                                                <span className="text-slate-300 font-bold">{cat.hierarchyLevels.join(' → ')}</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-400 text-[11px]">
+                                                <span>Bulk CSV Upload:</span>
+                                                <span className={cat.allowBulkUpload ? "text-emerald-400 font-bold" : "text-slate-500 font-bold"}>
+                                                    {cat.allowBulkUpload ? "Supported" : "Single Account"}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2 pt-2">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Configured Packages ({cat.defaultPlans?.length || 0}):</p>
+                                            {cat.defaultPlans?.slice(0, 3).map(p => (
+                                                <div key={p.id} className="p-2.5 rounded-xl bg-white/5 flex items-center justify-between text-[11px]">
+                                                    <span className="font-bold text-white truncate max-w-[140px]">{p.name}</span>
+                                                    <div className="text-right">
+                                                        <span className="font-bold text-primary">₹{p.basePrice}</span>
+                                                        <span className="text-[9px] text-emerald-400 block">+₹{p.commissionAmount} comm</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </Card>
                     </div>

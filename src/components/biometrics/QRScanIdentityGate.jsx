@@ -179,7 +179,7 @@ export default function QRScanIdentityGate({
                     } else if (result.status === 'MULTIPLE_FACES') {
                         setFaceCount(result.faceCount || 2);
                         setPositionStatus('MULTIPLE');
-                        setGuidanceMessage('Multiple faces detected — ensure only 1 person in frame');
+                        setGuidanceMessage('Only one face should be visible. Please make sure the registered person is alone in front of the camera.');
                     } else if (result.status === 'FACE_DETECTED') {
                         setFaceCount(1);
                         padAnalyzerRef.current.addSample(result.detection, result.quality);
@@ -242,17 +242,16 @@ export default function QRScanIdentityGate({
         // Immediately stop live camera stream
         stopCamera();
 
-        // STEP 4 — TRANSITION TO STILL IMAGE ANALYSIS
+        // STEP 4 — TRANSITION TO STILL IMAGE ANALYSIS (Detecting face... -> Checking identity... -> Verifying RESQR identity...)
         setGateStage('ANALYZING');
-        setAnalyzingSubtext('Analyzing captured image...');
+        setAnalyzingSubtext('Detecting face...');
 
         try {
             // Optical sensor variance check
             const padResult = padAnalyzerRef.current.evaluatePassiveLiveness();
             const padScore = padResult.score || 0.8;
 
-            // Analyze the frozen still photograph canvas
-            setAnalyzingSubtext('Detecting facial presence & orientation...');
+            // Step 1: Detecting facial presence
             let probe = await detectSingleFace(rawCanvas, { extractDescriptor: true });
 
             // Check 1: Is a face present in the still photo?
@@ -263,9 +262,13 @@ export default function QRScanIdentityGate({
 
             // Check 2: Exactly ONE face in the still photo?
             if (probe.status === 'MULTIPLE_FACES' || (probe.faceCount && probe.faceCount > 1)) {
-                handleFailure();
+                handleFailure('Only one face should be visible. Please make sure the registered person is alone in front of the camera.');
                 return;
             }
+
+            // Step 2: Checking identity features
+            setAnalyzingSubtext('Checking identity...');
+            await new Promise(r => setTimeout(r, 200));
 
             // Check 3: Image quality check (warn, but proceed if descriptor is extractable)
             if (!probe.quality?.isAcceptable) {
@@ -296,8 +299,8 @@ export default function QRScanIdentityGate({
             }
 
             // STEP 5 — QR-BOUND 1:1 FACE MATCH
-            // Compares against registered biometric profile AND registered face scan photo
-            setAnalyzingSubtext('Verifying with registered RESQR biometric enrollment & photo scan...');
+            // Compares probe against registered user's enrolled biometric profile & snapshot photo
+            setAnalyzingSubtext('Verifying RESQR identity...');
             let verifyResult = await verifyPublicEmergencyAccess({
                 probeDescriptor,
                 patientId,
@@ -337,7 +340,7 @@ export default function QRScanIdentityGate({
                     }
                 }, 1200);
             } else {
-                // STEP 7 — FAILURE
+                // STEP 7 — FAILURE (Never expose match score / Euclidean distance to normal users)
                 console.warn("[QRScanIdentityGate] Face verification mismatch:", verifyResult);
                 handleFailure();
             }
@@ -348,7 +351,7 @@ export default function QRScanIdentityGate({
     };
 
     // Helper for failure handling (does NOT reveal match score or private details)
-    const handleFailure = () => {
+    const handleFailure = (customMsg = null) => {
         const nextAttempts = attempts + 1;
         setAttempts(nextAttempts);
 
@@ -398,16 +401,16 @@ export default function QRScanIdentityGate({
 
                         <div className="space-y-2">
                             <span className="text-xs font-mono font-black text-red-500 uppercase tracking-widest block">
-                                RESQR
+                                RESQR IDENTITY
                             </span>
                             <h3 className="text-2xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                IDENTITY VERIFICATION
+                                VERIFY EMERGENCY IDENTITY
                             </h3>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto font-medium pt-1">
-                                Position your face clearly inside the frame.
+                                For emergency security, please look at the camera. Your face will be checked against the registered RESQR identity.
                             </p>
                             <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-                                The camera will capture a single still photo to verify against the registered RESQR identity.
+                                Position your face clearly inside the frame.
                             </p>
                         </div>
 
@@ -429,7 +432,7 @@ export default function QRScanIdentityGate({
                     <div className="space-y-6 pt-4 animate-in fade-in duration-300">
                         <div className="text-center space-y-1">
                             <h4 className="text-lg font-black uppercase italic tracking-tight text-white font-poppins">
-                                IDENTITY VERIFICATION
+                                VERIFY EMERGENCY IDENTITY
                             </h4>
                             <p className="text-xs text-slate-400 font-medium">
                                 Position your face clearly inside the frame.
@@ -468,7 +471,7 @@ export default function QRScanIdentityGate({
                             {/* Multiple Faces Warning Banner */}
                             {positionStatus === 'MULTIPLE' && (
                                 <div className="absolute top-4 inset-x-4 z-30 bg-red-600 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl animate-pulse">
-                                    <ShieldAlert size={14} /> MULTIPLE FACES DETECTED — ONLY 1 PERSON VISIBLE
+                                    <ShieldAlert size={14} /> Only one face should be visible. Please make sure the registered person is alone in front of the camera.
                                 </div>
                             )}
 
@@ -546,7 +549,7 @@ export default function QRScanIdentityGate({
                             </div>
                             <div className="space-y-1">
                                 <h4 className="text-xl font-black uppercase italic tracking-tight text-white font-poppins">
-                                    ANALYZING IDENTITY...
+                                    VERIFYING IDENTITY...
                                 </h4>
                                 <p className="text-xs text-slate-400 max-w-xs mx-auto">
                                     {analyzingSubtext}
@@ -564,13 +567,10 @@ export default function QRScanIdentityGate({
                         </div>
                         <div className="space-y-2">
                             <h4 className="text-2xl font-black uppercase italic tracking-tight text-emerald-400 font-poppins">
-                                ✓ IDENTITY VERIFIED
+                                Face Verified ✓
                             </h4>
                             <p className="text-xs text-slate-300 max-w-xs mx-auto font-medium">
-                                Identity successfully verified.
-                            </p>
-                            <p className="text-[11px] text-slate-500 pt-2 font-mono">
-                                Opening emergency profile...
+                                Identity confirmed. Opening emergency profile...
                             </p>
                         </div>
                     </div>
@@ -585,10 +585,10 @@ export default function QRScanIdentityGate({
 
                         <div className="space-y-2">
                             <h4 className="text-xl font-black uppercase italic tracking-tight text-red-400 font-poppins">
-                                IDENTITY NOT VERIFIED
+                                Verification Unsuccessful
                             </h4>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto font-medium">
-                                The captured person does not match the registered RESQR user.
+                                Face verification unsuccessful. Identity could not be verified. Please try again.
                             </p>
                             <p className="text-[11px] text-slate-400 font-medium max-w-xs mx-auto">
                                 Access to the Emergency Profile remains locked.
@@ -620,14 +620,32 @@ export default function QRScanIdentityGate({
 
                         <div className="space-y-2">
                             <h4 className="text-lg font-black uppercase italic tracking-tight text-amber-400 font-poppins">
-                                IDENTITY VERIFICATION TEMPORARILY LOCKED
+                                Verification Locked
                             </h4>
                             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
-                                Maximum verification attempts reached. Direct emergency profile access is restricted.
+                                Too many verification attempts. Please use the emergency fallback.
                             </p>
                             <p className="text-[11px] text-slate-400">
                                 Protected RESQR emergency profile remains unavailable.
                             </p>
+                        </div>
+
+                        <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center max-w-sm mx-auto">
+                            <button
+                                type="button"
+                                onClick={handleTryAgain}
+                                className="flex-1 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 border border-white/10 transition-all cursor-pointer"
+                            >
+                                <RefreshCw size={14} />
+                                TRY AGAIN
+                            </button>
+                            <a
+                                href="tel:108"
+                                className="flex-1 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all"
+                            >
+                                <Siren size={14} />
+                                EMERGENCY FALLBACK
+                            </a>
                         </div>
                     </div>
                 )}

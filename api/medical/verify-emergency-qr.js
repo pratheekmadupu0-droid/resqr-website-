@@ -197,14 +197,32 @@ export default async function handler(req, res) {
 
         comparisons.sort((a, b) => a.dist - b.dist);
         const best = comparisons[0];
+        const minDistance = Number(best.dist.toFixed(4));
 
-        // Robust 1:1 threshold: Euclidean distance <= 0.54 for ResNet-34 metric embeddings
-        const isMatch = best.dist <= 0.54;
+        // Load configured similarity threshold (60%-70%)
+        let similarityThresholdPercent = 60;
+        try {
+            const configRes = await fetch(`${DB_URL}/systemSettings/faceVerification.json`);
+            const configData = await configRes.json();
+            if (configData?.similarityThreshold) {
+                similarityThresholdPercent = Number(configData.similarityThreshold);
+            }
+        } catch (e) {}
+
+        // Calibrated Euclidean distance: 60% -> 0.58, 70% -> 0.48
+        const maxDistThreshold = 0.58 - ((similarityThresholdPercent - 60) / 10) * (0.58 - 0.48);
+        const isMatch = minDistance <= maxDistThreshold;
+        const similarityScore = Math.max(0, Math.min(100, Math.round((1 - (minDistance / 1.18)) * 100)));
 
         // Log audit event to RTDB
         const auditPayload = {
             qrId: qrId || cleanId,
             patientId: cleanId,
+            matchedView: best.view,
+            minDistance,
+            similarityScore,
+            thresholdPercent: similarityThresholdPercent,
+            maxDistanceThreshold: Number(maxDistThreshold.toFixed(4)),
             result: isMatch ? 'VERIFIED' : 'FAILED',
             timestamp: new Date().toISOString(),
             epoch: now,

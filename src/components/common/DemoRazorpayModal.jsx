@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, CheckCircle, ShieldCheck, CreditCard, QrCode, Building2, Wallet, Lock, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, ShieldCheck, CreditCard, QrCode, Building2, Wallet, Lock, ArrowRight, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../../lib/subscriptionApi';
 import { auth } from '../../lib/firebase';
+import { isDemoMode, simulateDemoPayment } from '../../lib/demoService';
 
 const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -58,6 +59,7 @@ export default function DemoRazorpayModal({
     const effectiveUserId = userId || auth.currentUser?.uid || 'temp_user';
     const effectiveQrId = qrId || `c_${effectiveUserId}`;
     const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_ThrOENs4KvWiGI";
+    const activeDemo = isDemoMode();
 
     useEffect(() => {
         if (!isOpen) {
@@ -72,6 +74,12 @@ export default function DemoRazorpayModal({
         let isMounted = true;
 
         async function initPayment() {
+            // In DEMO MODE: completely free simulation, zero real money, zero razorpay scripts
+            if (activeDemo) {
+                setUseFallbackModal(true);
+                return;
+            }
+
             setIsCreatingOrder(true);
             try {
                 // 1. Create order on server (Section 2 & 7)
@@ -216,6 +224,34 @@ export default function DemoRazorpayModal({
 
     const handleConfirmOtp = async () => {
         setStep('processing');
+        if (activeDemo) {
+            try {
+                const demoResult = await simulateDemoPayment({
+                    userId: effectiveUserId,
+                    planId,
+                    amount: Number(amount),
+                    customerName,
+                    customerEmail,
+                    customerPhone
+                });
+
+                setTimeout(() => {
+                    setStep('success');
+                    setTimeout(() => {
+                        toast.success("⚡ Demo Payment Processed Free of Cost!");
+                        onSuccess(demoResult);
+                        setStep('methods');
+                        onClose();
+                    }, 800);
+                }, 1000);
+            } catch (err) {
+                console.error("Demo payment error:", err);
+                toast.error("Demo payment simulation failed: " + err.message);
+                setStep('methods');
+            }
+            return;
+        }
+
         const simulatedPaymentId = `pay_sim_${Date.now()}`;
         const simulatedOrderId = serverOrder?.orderId || `order_sim_${Date.now()}`;
 
@@ -270,6 +306,19 @@ export default function DemoRazorpayModal({
                     exit={{ opacity: 0, scale: 0.9, y: 20 }}
                     className="w-full max-w-lg bg-[#0c162c] text-white rounded-3xl overflow-hidden shadow-2xl border border-blue-500/20 relative"
                 >
+                    {/* Demo Mode Alert Banner */}
+                    {activeDemo && (
+                        <div className="bg-amber-500/20 border-b border-amber-500/30 px-6 py-2.5 flex items-center justify-between text-xs font-black text-amber-300">
+                            <span className="flex items-center gap-2">
+                                <Sparkles size={14} className="animate-spin text-amber-400" />
+                                DEMO MODE — 100% FREE SIMULATION (₹0 CHARGE)
+                            </span>
+                            <span className="bg-amber-500/30 text-amber-200 px-2 py-0.5 rounded text-[9px] uppercase tracking-wider">
+                                TEST SAFE
+                            </span>
+                        </div>
+                    )}
+
                     {/* Header */}
                     <div className="bg-[#060e20] p-6 border-b border-blue-500/10 flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -278,9 +327,11 @@ export default function DemoRazorpayModal({
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-sm text-white tracking-wide">Razorpay Gateway</h3>
-                                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest">
-                                        LIVE SECURE
+                                    <h3 className="font-bold text-sm text-white tracking-wide">
+                                        {activeDemo ? "RESQR Demo Checkout" : "Razorpay Gateway"}
+                                    </h3>
+                                    <span className={`${activeDemo ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'} border text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest`}>
+                                        {activeDemo ? "DEMO FREE" : "LIVE SECURE"}
                                     </span>
                                 </div>
                                 <p className="text-xs text-slate-400 font-medium truncate max-w-[220px]">{title}</p>
@@ -289,7 +340,9 @@ export default function DemoRazorpayModal({
 
                         <div className="text-right">
                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Amount</span>
-                            <span className="text-2xl font-black text-white font-poppins italic">₹{formattedAmount}</span>
+                            <span className="text-2xl font-black text-white font-poppins italic">
+                                {activeDemo ? "₹0.00" : `₹${formattedAmount}`}
+                            </span>
                         </div>
 
                         <button 
@@ -302,6 +355,21 @@ export default function DemoRazorpayModal({
 
                     {step === 'methods' && (
                         <div>
+                            {activeDemo && (
+                                <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2.5 flex items-center justify-between">
+                                    <div className="text-[11px] text-amber-300 font-bold flex items-center gap-1.5">
+                                        <Sparkles size={13} />
+                                        <span>Bypass real Razorpay & charge ₹0</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirmOtp}
+                                        className="px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black uppercase text-[10px] tracking-wider rounded-xl transition-all shadow-lg shadow-amber-400/20 flex items-center gap-1"
+                                    >
+                                        ⚡ Quick Pay (₹0 Free)
+                                    </button>
+                                </div>
+                            )}
                             <div className="bg-[#081226] px-6 py-2 border-b border-blue-500/10 flex justify-between items-center text-xs text-slate-400">
                                 <span>Paying as: <strong className="text-white">{customerName}</strong> ({customerPhone})</span>
                                 <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1"><ShieldCheck size={12} /> 256-bit Encrypted</span>

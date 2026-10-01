@@ -108,7 +108,7 @@ export default function PaymentPage() {
                                         <div>
                                             <div className="flex justify-between items-start mb-2">
                                                 <Badge className="text-[8px] font-black uppercase tracking-wider bg-white/10 text-slate-300 border-none">
-                                                    {p.durationMonths} MONTHS
+                                                    {p.durationMonths ? `${p.durationMonths} MONTHS` : 'DIGITAL ACCESS'}
                                                 </Badge>
                                                 {p.popular && (
                                                     <span className="text-[8px] font-black uppercase text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
@@ -150,7 +150,7 @@ export default function PaymentPage() {
                                 </div>
                                 <div className="flex justify-between text-xs text-slate-500 uppercase tracking-widest">
                                     <span>Plan Duration</span>
-                                    <span className="text-white font-bold">{selectedPlan.durationMonths} Months</span>
+                                    <span className="text-white font-bold">{selectedPlan.durationMonths ? `${selectedPlan.durationMonths} Months` : 'Digital'}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-slate-500 uppercase tracking-widest">
                                     <span>GST (Included 18%)</span>

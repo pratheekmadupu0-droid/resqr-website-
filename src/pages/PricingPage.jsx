@@ -107,8 +107,8 @@ export default function PricingPage() {
             a: "Zero lost days! If you renew while your QR is still active, the new duration is seamlessly added to your existing expiry date."
         },
         {
-            q: "What is included in the ₹149 initial registration?",
-            a: "The ₹149 registration includes account creation, 1:1 facial biometric enrollment, full encrypted medical vault, 2 physical reflective emergency stickers delivered to your door, and 3 months of active RESQR emergency response validity."
+            q: "What is the difference between the ₹149 and ₹199 registration options?",
+            a: "The ₹149 Option provides complete account registration, encrypted emergency medical profile creation, and an instant Digital RESQR QR accessible from your dashboard. The ₹199 Option includes registration, QR identity creation, and 3 full months of active emergency response validity starting from payment."
         },
         {
             q: "Can I renew if my QR has already expired?",
@@ -130,82 +130,133 @@ export default function PricingPage() {
                         <span className="text-primary italic-display">THAT STAYS WITH YOU.</span>
                     </h1>
                     <p className="max-w-2xl mx-auto text-slate-400 text-sm sm:text-base md:text-lg font-medium leading-relaxed">
-                        Start with complete registration and 2 physical QR stickers for 3 months, then renew seamlessly on the exact same QR code.
+                        Start with your initial RESQR registration, then renew seamlessly on the exact same QR code without reprinting.
                     </p>
                 </div>
             </section>
 
-            {/* 1. Initial Registration Section — ₹149 */}
-            <section className="py-16 px-4 max-w-5xl mx-auto">
-                <div className="text-center mb-8">
+            {/* 1. Initial Registration Options Section */}
+            <section className="py-16 px-4 max-w-6xl mx-auto">
+                <div className="text-center mb-12">
                     <span className="text-xs font-black uppercase tracking-[0.25em] text-slate-400">Step 1 — Initial Setup</span>
                     <h2 className="text-3xl sm:text-4xl font-black italic uppercase tracking-tight text-white font-poppins mt-1">
-                        RESQR Initial Registration
+                        RESQR Initial Registration Options
                     </h2>
+                    <p className="text-slate-400 text-xs sm:text-sm font-medium mt-2 max-w-xl mx-auto">
+                        Choose the registration option that best fits your safety needs.
+                    </p>
                 </div>
 
-                <div className="bg-gradient-to-br from-slate-900/90 via-slate-950 to-[#0c1427] border-2 border-primary/40 rounded-3xl p-8 sm:p-12 shadow-[0_20px_50px_rgba(230,57,70,0.15)] relative overflow-hidden">
-                    <div className="absolute -top-24 -right-24 w-72 h-72 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
-                    
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 relative z-10">
-                        <div className="space-y-4 max-w-xl">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <Badge className="bg-primary text-white font-black italic text-[10px] tracking-widest uppercase">
-                                    PRIMARY REGISTRATION
-                                </Badge>
-                                <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full uppercase tracking-wider">
-                                    ● 3 Months Validity Included
-                                </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* OPTION 1: ₹149 — Registration + Digital RESQR QR */}
+                    <div className="bg-gradient-to-br from-slate-900/90 via-slate-950 to-[#0c1427] border-2 border-white/10 hover:border-white/20 rounded-3xl p-8 sm:p-10 shadow-2xl relative flex flex-col justify-between">
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <Badge className="bg-slate-800 text-slate-300 border-none mb-2 font-black italic text-[9px] tracking-widest uppercase">
+                                        OPTION 1
+                                    </Badge>
+                                    <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                        Registration + Digital RESQR QR
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-1">
+                                        Digital QR registration with instant emergency profile access.
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">One-Time Fee</span>
+                                    <div className="text-4xl font-black italic text-white font-poppins">₹149</div>
+                                </div>
                             </div>
 
-                            <h3 className="text-2xl sm:text-3xl font-black italic uppercase text-white font-poppins">
-                                ₹149 — RESQR Registration + 2 QR Stickers
-                            </h3>
-
-                            <p className="text-slate-300 text-sm leading-relaxed">
-                                Complete personal, medical, and insurance profile setup, 3-angle facial biometric enrollment, 2 weather-resistant physical reflective stickers shipped to you, and 3 full months of emergency QR service.
-                            </p>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>RESQR Account Registration</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>Face Registration / Enrollment</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>Personal & Emergency Contacts</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>Medical & Insurance Vault</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>2 Physical Reflective QR Stickers</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-xs font-bold text-slate-200">
-                                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                                    <span>3 Months RESQR Service Validity</span>
+                            <div className="space-y-3 pt-4 border-t border-white/10">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 italic">
+                                    What's Included:
+                                </p>
+                                <div className="space-y-2.5">
+                                    {[
+                                        'RESQR account registration',
+                                        'User profile creation & face enrollment',
+                                        'Digital RESQR QR generation',
+                                        'Instant QR activation',
+                                        'Access to emergency medical profile',
+                                        'Digital QR available in user dashboard'
+                                    ].map((feature, i) => (
+                                        <div key={i} className="flex items-center gap-2.5 text-xs font-semibold text-slate-200">
+                                            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                            <span>{feature}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="w-full lg:w-auto flex flex-col items-center lg:items-end justify-center p-6 bg-slate-950/70 border border-white/5 rounded-2xl shrink-0 space-y-4">
-                            <div className="text-center lg:text-right">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Total Investment</span>
-                                <div className="text-5xl font-black italic text-white font-poppins">₹149</div>
-                                <span className="text-[11px] text-slate-400">Includes taxes & 2 stickers delivery</span>
-                            </div>
-
+                        <div className="pt-8">
                             <Button 
                                 onClick={handleRegisterClick}
-                                className="w-full sm:w-auto px-8 py-5 bg-primary hover:bg-red-700 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs shadow-xl shadow-primary/30 hover:scale-[1.02] transition-transform"
+                                variant="outline"
+                                className="w-full py-5 border-white/20 hover:border-white text-white rounded-2xl font-black italic uppercase tracking-wider text-xs hover:bg-white/5 transition-all"
                             >
-                                Register Now — ₹149 <ArrowRight size={16} className="ml-2" />
+                                Choose ₹149 Digital QR <ArrowRight size={16} className="ml-2" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* OPTION 2: ₹199 — Registration + RESQR QR + 3-Month Validity */}
+                    <div className="bg-gradient-to-br from-slate-900/90 via-slate-950 to-[#0c1427] border-2 border-primary/50 shadow-[0_20px_50px_rgba(230,57,70,0.15)] rounded-3xl p-8 sm:p-10 relative flex flex-col justify-between">
+                        <div className="absolute -top-3.5 right-6">
+                            <Badge className="bg-primary text-white font-black italic text-[9px] tracking-widest uppercase px-3 py-1 shadow-lg shadow-primary/30">
+                                RECOMMENDED
+                            </Badge>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <Badge className="bg-primary/20 text-primary border-none mb-2 font-black italic text-[9px] tracking-widest uppercase">
+                                        OPTION 2
+                                    </Badge>
+                                    <h3 className="text-2xl font-black italic uppercase text-white font-poppins">
+                                        Registration + RESQR QR + 3 Months
+                                    </h3>
+                                    <p className="text-xs text-slate-400 mt-1">
+                                        Full registration with 3-month emergency validity included.
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">One-Time Fee</span>
+                                    <div className="text-4xl font-black italic text-primary font-poppins">₹199</div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 pt-4 border-t border-white/10">
+                                <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 italic">
+                                    What's Included:
+                                </p>
+                                <div className="space-y-2.5">
+                                    {[
+                                        'RESQR account registration',
+                                        'User profile creation & face enrollment',
+                                        'RESQR QR identity tag creation',
+                                        'Instant QR activation',
+                                        'Access to emergency medical profile',
+                                        '3 Months active emergency validity'
+                                    ].map((feature, i) => (
+                                        <div key={i} className="flex items-center gap-2.5 text-xs font-semibold text-slate-200">
+                                            <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                            <span className={i === 5 ? 'text-primary font-bold' : ''}>{feature}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-8">
+                            <Button 
+                                onClick={handleRegisterClick}
+                                className="w-full py-5 bg-primary hover:bg-red-700 text-white rounded-2xl font-black italic uppercase tracking-wider text-xs shadow-xl shadow-primary/30 hover:scale-[1.02] transition-transform"
+                            >
+                                Register with 3-Month Validity — ₹199 <ArrowRight size={16} className="ml-2" />
                             </Button>
                         </div>
                     </div>

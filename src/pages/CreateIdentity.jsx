@@ -18,6 +18,7 @@ import { calculateAge } from '../lib/dateUtils';
 import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import { isPseudoEmbedding } from '../lib/biometrics';
 import ResqrLogo from '../components/branding/ResqrLogo';
+import { addMonthsToDate } from '../lib/subscriptionConfig';
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -97,6 +98,7 @@ export default function CreateIdentity() {
     const [emergencyNotes, setEmergencyNotes] = useState('');
 
     // Payment & package states
+    const [selectedRegistrationPlan, setSelectedRegistrationPlan] = useState('initial_3m'); // 'initial_digital' (149) or 'initial_3m' (199)
     const [selectedPackage, setSelectedPackage] = useState('digital');
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
@@ -334,6 +336,15 @@ export default function CreateIdentity() {
                 ? emergencyContacts[0] 
                 : { name: '', relationship: '', phone: '' };
 
+            const now = new Date();
+            const nowIso = now.toISOString();
+            const isDigital = selectedRegistrationPlan === 'initial_digital';
+            const planId = isDigital ? 'initial_digital' : 'initial_3m';
+            const planName = isDigital ? 'Registration + Digital RESQR QR' : 'Registration + RESQR QR + 3-Month Validity';
+            const amount = isDigital ? 149 : 199;
+            const durationMonths = isDigital ? null : 3;
+            const expiresAt = isDigital ? null : addMonthsToDate(now, 3).toISOString();
+
             const profileData = {
                 id: profileId,
                 role: 'citizen',
@@ -383,9 +394,9 @@ export default function CreateIdentity() {
                     gradeClass: gradeClass || ''
                 },
                 qrPackage: {
-                    type: 'stickers',
-                    name: 'RESQR Registration + 2 QR Stickers',
-                    price: 149,
+                    type: isDigital ? 'digital' : 'stickers',
+                    name: planName,
+                    price: amount,
                     paymentStatus: 'paid'
                 },
                 registrationStatus: 'COMPLETED',
@@ -393,47 +404,53 @@ export default function CreateIdentity() {
                 serviceStatus: 'ACTIVE',
                 emergencyProfileStatus: 'ACTIVE',
                 qrStatus: 'ACTIVE',
-                planId: 'initial_3m',
-                amountPaid: 149,
+                planId: planId,
+                amountPaid: amount,
                 serviceStartDate: nowIso,
                 serviceExpiryDate: expiresAt,
                 payment_status: 'paid',
                 payment_id: paymentId || "expansion_pay_" + Math.random().toString(36).substr(2, 9),
-                payment_date: new Date().toISOString(),
-                createdAt: new Date().toISOString(),
+                payment_date: nowIso,
+                createdAt: nowIso,
                 uid: uid
             };
 
-            const now = new Date();
-            const nowIso = now.toISOString();
-            const expiresAt = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
-
             const subscriptionData = {
-                planId: 'initial_3m',
-                planName: 'RESQR Registration + 2 QR Stickers',
+                id: `sub_${profileId}`,
+                userId: uid,
+                qrId: profileId,
+                orderId: `ord_${Date.now()}`,
+                paymentId: paymentId || ("exp_pay_" + Math.random().toString(36).substr(2, 9)),
+                purchaseAmount: amount,
+                purchaseDate: nowIso,
+                activationDate: nowIso,
+                validityStartDate: nowIso,
+                validityEndDate: expiresAt,
+                planId: planId,
+                planName: planName,
                 status: 'ACTIVE',
                 startedAt: nowIso,
                 expiresAt: expiresAt,
-                durationMonths: 3,
-                amount: 149,
-                qrId: profileId,
-                userId: uid,
-                lastPaymentId: paymentId || ("exp_pay_" + Math.random().toString(36).substr(2, 9)),
-                lastPaymentDate: nowIso,
+                durationMonths: durationMonths,
+                amount: amount,
+                currency: 'INR',
                 autoRenew: false,
-                renewalCount: 0
+                renewalCount: 0,
+                createdAt: nowIso,
+                updatedAt: nowIso
             };
 
             profileData.subscription = subscriptionData;
 
             const paymentRecord = {
-                paymentId: paymentId || subscriptionData.lastPaymentId,
+                paymentId: paymentId || subscriptionData.paymentId,
                 userId: uid,
                 qrId: profileId,
-                planId: 'initial_3m',
-                planName: 'RESQR Registration + 2 QR Stickers',
-                durationMonths: 3,
-                amount: 149,
+                orderId: subscriptionData.orderId,
+                planId: planId,
+                planName: planName,
+                durationMonths: durationMonths,
+                amount: amount,
                 currency: 'INR',
                 status: 'SUCCESSFUL',
                 timestamp: nowIso,
@@ -448,8 +465,8 @@ export default function CreateIdentity() {
             updates[`users/${uid}/serviceStatus`] = 'ACTIVE';
             updates[`users/${uid}/emergencyProfileStatus`] = 'ACTIVE';
             updates[`users/${uid}/qrStatus`] = 'ACTIVE';
-            updates[`users/${uid}/planId`] = 'initial_3m';
-            updates[`users/${uid}/amountPaid`] = 149;
+            updates[`users/${uid}/planId`] = planId;
+            updates[`users/${uid}/amountPaid`] = amount;
             updates[`users/${uid}/serviceStartDate`] = nowIso;
             updates[`users/${uid}/serviceExpiryDate`] = expiresAt;
             updates[`users/${uid}/profiles/${profileId}`] = profileData;
@@ -961,70 +978,135 @@ export default function CreateIdentity() {
                                     </div>
                                 )}
 
-                                {/* Step 4: Payment Checkout */}
+                                {/* Step 4: Registration Option & Payment Checkout */}
                                 {wizardStep === 4 && (
-                                    <div className="space-y-8 animate-in fade-in duration-300">
-                                        <div className="p-6 md:p-8 bg-slate-950 border-2 border-primary/50 shadow-2xl rounded-3xl relative overflow-hidden">
-                                            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                                                <Badge className="bg-primary/20 text-primary border border-primary/30 font-black italic text-[9px] tracking-widest">
-                                                    OFFICIAL REGISTRATION PACKAGE
-                                                </Badge>
-                                                <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full uppercase tracking-wider">
-                                                    ● 3 Months Validity Included
-                                                </span>
-                                            </div>
-
-                                            <h3 className="text-2xl md:text-3xl font-black italic uppercase tracking-tight text-white mb-2 font-poppins">
-                                                RESQR Registration + 2 QR Stickers
+                                    <div className="space-y-6 animate-in fade-in duration-300">
+                                        <div className="text-center space-y-1">
+                                            <h3 className="text-xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                                Select Registration Option
                                             </h3>
-                                            <p className="text-slate-400 text-xs md:text-sm leading-relaxed mb-6 font-medium">
-                                                Complete secondary identity enrollment, biometric 1:1 facial verification binding, 2 high-grade physical reflective emergency QR stickers delivered to your doorstep, and 3 months of active RESQR emergency response service.
+                                            <p className="text-xs text-slate-400 font-medium">
+                                                Choose between Digital RESQR QR or RESQR QR with 3-Month Validity.
                                             </p>
+                                        </div>
 
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-4 border-y border-white/5 text-[11px] font-bold text-slate-300 mb-6">
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                                                    <span>Face Registration</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                                                    <span>Medical Vault</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                                                    <span>2 Physical Stickers</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                                                    <span>3 Months Validity</span>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Option 1: ₹149 */}
+                                            <div 
+                                                onClick={() => setSelectedRegistrationPlan('initial_digital')}
+                                                className={`p-5 rounded-3xl cursor-pointer transition-all border-2 relative flex flex-col justify-between ${
+                                                    selectedRegistrationPlan === 'initial_digital'
+                                                        ? 'border-primary bg-primary/10 shadow-lg shadow-primary/10'
+                                                        : 'border-white/10 bg-slate-950/50 hover:border-white/20'
+                                                }`}
+                                            >
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <Badge className="bg-slate-800 text-slate-300 border-none text-[8px] font-black tracking-widest uppercase">
+                                                            OPTION 1
+                                                        </Badge>
+                                                        <span className="text-2xl font-black italic text-white font-poppins">₹149</span>
+                                                    </div>
+                                                    <h4 className="text-sm font-black italic uppercase text-white font-poppins">
+                                                        Registration + Digital RESQR QR
+                                                    </h4>
+                                                    <p className="text-[11px] text-slate-400 mt-1 mb-3">
+                                                        Digital QR registration with instant emergency profile access.
+                                                    </p>
+                                                    <div className="space-y-1.5 text-[11px] text-slate-300 font-medium">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>RESQR Account Registration</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>User Profile Creation</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>Digital RESQR QR & Activation</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>Emergency Profile Access</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>Digital QR in Dashboard</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex justify-between items-baseline">
-                                                <div>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Registration Fee</span>
-                                                    <span className="text-xs text-slate-500">Includes taxes & physical QR delivery</span>
+                                            {/* Option 2: ₹199 */}
+                                            <div 
+                                                onClick={() => setSelectedRegistrationPlan('initial_3m')}
+                                                className={`p-5 rounded-3xl cursor-pointer transition-all border-2 relative flex flex-col justify-between ${
+                                                    selectedRegistrationPlan === 'initial_3m'
+                                                        ? 'border-primary bg-primary/10 shadow-lg shadow-primary/10'
+                                                        : 'border-white/10 bg-slate-950/50 hover:border-white/20'
+                                                }`}
+                                            >
+                                                <div className="absolute -top-3 right-4">
+                                                    <Badge className="bg-primary text-white border-none text-[8px] font-black tracking-widest uppercase shadow-md shadow-primary/30">
+                                                        RECOMMENDED
+                                                    </Badge>
                                                 </div>
-                                                <span className="text-3xl md:text-4xl font-black italic text-primary font-poppins">₹149</span>
+                                                <div>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <Badge className="bg-slate-800 text-slate-300 border-none text-[8px] font-black tracking-widest uppercase">
+                                                            OPTION 2
+                                                        </Badge>
+                                                        <span className="text-2xl font-black italic text-primary font-poppins">₹199</span>
+                                                    </div>
+                                                    <h4 className="text-sm font-black italic uppercase text-white font-poppins">
+                                                        Registration + RESQR QR + 3 Months
+                                                    </h4>
+                                                    <p className="text-[11px] text-slate-400 mt-1 mb-3">
+                                                        Full registration with 3-month active emergency validity.
+                                                    </p>
+                                                    <div className="space-y-1.5 text-[11px] text-slate-300 font-medium">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>RESQR Account Registration</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>User Profile Creation</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>RESQR QR & Tag Activation</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Check size={12} className="text-emerald-400 shrink-0" />
+                                                            <span>Emergency Profile Access</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 text-primary font-bold">
+                                                            <Check size={12} className="text-primary shrink-0" />
+                                                            <span>3-Month Validity Included</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        {/* Checkout Info */}
-                                        <div className="p-6 bg-slate-950/60 rounded-3xl border border-white/5 space-y-4">
+                                        {/* Cost Details */}
+                                        <div className="p-6 bg-slate-950/60 rounded-3xl border border-white/5 space-y-3">
                                             <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                                                 <span>Subtotal</span>
-                                                <span>₹126.27</span>
+                                                <span>₹{selectedRegistrationPlan === 'initial_digital' ? '126.27' : '168.64'}</span>
                                             </div>
                                             <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                                                 <span>GST (18%)</span>
-                                                <span>₹22.73</span>
+                                                <span>₹{selectedRegistrationPlan === 'initial_digital' ? '22.73' : '30.36'}</span>
                                             </div>
-                                            <div className="flex justify-between items-center text-base font-black uppercase tracking-widest text-primary border-t border-white/5 pt-4">
+                                            <div className="flex justify-between items-center text-base font-black uppercase tracking-widest text-primary border-t border-white/5 pt-3">
                                                 <span>Total Payable</span>
-                                                <span>₹149.00</span>
+                                                <span>₹{selectedRegistrationPlan === 'initial_digital' ? '149.00' : '199.00'}</span>
                                             </div>
                                             
-                                            <div className="pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                            <div className="pt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
                                                 <Button onClick={() => setWizardStep(3)} variant="outline" className="w-full sm:w-auto py-4 px-8 rounded-2xl font-black italic uppercase text-xs border-white/10 text-slate-500 hover:text-white">
                                                     <ArrowLeft size={16} className="mr-2" /> Back
                                                 </Button>
@@ -1032,9 +1114,9 @@ export default function CreateIdentity() {
                                                 <Button 
                                                     onClick={() => setIsRazorpayOpen(true)}
                                                     disabled={authLoading}
-                                                    className="w-full sm:flex-1 py-7 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-[1.01] transition-transform"
+                                                    className="w-full sm:flex-1 py-6 bg-primary text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-[1.01] transition-transform"
                                                 >
-                                                    {authLoading ? 'Transacting Secure Checkout...' : 'Secure Pay ₹149 via Razorpay'}
+                                                    {authLoading ? 'Transacting Secure Checkout...' : `PAY ₹${selectedRegistrationPlan === 'initial_digital' ? '149' : '199'}`}
                                                 </Button>
                                             </div>
                                         </div>
@@ -1050,14 +1132,14 @@ export default function CreateIdentity() {
             <DemoRazorpayModal 
                 isOpen={isRazorpayOpen}
                 onClose={() => setIsRazorpayOpen(false)}
-                amount={149}
-                title="RESQR Registration + 2 QR Stickers (3 Months Validity)"
+                amount={selectedRegistrationPlan === 'initial_digital' ? 149 : 199}
+                title={selectedRegistrationPlan === 'initial_digital' ? 'RESQR Registration + Digital QR' : 'RESQR Registration + QR + 3-Month Validity'}
                 customerName={citizenName || 'RESQR Citizen'}
                 customerEmail={citizenEmail || 'citizen@resqr.co.in'}
                 customerPhone={phoneNumber || '9876543210'}
                 userId={auth.currentUser?.uid}
                 qrId={expansionProfileId || (auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_new')}
-                planId="initial_3m"
+                planId={selectedRegistrationPlan}
                 onSuccess={(paymentInfo) => {
                     toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
                     handleCreateIdentitySubmit(paymentInfo.razorpay_payment_id);

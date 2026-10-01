@@ -11,8 +11,69 @@ let faceapi = null;
 let modelsLoaded = false;
 let modelLoadPromise = null;
 
-export const BIOMETRIC_MATCH_THRESHOLD = 0.54; // Robust Euclidean distance threshold for 1:1 biometric matching
+export const BIOMETRIC_MATCH_THRESHOLD = 0.58; // Calibrated 60% similarity threshold (Euclidean distance <= 0.58) accommodating accident injuries
 export const TEMPLATE_VERSION = '1.0';
+
+export const DEFAULT_FACE_VERIFICATION_CONFIG = {
+    enabled: true,
+    similarityThreshold: 60, // Default 60% similarity threshold (tolerates facial injuries, scratches, swelling)
+    minThreshold: 60,
+    maxThreshold: 70,
+    livenessRequired: true,
+    singleFaceRequired: true,
+    rateLimitingEnabled: true,
+    maxFailedAttempts: 3
+};
+
+/**
+ * Maps similarity percentage (60%-70%) to ResNet-34 Euclidean distance max threshold.
+ * 60% similarity -> 0.58 Euclidean distance (Injury & trauma tolerant)
+ * 70% similarity -> 0.48 Euclidean distance (Strict match)
+ */
+export function convertThresholdToMaxDistance(percent = 60) {
+    const p = Math.max(50, Math.min(80, Number(percent) || 60));
+    const maxDist = 0.58 - ((p - 60) / 10) * (0.58 - 0.48);
+    return Number(maxDist.toFixed(4));
+}
+
+/**
+ * Calculates similarity score (0-100%) from Euclidean distance.
+ */
+export function calculateSimilarityScore(distance) {
+    if (distance == null || !Number.isFinite(distance)) return 0;
+    const raw = (1 - (distance / 1.18)) * 100;
+    return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
+/**
+ * Retrieves the global Face Verification configuration from Firebase RTDB.
+ */
+export async function getFaceVerificationConfig() {
+    try {
+        const snap = await get(ref(db, 'systemSettings/faceVerification'));
+        if (snap.exists()) {
+            return { ...DEFAULT_FACE_VERIFICATION_CONFIG, ...snap.val() };
+        }
+    } catch (err) {
+        console.warn('Could not fetch face verification config, using defaults:', err);
+    }
+    return { ...DEFAULT_FACE_VERIFICATION_CONFIG };
+}
+
+/**
+ * Saves the global Face Verification configuration to Firebase RTDB.
+ */
+export async function saveFaceVerificationConfig(config, updatedBy = 'ADMIN') {
+    const payload = {
+        ...DEFAULT_FACE_VERIFICATION_CONFIG,
+        ...config,
+        updatedAt: new Date().toISOString(),
+        updatedBy
+    };
+    await update(ref(db, 'systemSettings/faceVerification'), payload);
+    return payload;
+}
+
 
 /**
  * Dynamically loads face-api models from local assets or CDN fallback.
