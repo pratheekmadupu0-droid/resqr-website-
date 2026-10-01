@@ -53,4 +53,13 @@ export default {
         },
     },
     plugins: [],
+    corePlugins: {
+        float: false,
+        clear: false,
+        skew: false,
+        fontVariantNumeric: false,
+        scrollSnapType: false,
+        scrollSnapAlign: false,
+        scrollSnapStop: false,
+    },
 }
