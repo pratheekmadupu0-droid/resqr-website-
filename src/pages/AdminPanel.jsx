@@ -2021,6 +2021,7 @@ export default function AdminPanel() {
                 <nav className="space-y-2">
                     {[
                         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+                        { id: 'demo_hub', label: '⚡ Free Demo Hub', icon: <Sparkles size={20} />, isLink: true, to: '/demo' },
                         { id: 'payments', label: 'Payment Gateway', icon: <Receipt size={20} /> },
                         { id: 'subscriptions', label: 'Subscriptions', icon: <CreditCard size={20} /> },
                         { id: 'revenue', label: 'Revenue & Plans', icon: <ArrowUpRight size={20} /> },
@@ -2041,6 +2042,14 @@ export default function AdminPanel() {
                         <p key={item.id} className="px-6 pt-5 pb-1 text-[9px] font-black uppercase tracking-[0.35em] text-slate-600 italic flex items-center gap-2">
                             <Bell size={12} className="text-primary/60" /> {item.label}
                         </p>
+                    ) : item.isLink ? (
+                        <Link
+                            key={item.id}
+                            to={item.to}
+                            className="w-full flex items-center gap-4 px-6 py-4 rounded-[20px] transition-all font-black uppercase italic tracking-widest text-[10px] bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-400 hover:from-amber-500/30 hover:to-amber-600/20 hover:text-amber-300 shadow-lg shadow-amber-500/10"
+                        >
+                            <span className="text-amber-400">{item.icon}</span> {item.label}
+                        </Link>
                     ) : (
                         <button
                             key={item.id}
@@ -2135,6 +2144,38 @@ export default function AdminPanel() {
 
                 {activeTab === 'dashboard' && (
                     <div className="space-y-10">
+                        {/* 100% Free Demo Environment Hero Card */}
+                        <div className="relative p-6 sm:p-8 rounded-[36px] bg-gradient-to-r from-amber-500/15 via-slate-900 to-amber-600/10 border-2 border-amber-500/30 shadow-2xl overflow-hidden">
+                            <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+                                <div className="space-y-2 max-w-2xl">
+                                    <div className="flex items-center gap-2.5">
+                                        <Badge className="bg-amber-400 text-slate-950 font-black text-[10px] uppercase tracking-widest px-3 py-1">
+                                            ⚡ 100% FREE DEMO ENVIRONMENT
+                                        </Badge>
+                                        <span className="text-[10px] font-mono text-amber-300 font-bold uppercase tracking-wider">
+                                            ZERO REAL CHARGES · FULL ROLE SIMULATOR
+                                        </span>
+                                    </div>
+                                    <h3 className="text-2xl font-black italic uppercase tracking-tight text-white font-poppins">
+                                        RESQR Free Multi-Role Demo Admin Hub
+                                    </h3>
+                                    <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                                        Experience and test the entire RESQR website as any user role (User, Agent, Doctor, Hospital, Ambulance, Pet Owner, School, College, Enterprise, Admin). All payments, subscriptions, and emergency calls are simulated safely with zero real-world cost.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <Link
+                                        to="/demo"
+                                        className="py-3.5 px-6 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black italic uppercase tracking-wider text-xs flex items-center gap-2 shadow-xl shadow-amber-400/25 transition-all active:scale-95"
+                                    >
+                                        <Sparkles size={16} />
+                                        LAUNCH FREE DEMO HUB
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                             {stats.map((stat, i) => (
                                 <Card key={i} className="bg-medical-card border-white/5 p-8 rounded-[32px] shadow-xl relative overflow-hidden group">
