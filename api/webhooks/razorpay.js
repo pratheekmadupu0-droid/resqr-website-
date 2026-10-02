@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getEnvWebhookSecret } from '../lib/razorpayConfig.js';
+import { getEnvWebhookSecret } from '../_lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../lib/razorpayConfig.js';
+import { validateRazorpayConfig, getActiveRazorpayCredentials } from '../_lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 

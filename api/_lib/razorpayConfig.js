@@ -368,3 +368,9 @@ export async function getActiveRazorpayCredentials() {
 
     return null;
 }
+
+export default function handler(req, res) {
+    if (res && typeof res.status === 'function') {
+        return res.status(200).json({ status: 'ok', info: 'Razorpay configuration module' });
+    }
+}

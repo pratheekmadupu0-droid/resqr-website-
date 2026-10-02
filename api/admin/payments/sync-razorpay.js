@@ -1,4 +1,4 @@
-import { validateRazorpayConfig, getActiveRazorpayCredentials, maskKeyId } from '../../lib/razorpayConfig.js';
+import { validateRazorpayConfig, getActiveRazorpayCredentials, maskKeyId } from '../../_lib/razorpayConfig.js';
 
 const DB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
 

@@ -1,4 +1,4 @@
-import { testRazorpayConnection, validateRazorpayConfig } from '../../lib/razorpayConfig.js';
+import { testRazorpayConnection, validateRazorpayConfig } from '../../_lib/razorpayConfig.js';
 
 const ADMIN_EMAILS = [
     'pratheekmadupu2006@gmail.com',
