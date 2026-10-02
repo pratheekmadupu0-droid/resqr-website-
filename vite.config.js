@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
+    cssMinify: 'esbuild',
+    cssCodeSplit: true,
     // 1400 kB warning limit: Specifically calibrated for @vladmandic/face-api (~1.32 MB),
     // which is an intentional, client-side WebGL neural network model engine loaded asynchronously on-demand.
     chunkSizeWarningLimit: 1400,
