@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "emergency-qr-b0adf",
     "public": "dist",
     "ignore": [
       "firebase.json",
