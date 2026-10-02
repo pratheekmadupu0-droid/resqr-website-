@@ -11,10 +11,13 @@ import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import toast from 'react-hot-toast';
-import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
-import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
-import RenewalModal from '../components/subscription/RenewalModal';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
+import React, { lazy, Suspense } from 'react';
+
+// Lazy loaded modals and biometric vision engines
+const HospitalFaceVerificationModal = lazy(() => import('../components/biometrics/HospitalFaceVerificationModal'));
+const QRScanIdentityGate = lazy(() => import('../components/biometrics/QRScanIdentityGate'));
+const RenewalModal = lazy(() => import('../components/subscription/RenewalModal'));
 import { ADMIN_EMAILS } from '../lib/subscriptionConfig';
 import ResqrLogo from '../components/branding/ResqrLogo';
 
@@ -514,14 +517,18 @@ export default function EmergencyPage() {
                     </Link>
                 </div>
 
-                <RenewalModal 
-                    isOpen={showRenewalModal}
-                    onClose={() => setShowRenewalModal(false)}
-                    qrId={resolvedPatientId}
-                    currentExpiry={subscriptionData?.expiresAt}
-                    holderName={publicUser.name}
-                    onRenewalComplete={() => window.location.reload()}
-                />
+                <Suspense fallback={null}>
+                    {showRenewalModal && (
+                        <RenewalModal 
+                            isOpen={showRenewalModal}
+                            onClose={() => setShowRenewalModal(false)}
+                            qrId={resolvedPatientId}
+                            currentExpiry={subscriptionData?.expiresAt}
+                            holderName={publicUser.name}
+                            onRenewalComplete={() => window.location.reload()}
+                        />
+                    )}
+                </Suspense>
             </div>
         );
     }
@@ -613,15 +620,17 @@ export default function EmergencyPage() {
                         <ResqrLogo className="h-10 w-auto mb-4" />
                     </div>
 
-                    <QRScanIdentityGate
-                        patientId={resolvedPatientId}
-                        qrId={id || resolvedPatientId}
-                        onVerificationSuccess={({ token }) => {
-                            sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
-                            setIsIdentityVerified(true);
-                            toast.success("✓ Identity confirmed. Emergency profile unlocked.");
-                        }}
-                    />
+                    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Verifying Emergency Access...</div>}>
+                        <QRScanIdentityGate
+                            patientId={resolvedPatientId}
+                            qrId={id || resolvedPatientId}
+                            onVerificationSuccess={({ token }) => {
+                                sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
+                                setIsIdentityVerified(true);
+                                toast.success("✓ Identity confirmed. Emergency profile unlocked.");
+                            }}
+                        />
+                    </Suspense>
                 </div>
             </div>
         );
@@ -981,23 +990,27 @@ export default function EmergencyPage() {
             {/* ============================================================
                 BIOMETRIC FACE VERIFICATION MODAL
                 ============================================================ */}
-            <HospitalFaceVerificationModal
-                isOpen={showBiometricModal}
-                onClose={() => setShowBiometricModal(false)}
-                patientName={publicUser.name}
-                patientId={resolvedPatientId}
-                qrId={id}
-                biometricProfile={biometricProfile}
-                doctorInfo={{
-                    regNo: doctorRegNo || 'STAFF_DOCTOR',
-                    hospitalName: hospitalName || 'Emergency Trauma Center'
-                }}
-                onVerificationSuccess={handleBiometricSuccess}
-                onAlternateOverride={() => {
-                    setShowBiometricModal(false);
-                    setShowAlternateModal(true);
-                }}
-            />
+            <Suspense fallback={null}>
+                {showBiometricModal && (
+                    <HospitalFaceVerificationModal
+                        isOpen={showBiometricModal}
+                        onClose={() => setShowBiometricModal(false)}
+                        patientName={publicUser.name}
+                        patientId={resolvedPatientId}
+                        qrId={id}
+                        biometricProfile={biometricProfile}
+                        doctorInfo={{
+                            regNo: doctorRegNo || 'STAFF_DOCTOR',
+                            hospitalName: hospitalName || 'Emergency Trauma Center'
+                        }}
+                        onVerificationSuccess={handleBiometricSuccess}
+                        onAlternateOverride={() => {
+                            setShowBiometricModal(false);
+                            setShowAlternateModal(true);
+                        }}
+                    />
+                )}
+            </Suspense>
 
             {/* ============================================================
                 MODAL: AUTHORIZED ALTERNATE CLINICAL OVERRIDE

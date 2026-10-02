@@ -14,10 +14,13 @@ import AppLoading from '../components/ui/AppLoading';
 import { db, auth } from '../lib/firebase';
 import { ref, get, push, serverTimestamp } from 'firebase/database';
 import toast from 'react-hot-toast';
-import HospitalFaceVerificationModal from '../components/biometrics/HospitalFaceVerificationModal';
-import QRScanIdentityGate from '../components/biometrics/QRScanIdentityGate';
 import { fetchAuthorizedMedicalProfile, logMedicalAccessAudit, validatePublicEmergencySession } from '../lib/medicalApi';
 import ResqrLogo from '../components/branding/ResqrLogo';
+import React, { lazy, Suspense } from 'react';
+
+// Lazy loaded biometric components
+const HospitalFaceVerificationModal = lazy(() => import('../components/biometrics/HospitalFaceVerificationModal'));
+const QRScanIdentityGate = lazy(() => import('../components/biometrics/QRScanIdentityGate'));
 import { maskPhoneNumber } from '../lib/privacyConfig';
 import { logPrivacyAudit } from '../lib/privacyAudit';
 
@@ -338,15 +341,17 @@ export default function QRScanPage() {
                         <ResqrLogo className="h-10 w-auto mb-4" />
                     </div>
 
-                    <QRScanIdentityGate
-                        patientId={resolvedPatientId}
-                        qrId={profileId || username || resolvedPatientId}
-                        onVerificationSuccess={({ token }) => {
-                            sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
-                            setIsIdentityVerified(true);
-                            toast.success("✓ Identity confirmed. Emergency profile unlocked.");
-                        }}
-                    />
+                    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Verifying Emergency Access...</div>}>
+                        <QRScanIdentityGate
+                            patientId={resolvedPatientId}
+                            qrId={profileId || username || resolvedPatientId}
+                            onVerificationSuccess={({ token }) => {
+                                sessionStorage.setItem(`resqr_emergency_token_${resolvedPatientId}`, token);
+                                setIsIdentityVerified(true);
+                                toast.success("✓ Identity confirmed. Emergency profile unlocked.");
+                            }}
+                        />
+                    </Suspense>
                 </div>
             </div>
         );
@@ -608,23 +613,27 @@ export default function QRScanPage() {
             </div>
 
             {/* BIOMETRIC FACE VERIFICATION MODAL */}
-            <HospitalFaceVerificationModal
-                isOpen={showBiometricModal}
-                onClose={() => setShowBiometricModal(false)}
-                patientName={publicUser.name}
-                patientId={resolvedPatientId}
-                qrId={profileId || username}
-                biometricProfile={biometricProfile}
-                doctorInfo={{
-                    regNo: doctorRegNo || 'STAFF_DOCTOR',
-                    hospitalName: hospitalName || 'Emergency Trauma Center'
-                }}
-                onVerificationSuccess={handleBiometricSuccess}
-                onAlternateOverride={() => {
-                    setShowBiometricModal(false);
-                    setShowAlternateModal(true);
-                }}
-            />
+            <Suspense fallback={null}>
+                {showBiometricModal && (
+                    <HospitalFaceVerificationModal
+                        isOpen={showBiometricModal}
+                        onClose={() => setShowBiometricModal(false)}
+                        patientName={publicUser.name}
+                        patientId={resolvedPatientId}
+                        qrId={profileId || username}
+                        biometricProfile={biometricProfile}
+                        doctorInfo={{
+                            regNo: doctorRegNo || 'STAFF_DOCTOR',
+                            hospitalName: hospitalName || 'Emergency Trauma Center'
+                        }}
+                        onVerificationSuccess={handleBiometricSuccess}
+                        onAlternateOverride={() => {
+                            setShowBiometricModal(false);
+                            setShowAlternateModal(true);
+                        }}
+                    />
+                )}
+            </Suspense>
 
             {/* ALTERNATE CLINICAL OVERRIDE MODAL */}
             <AnimatePresence>

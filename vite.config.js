@@ -8,9 +8,7 @@ export default defineConfig({
   build: {
     cssMinify: 'esbuild',
     cssCodeSplit: true,
-    // 1400 kB warning limit: Specifically calibrated for @vladmandic/face-api (~1.32 MB),
-    // which is an intentional, client-side WebGL neural network model engine loaded asynchronously on-demand.
-    chunkSizeWarningLimit: 1400,
+    outDir: 'dist',
     rollupOptions: {
       output: {
         manualChunks(id) {

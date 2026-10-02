@@ -12,13 +12,16 @@ import { db, auth } from '../lib/firebase';
 import { ref, get, update, set } from 'firebase/database';
 import toast from 'react-hot-toast';
 import { extractFeatures } from '../lib/cvHelper';
-import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
-import QRPreviewModal from '../components/common/QRPreviewModal';
 import { calculateAge } from '../lib/dateUtils';
-import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import { isPseudoEmbedding } from '../lib/biometrics';
 import ResqrLogo from '../components/branding/ResqrLogo';
 import { addMonthsToDate } from '../lib/subscriptionConfig';
+import { lazy, Suspense } from 'react';
+
+// Lazy loaded modals and face enrollment engine
+const DemoRazorpayModal = lazy(() => import('../components/common/DemoRazorpayModal'));
+const QRPreviewModal = lazy(() => import('../components/common/QRPreviewModal'));
+const FaceEnrollmentWizard = lazy(() => import('../components/biometrics/FaceEnrollmentWizard'));
 
 // Helper Badge Component
 function Badge({ children, className = '', ...props }) {
@@ -682,24 +685,26 @@ export default function CreateIdentity() {
                                 {/* Step 1: Face Verification */}
                                 {wizardStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
-                                        <FaceEnrollmentWizard
-                                            uid={auth.currentUser?.uid}
-                                            profileId={expansionProfileId}
-                                            stepNumber={1}
-                                            totalSteps={4}
-                                            onComplete={(bioProfile) => {
-                                                setBiometricEnrollment(bioProfile);
-                                                if (bioProfile?.frontPhotoSnapshot) {
-                                                    setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
-                                                }
-                                                toast.success("✓ Facial biometric profile enrolled successfully!");
-                                                setWizardStep(2);
-                                            }}
-                                            onCancel={() => {
-                                                setSelectedType(null);
-                                                setWizardStep(1);
-                                            }}
-                                        />
+                                        <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Loading Face Registration Engine...</div>}>
+                                            <FaceEnrollmentWizard
+                                                uid={auth.currentUser?.uid}
+                                                profileId={expansionProfileId}
+                                                stepNumber={1}
+                                                totalSteps={4}
+                                                onComplete={(bioProfile) => {
+                                                    setBiometricEnrollment(bioProfile);
+                                                    if (bioProfile?.frontPhotoSnapshot) {
+                                                        setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                    }
+                                                    toast.success("✓ Facial biometric profile enrolled successfully!");
+                                                    setWizardStep(2);
+                                                }}
+                                                onCancel={() => {
+                                                    setSelectedType(null);
+                                                    setWizardStep(1);
+                                                }}
+                                            />
+                                        </Suspense>
                                     </div>
                                 )}
 
@@ -1129,39 +1134,45 @@ export default function CreateIdentity() {
             </div>
 
             {/* Reusable Demo Razorpay Payment Gateway Modal */}
-            <DemoRazorpayModal 
-                isOpen={isRazorpayOpen}
-                onClose={() => setIsRazorpayOpen(false)}
-                amount={selectedRegistrationPlan === 'initial_digital' ? 149 : 199}
-                title={selectedRegistrationPlan === 'initial_digital' ? 'RESQR Registration + Digital QR' : 'RESQR Registration + QR + 3-Month Validity'}
-                customerName={citizenName || 'RESQR Citizen'}
-                customerEmail={citizenEmail || 'citizen@resqr.co.in'}
-                customerPhone={phoneNumber || '9876543210'}
-                userId={auth.currentUser?.uid}
-                qrId={expansionProfileId || (auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_new')}
-                planId={selectedRegistrationPlan}
-                onSuccess={(paymentInfo) => {
-                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
-                    handleCreateIdentitySubmit(paymentInfo.razorpay_payment_id);
-                }}
-            />
+            <Suspense fallback={null}>
+                {isRazorpayOpen && (
+                    <DemoRazorpayModal 
+                        isOpen={isRazorpayOpen}
+                        onClose={() => setIsRazorpayOpen(false)}
+                        amount={selectedRegistrationPlan === 'initial_digital' ? 149 : 199}
+                        title={selectedRegistrationPlan === 'initial_digital' ? 'RESQR Registration + Digital QR' : 'RESQR Registration + QR + 3-Month Validity'}
+                        customerName={citizenName || 'RESQR Citizen'}
+                        customerEmail={citizenEmail || 'citizen@resqr.co.in'}
+                        customerPhone={phoneNumber || '9876543210'}
+                        userId={auth.currentUser?.uid}
+                        qrId={expansionProfileId || (auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_new')}
+                        planId={selectedRegistrationPlan}
+                        onSuccess={(paymentInfo) => {
+                            toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                            handleCreateIdentitySubmit(paymentInfo.razorpay_payment_id);
+                        }}
+                    />
+                )}
 
-            {/* Live Medical QR Preview Modal */}
-            <QRPreviewModal 
-                isOpen={isQrPreviewOpen}
-                onClose={() => setIsQrPreviewOpen(false)}
-                patientData={{
-                    name: citizenName || 'John Doe',
-                    bloodGroup: bloodGroup || 'O+',
-                    phone: phoneNumber || '9876543210',
-                    emergencyContacts: emergencyContacts,
-                    allergies: allergies || 'No known allergies',
-                    medicalConditions: medicalConditions || 'Healthy',
-                    medicalId: medicalId || 'RESQR-MED-94821',
-                    username: chosenUsername.toLowerCase()
-                }}
-                onProceedToPay={() => setIsRazorpayOpen(true)}
-            />
+                {/* Live Medical QR Preview Modal */}
+                {isQrPreviewOpen && (
+                    <QRPreviewModal 
+                        isOpen={isQrPreviewOpen}
+                        onClose={() => setIsQrPreviewOpen(false)}
+                        patientData={{
+                            name: citizenName || 'John Doe',
+                            bloodGroup: bloodGroup || 'O+',
+                            phone: phoneNumber || '9876543210',
+                            emergencyContacts: emergencyContacts,
+                            allergies: allergies || 'No known allergies',
+                            medicalConditions: medicalConditions || 'Healthy',
+                            medicalId: medicalId || 'RESQR-MED-94821',
+                            username: chosenUsername.toLowerCase()
+                        }}
+                        onProceedToPay={() => setIsRazorpayOpen(true)}
+                    />
+                )}
+            </Suspense>
         </div>
     );
 }

@@ -14,13 +14,15 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { db, auth } from '../lib/firebase';
 import { ref, get, update, remove, onValue, set } from 'firebase/database';
 import toast from 'react-hot-toast';
-import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
 import AppLoading from '../components/ui/AppLoading';
 import { calculateAge } from '../lib/dateUtils';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
-import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import SubscriptionCard from '../components/subscription/SubscriptionCard';
-import RenewalModal from '../components/subscription/RenewalModal';
+
+// Feature-level code splitting for heavy modals
+const DemoRazorpayModal = React.lazy(() => import('../components/common/DemoRazorpayModal'));
+const FaceEnrollmentWizard = React.lazy(() => import('../components/biometrics/FaceEnrollmentWizard'));
+const RenewalModal = React.lazy(() => import('../components/subscription/RenewalModal'));
 
 export default function DashboardCitizen() {
     const navigate = useNavigate();
@@ -898,56 +900,62 @@ export default function DashboardCitizen() {
 
             </div>
 
-            <DemoRazorpayModal 
-                isOpen={isRazorpayOpen}
-                onClose={() => setIsRazorpayOpen(false)}
-                amount={149}
-                title="RESQR Physical Emergency Tag"
-                customerName={editData.name || 'RESQR Citizen'}
-                customerEmail={editData.email || 'citizen@resqr.co.in'}
-                customerPhone={editData.phone || '9876543210'}
-                onSuccess={(paymentInfo) => {
-                    toast.success(`Physical tag order confirmed! Reference: ${paymentInfo.razorpay_payment_id}`);
-                }}
-            />
+            <React.Suspense fallback={null}>
+                {isRazorpayOpen && (
+                    <DemoRazorpayModal 
+                        isOpen={isRazorpayOpen}
+                        onClose={() => setIsRazorpayOpen(false)}
+                        amount={149}
+                        title="RESQR Physical Emergency Tag"
+                        customerName={editData.name || 'RESQR Citizen'}
+                        customerEmail={editData.email || 'citizen@resqr.co.in'}
+                        customerPhone={editData.phone || '9876543210'}
+                        onSuccess={(paymentInfo) => {
+                            toast.success(`Physical tag order confirmed! Reference: ${paymentInfo.razorpay_payment_id}`);
+                        }}
+                    />
+                )}
 
-            {/* Biometric Face Enrollment Modal */}
-            {isFaceEnrollModalOpen && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
-                    <div className="w-full max-w-2xl bg-medical-card border border-white/10 rounded-[40px] p-8 shadow-2xl relative">
-                        <button
-                            onClick={() => setIsFaceEnrollModalOpen(false)}
-                            className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
-                        <div className="mb-6">
-                            <Badge className="bg-primary/20 text-primary border-none px-3 py-1 font-black italic tracking-widest text-[9px]">
-                                BIOMETRIC PROFILE ENROLLMENT
-                            </Badge>
-                            <h3 className="text-2xl font-black italic uppercase tracking-tight text-white mt-1">
-                                {activeProfile?.name || 'Citizen'} — Face ID Setup
-                            </h3>
+                {/* Biometric Face Enrollment Modal */}
+                {isFaceEnrollModalOpen && (
+                    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-medical-bg/95 backdrop-blur-md">
+                        <div className="w-full max-w-2xl bg-medical-card border border-white/10 rounded-[40px] p-8 shadow-2xl relative">
+                            <button
+                                onClick={() => setIsFaceEnrollModalOpen(false)}
+                                className="absolute top-6 right-6 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                            <div className="mb-6">
+                                <Badge className="bg-primary/20 text-primary border-none px-3 py-1 font-black italic tracking-widest text-[9px]">
+                                    BIOMETRIC PROFILE ENROLLMENT
+                                </Badge>
+                                <h3 className="text-2xl font-black italic uppercase tracking-tight text-white mt-1">
+                                    {activeProfile?.name || 'Citizen'} — Face ID Setup
+                                </h3>
+                            </div>
+                            <FaceEnrollmentWizard
+                                onComplete={handleBiometricEnrollmentComplete}
+                                onCancel={() => setIsFaceEnrollModalOpen(false)}
+                            />
                         </div>
-                        <FaceEnrollmentWizard
-                            onComplete={handleBiometricEnrollmentComplete}
-                            onCancel={() => setIsFaceEnrollModalOpen(false)}
-                        />
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* RESQR UPGRADE & RENEWAL MODAL (Section 4 & 7) */}
-            <RenewalModal
-                isOpen={isRenewalModalOpen}
-                onClose={() => setIsRenewalModalOpen(false)}
-                subscription={subscription}
-                activeProfile={activeProfile}
-                userId={auth.currentUser?.uid}
-                onSuccess={(newSub) => {
-                    setSubscription(newSub);
-                }}
-            />
+                {/* RESQR UPGRADE & RENEWAL MODAL (Section 4 & 7) */}
+                {isRenewalModalOpen && (
+                    <RenewalModal
+                        isOpen={isRenewalModalOpen}
+                        onClose={() => setIsRenewalModalOpen(false)}
+                        subscription={subscription}
+                        activeProfile={activeProfile}
+                        userId={auth.currentUser?.uid}
+                        onSuccess={(newSub) => {
+                            setSubscription(newSub);
+                        }}
+                    />
+                )}
+            </React.Suspense>
         </div>
     );
 }

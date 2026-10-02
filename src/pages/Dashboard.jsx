@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
@@ -7,11 +7,11 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { Button } from '../components/ui/Button';
 import AppLoading from '../components/ui/AppLoading';
 
-// Dashboards
-import CitizenDashboard from './DashboardCitizen';
-import AgentDashboard from '../components/dashboard/AgentDashboard';
-import HospitalDashboard from '../components/dashboard/HospitalDashboard';
-import PendingVerification from '../components/dashboard/PendingVerification';
+// Lazy-loaded Role Dashboards (Feature-level code splitting)
+const CitizenDashboard = lazy(() => import('./DashboardCitizen'));
+const AgentDashboard = lazy(() => import('../components/dashboard/AgentDashboard'));
+const HospitalDashboard = lazy(() => import('../components/dashboard/HospitalDashboard'));
+const PendingVerification = lazy(() => import('../components/dashboard/PendingVerification'));
 
 export default function Dashboard() {
     const navigate = useNavigate();
@@ -81,25 +81,12 @@ export default function Dashboard() {
         );
     }
 
-    // If pending verification, render the verification page
-    if (userStatus === 'pending') {
-        return <PendingVerification role={userRole} data={userData} />;
-    }
-
-    // Render corresponding dashboard
-    if (userRole === 'admin') {
-        navigate('/admin');
-        return null;
-    }
-
-    if (userRole === 'agent') {
-        return <AgentDashboard data={userData} />;
-    }
-
-    if (userRole === 'hospital') {
-        return <HospitalDashboard data={userData} />;
-    }
-
-    // Default: Citizen Dashboard
-    return <CitizenDashboard />;
+    return (
+        <Suspense fallback={<AppLoading message="Loading portal..." />}>
+            {userStatus === 'pending' && <PendingVerification role={userRole} data={userData} />}
+            {userStatus !== 'pending' && userRole === 'agent' && <AgentDashboard data={userData} />}
+            {userStatus !== 'pending' && userRole === 'hospital' && <HospitalDashboard data={userData} />}
+            {userStatus !== 'pending' && userRole !== 'agent' && userRole !== 'hospital' && <CitizenDashboard />}
+        </Suspense>
+    );
 }

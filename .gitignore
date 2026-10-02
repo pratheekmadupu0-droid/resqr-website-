@@ -36,6 +36,7 @@ Thumbs.db
 # Vite config timestamps
 vite.config.js.timestamp-*
 
-# Wrangler
+# Wrangler & Firebase
 .wrangler/
+.firebase/
 

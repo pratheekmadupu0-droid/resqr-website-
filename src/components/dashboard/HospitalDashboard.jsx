@@ -12,8 +12,10 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import toast from 'react-hot-toast';
 import { db, auth } from '../../lib/firebase';
 import { ref, update, get, set, push, onValue } from 'firebase/database';
-import HospitalFaceVerificationModal from '../biometrics/HospitalFaceVerificationModal';
 import { fetchAuthorizedMedicalProfile } from '../../lib/medicalApi';
+import { lazy, Suspense } from 'react';
+
+const HospitalFaceVerificationModal = lazy(() => import('../biometrics/HospitalFaceVerificationModal'));
 
 export default function HospitalDashboard({ data }) {
     const [stats, setStats] = useState({
@@ -582,36 +584,40 @@ export default function HospitalDashboard({ data }) {
                 )}
 
                 {/* Biometric Face Verification Modal */}
-                <HospitalFaceVerificationModal
-                    isOpen={showFaceVerification}
-                    onClose={() => {
-                        setShowFaceVerification(false);
-                        setPendingPatientTarget(null);
-                    }}
-                    patientName={pendingPatientTarget?.patientName || "PATIENT"}
-                    patientId={pendingPatientTarget?.patientId}
-                    qrId={pendingPatientTarget?.patientId}
-                    biometricProfile={pendingPatientTarget?.biometricProfile}
-                    doctorInfo={{
-                        regNo: hospital.licenseNo || auth.currentUser?.uid || 'HOSPITAL_ER',
-                        hospitalName: hospital.hospitalName || 'Emergency Trauma Center'
-                    }}
-                    onVerificationSuccess={handleHospitalBiometricSuccess}
-                    onAlternateOverride={() => {
-                        if (pendingPatientTarget) {
-                            setScannedPatient({
-                                id: pendingPatientTarget.patientId,
-                                name: pendingPatientTarget.patientName,
-                                ...pendingPatientTarget.rawRecord,
-                                medical: pendingPatientTarget.rawRecord.medical || {},
-                                insurance: pendingPatientTarget.rawRecord.insurance || {}
-                            });
-                            setShowFaceVerification(false);
-                            setPendingPatientTarget(null);
-                            toast.success("Emergency Trauma Clinical Override Granted.");
-                        }
-                    }}
-                />
+                <Suspense fallback={null}>
+                    {showFaceVerification && (
+                        <HospitalFaceVerificationModal
+                            isOpen={showFaceVerification}
+                            onClose={() => {
+                                setShowFaceVerification(false);
+                                setPendingPatientTarget(null);
+                            }}
+                            patientName={pendingPatientTarget?.patientName || "PATIENT"}
+                            patientId={pendingPatientTarget?.patientId}
+                            qrId={pendingPatientTarget?.patientId}
+                            biometricProfile={pendingPatientTarget?.biometricProfile}
+                            doctorInfo={{
+                                regNo: hospital.licenseNo || auth.currentUser?.uid || 'HOSPITAL_ER',
+                                hospitalName: hospital.hospitalName || 'Emergency Trauma Center'
+                            }}
+                            onVerificationSuccess={handleHospitalBiometricSuccess}
+                            onAlternateOverride={() => {
+                                if (pendingPatientTarget) {
+                                    setScannedPatient({
+                                        id: pendingPatientTarget.patientId,
+                                        name: pendingPatientTarget.patientName,
+                                        ...pendingPatientTarget.rawRecord,
+                                        medical: pendingPatientTarget.rawRecord.medical || {},
+                                        insurance: pendingPatientTarget.rawRecord.insurance || {}
+                                    });
+                                    setShowFaceVerification(false);
+                                    setPendingPatientTarget(null);
+                                    toast.success("Emergency Trauma Clinical Override Granted.");
+                                }
+                            }}
+                        />
+                    )}
+                </Suspense>
             </div>
         </div>
     );

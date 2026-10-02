@@ -12,15 +12,19 @@ import toast from 'react-hot-toast';
 import { auth, db } from '../lib/firebase';
 import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 import { ref, update, set, get } from 'firebase/database';
-import DemoRazorpayModal from '../components/common/DemoRazorpayModal';
-import QRPreviewModal from '../components/common/QRPreviewModal';
 import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
 import { syncUserOnLogin, ADMIN_EMAILS } from '../lib/userSync';
-import FaceEnrollmentWizard from '../components/biometrics/FaceEnrollmentWizard';
 import { isPseudoEmbedding } from '../lib/biometrics';
 import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
 import ResqrLogo from '../components/branding/ResqrLogo';
+import React, { lazy, Suspense } from 'react';
+
+// Lazy loaded modals and face enrollment engine
+const DemoRazorpayModal = lazy(() => import('../components/common/DemoRazorpayModal'));
+const QRPreviewModal = lazy(() => import('../components/common/QRPreviewModal'));
+const FaceEnrollmentWizard = lazy(() => import('../components/biometrics/FaceEnrollmentWizard'));
+const PrivacyConsentGate = lazy(() => import('../components/privacy/PrivacyConsentGate'));
 import { createSubscriptionOrder, verifySubscriptionPayment } from '../lib/subscriptionApi';
 import { addMonthsToDate } from '../lib/subscriptionConfig';
 import { 
@@ -31,7 +35,6 @@ import {
     fetchAuthoritativeRegistrationState, 
     commitStepProgress 
 } from '../lib/registrationStateMachine';
-import PrivacyConsentGate from '../components/privacy/PrivacyConsentGate';
 import { hasAcceptedLatestConsent, PRIVACY_POLICY_VERSION } from '../lib/privacyConfig';
 import { logPrivacyAudit } from '../lib/privacyAudit';
 import { isDemoMode, setDemoMode, DEMO_ROLES } from '../lib/demoService';
@@ -1540,22 +1543,24 @@ export default function LoginPage() {
                                 {/* Step 1: Face Registration */}
                                 {citizenStep === 1 && (
                                     <div className="space-y-6 animate-in fade-in duration-300">
-                                        <FaceEnrollmentWizard
-                                            uid={auth.currentUser?.uid}
-                                            profileId={auth.currentUser?.uid ? `c_${auth.currentUser.uid}` : 'c_citizen'}
-                                            stepNumber={1}
-                                            totalSteps={6}
-                                            onComplete={(bioProfile) => {
-                                                setBiometricEnrollment(bioProfile);
-                                                if (bioProfile?.frontPhotoSnapshot) {
-                                                    setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
-                                                }
-                                                setCompletedSteps(prev => ({ ...prev, 1: true }));
-                                                toast.success("✓ Step 1 Complete: Face Biometrics Recorded!");
-                                                setCitizenStep(2);
-                                            }}
-                                            onCancel={() => setAuthState('card_select')}
-                                        />
+                                        <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-bold uppercase tracking-wider">Loading Face Registration Engine...</div>}>
+                                            <FaceEnrollmentWizard
+                                                uid={auth.currentUser?.uid}
+                                                profileId={auth.currentUser?.uid ? `c_${auth.currentUser.uid}` : 'c_citizen'}
+                                                stepNumber={1}
+                                                totalSteps={6}
+                                                onComplete={(bioProfile) => {
+                                                    setBiometricEnrollment(bioProfile);
+                                                    if (bioProfile?.frontPhotoSnapshot) {
+                                                        setCitizenProfilePhoto(bioProfile.frontPhotoSnapshot);
+                                                    }
+                                                    setCompletedSteps(prev => ({ ...prev, 1: true }));
+                                                    toast.success("✓ Step 1 Complete: Face Biometrics Recorded!");
+                                                    setCitizenStep(2);
+                                                }}
+                                                onCancel={() => setAuthState('card_select')}
+                                            />
+                                        </Suspense>
                                     </div>
                                 )}
 
@@ -2786,64 +2791,72 @@ export default function LoginPage() {
             </div>
 
             {/* Reusable Demo Razorpay Payment Gateway Modal */}
-            <DemoRazorpayModal 
-                isOpen={isRazorpayOpen}
-                onClose={() => setIsRazorpayOpen(false)}
-                amount={
-                    selectedRole === 'hospital' 
-                        ? hospitalPlans[selectedHospitalPlan].price 
-                        : (selectedRegistrationPlan === 'initial_digital' ? 149 : 199)
-                }
-                title={
-                    selectedRole === 'hospital'
-                        ? `RESQR ${hospitalPlans[selectedHospitalPlan].name} Subscription`
-                        : (selectedRegistrationPlan === 'initial_digital' 
-                            ? 'RESQR Registration + Digital QR' 
-                            : 'RESQR Registration + QR + 3-Month Validity')
-                }
-                customerName={selectedRole === 'hospital' ? (hospitalInfo.hospitalName || 'Hospital Partner') : (citizenName || 'RESQR Citizen')}
-                customerEmail={selectedRole === 'hospital' ? (email || 'hospital@resqr.co.in') : (citizenEmail || 'citizen@resqr.co.in')}
-                customerPhone={phoneNumber || '9876543210'}
-                userId={auth.currentUser?.uid}
-                qrId={auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_citizen'}
-                planId={selectedRole === 'hospital' ? `hospital_${selectedHospitalPlan}` : selectedRegistrationPlan}
-                onSuccess={(paymentInfo) => {
-                    toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
-                    if (selectedRole === 'hospital') {
-                        handleHospitalRegistrationSubmit();
-                    } else {
-                        handleCitizenRegistrationSubmit(paymentInfo);
-                    }
-                }}
-            />
+            <Suspense fallback={null}>
+                {isRazorpayOpen && (
+                    <DemoRazorpayModal 
+                        isOpen={isRazorpayOpen}
+                        onClose={() => setIsRazorpayOpen(false)}
+                        amount={
+                            selectedRole === 'hospital' 
+                                ? hospitalPlans[selectedHospitalPlan].price 
+                                : (selectedRegistrationPlan === 'initial_digital' ? 149 : 199)
+                        }
+                        title={
+                            selectedRole === 'hospital'
+                                ? `RESQR ${hospitalPlans[selectedHospitalPlan].name} Subscription`
+                                : (selectedRegistrationPlan === 'initial_digital' 
+                                    ? 'RESQR Registration + Digital QR' 
+                                    : 'RESQR Registration + QR + 3-Month Validity')
+                        }
+                        customerName={selectedRole === 'hospital' ? (hospitalInfo.hospitalName || 'Hospital Partner') : (citizenName || 'RESQR Citizen')}
+                        customerEmail={selectedRole === 'hospital' ? (email || 'hospital@resqr.co.in') : (citizenEmail || 'citizen@resqr.co.in')}
+                        customerPhone={phoneNumber || '9876543210'}
+                        userId={auth.currentUser?.uid}
+                        qrId={auth.currentUser ? `c_${auth.currentUser.uid}` : 'rq_citizen'}
+                        planId={selectedRole === 'hospital' ? `hospital_${selectedHospitalPlan}` : selectedRegistrationPlan}
+                        onSuccess={(paymentInfo) => {
+                            toast.success(`Payment verified! Payment ID: ${paymentInfo.razorpay_payment_id}`);
+                            if (selectedRole === 'hospital') {
+                                handleHospitalRegistrationSubmit();
+                            } else {
+                                handleCitizenRegistrationSubmit(paymentInfo);
+                            }
+                        }}
+                    />
+                )}
 
-            {/* Live Medical QR Preview Modal */}
-            <QRPreviewModal 
-                isOpen={isQrPreviewOpen}
-                onClose={() => setIsQrPreviewOpen(false)}
-                patientData={{
-                    name: citizenName || 'John Doe',
-                    bloodGroup: bloodGroup || 'O+',
-                    phone: phoneNumber || '9876543210',
-                    emergencyContacts: emergencyContacts,
-                    allergies: allergies || 'No known allergies',
-                    medicalConditions: medicalConditions || 'Healthy',
-                    medicalId: medicalId || 'RESQR-MED-94821',
-                    insuranceCompany: insuranceCompany || 'Star Health',
-                    username: chosenUsername.toLowerCase()
-                }}
-                onProceedToPay={() => setIsRazorpayOpen(true)}
-            />
+                {/* Live Medical QR Preview Modal */}
+                {isQrPreviewOpen && (
+                    <QRPreviewModal 
+                        isOpen={isQrPreviewOpen}
+                        onClose={() => setIsQrPreviewOpen(false)}
+                        patientData={{
+                            name: citizenName || 'John Doe',
+                            bloodGroup: bloodGroup || 'O+',
+                            phone: phoneNumber || '9876543210',
+                            emergencyContacts: emergencyContacts,
+                            allergies: allergies || 'No known allergies',
+                            medicalConditions: medicalConditions || 'Healthy',
+                            medicalId: medicalId || 'RESQR-MED-94821',
+                            insuranceCompany: insuranceCompany || 'Star Health',
+                            username: chosenUsername.toLowerCase()
+                        }}
+                        onProceedToPay={() => setIsRazorpayOpen(true)}
+                    />
+                )}
 
-            {/* Privacy & Consent Gate Modal */}
-            <PrivacyConsentGate 
-                isOpen={isPrivacyModalOpen}
-                onClose={() => setIsPrivacyModalOpen(false)}
-                onAcceptConsent={handlePrivacyConsentAccepted}
-                userName={citizenName || auth.currentUser?.displayName || 'User'}
-                userEmail={citizenEmail || auth.currentUser?.email || ''}
-                isMandatoryModal={true}
-            />
+                {/* Privacy & Consent Gate Modal */}
+                {isPrivacyModalOpen && (
+                    <PrivacyConsentGate 
+                        isOpen={isPrivacyModalOpen}
+                        onClose={() => setIsPrivacyModalOpen(false)}
+                        onAcceptConsent={handlePrivacyConsentAccepted}
+                        userName={citizenName || auth.currentUser?.displayName || 'User'}
+                        userEmail={citizenEmail || auth.currentUser?.email || ''}
+                        isMandatoryModal={true}
+                    />
+                )}
+            </Suspense>
         </div>
     );
 }
