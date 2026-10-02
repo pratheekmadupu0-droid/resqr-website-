@@ -9,6 +9,7 @@ export default defineConfig({
     cssMinify: 'esbuild',
     cssCodeSplit: true,
     outDir: 'dist',
+    chunkSizeWarningLimit: 1400,
     rollupOptions: {
       output: {
         manualChunks(id) {
