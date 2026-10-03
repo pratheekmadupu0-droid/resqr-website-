@@ -7,7 +7,7 @@ import {
     Camera, RefreshCw, X, Check, Power, HelpCircle, Eye,
     QrCode, HeartPulse, Siren, Navigation, Phone, MapPin, ShieldAlert, Database, MessageCircle,
     ShieldCheck, Key, Copy, Receipt, DollarSign, Calendar, FileText, Download,
-    Zap, ChevronLeft, History as HistoryIcon
+    Zap, ChevronLeft, History as HistoryIcon, Sparkles
 } from 'lucide-react';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
