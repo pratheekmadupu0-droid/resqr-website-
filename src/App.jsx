@@ -86,20 +86,33 @@ class AdminErrorBoundary extends Component {
                             <ShieldAlert size={36} />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black italic uppercase tracking-tighter">Admin Interface Recovered</h2>
+                            <h2 className="text-2xl font-black italic uppercase tracking-tighter">Admin Interface Protected</h2>
                             <p className="text-xs text-slate-400 font-medium mt-2 leading-relaxed">
-                                A transient data exception occurred. Click below to refresh and re-sync the command console.
+                                {this.state.error?.message ? `Notice: ${this.state.error.message}` : "A transient data exception occurred. Click below to refresh and re-sync the command console."}
                             </p>
                         </div>
-                        <button
-                            onClick={() => {
-                                this.setState({ hasError: false, error: null });
-                                window.location.reload();
-                            }}
-                            className="w-full py-4 bg-primary text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all"
-                        >
-                            <RefreshCw size={16} /> Reload Admin Panel
-                        </button>
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => {
+                                    this.setState({ hasError: false, error: null });
+                                    window.location.reload();
+                                }}
+                                className="w-full py-4 bg-primary text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all cursor-pointer"
+                            >
+                                <RefreshCw size={16} /> Reload Admin Panel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    localStorage.removeItem('resqr_active_role');
+                                    sessionStorage.clear();
+                                    this.setState({ hasError: false, error: null });
+                                    window.location.href = '/admin';
+                                }}
+                                className="w-full py-3 bg-white/5 border border-white/10 text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs hover:bg-white/10 transition-all cursor-pointer"
+                            >
+                                Reset Cache & Re-Enter
+                            </button>
+                        </div>
                     </div>
                 </div>
             );

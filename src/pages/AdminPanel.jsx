@@ -349,23 +349,23 @@ export default function AdminPanel() {
         // Search across: Name, Phone, Email, RESQR ID, User ID, QR Token, Razorpay Order ID, Razorpay Payment ID
         if (sTerm) {
             const matchesSearch = (
-                (u.name?.toLowerCase() || "").includes(sTerm) ||
-                (u.email?.toLowerCase() || "").includes(sTerm) ||
-                (u.phone || "").toLowerCase().includes(sTerm) ||
-                (u.mobile || "").toLowerCase().includes(sTerm) ||
-                (u.resqrId || "").toLowerCase().includes(sTerm) ||
-                (u.qrId || "").toLowerCase().includes(sTerm) ||
-                (u.uid || "").toLowerCase().includes(sTerm) ||
-                (u.id || "").toLowerCase().includes(sTerm) ||
-                (u.googleEmail?.toLowerCase() || "").includes(sTerm) ||
-                (u.googleId || "").toLowerCase().includes(sTerm) ||
-                (u.orderId || "").toLowerCase().includes(sTerm) ||
-                (u.paymentId || "").toLowerCase().includes(sTerm) ||
-                (lifecycle.paymentId || "").toLowerCase().includes(sTerm) ||
-                (profile?.name?.toLowerCase() || "").includes(sTerm) ||
-                (profile?.id?.toLowerCase() || "").includes(sTerm) ||
-                (profile?.qrId?.toLowerCase() || "").includes(sTerm) ||
-                (profile?.emergencyContactPhone || "").toLowerCase().includes(sTerm)
+                String(u.name || "").toLowerCase().includes(sTerm) ||
+                String(u.email || "").toLowerCase().includes(sTerm) ||
+                String(u.phone || "").toLowerCase().includes(sTerm) ||
+                String(u.mobile || "").toLowerCase().includes(sTerm) ||
+                String(u.resqrId || "").toLowerCase().includes(sTerm) ||
+                String(u.qrId || "").toLowerCase().includes(sTerm) ||
+                String(u.uid || "").toLowerCase().includes(sTerm) ||
+                String(u.id || "").toLowerCase().includes(sTerm) ||
+                String(u.googleEmail || "").toLowerCase().includes(sTerm) ||
+                String(u.googleId || "").toLowerCase().includes(sTerm) ||
+                String(u.orderId || "").toLowerCase().includes(sTerm) ||
+                String(u.paymentId || "").toLowerCase().includes(sTerm) ||
+                String(lifecycle?.paymentId || "").toLowerCase().includes(sTerm) ||
+                String(profile?.name || "").toLowerCase().includes(sTerm) ||
+                String(profile?.id || "").toLowerCase().includes(sTerm) ||
+                String(profile?.qrId || "").toLowerCase().includes(sTerm) ||
+                String(profile?.emergencyContactPhone || "").toLowerCase().includes(sTerm)
             );
             if (!matchesSearch) return false;
         }
@@ -1668,15 +1668,16 @@ export default function AdminPanel() {
     };
 
     const filteredSubscriptions = safeSubscriptions.filter(sub => {
+        if (!sub) return false;
         const info = getSubUserInfo(sub);
-        const qrId = (sub.qrId || sub.id || '').toLowerCase();
-        const query = subSearchTerm.toLowerCase();
+        const qrId = String(sub.qrId || sub.id || '').toLowerCase();
+        const query = String(subSearchTerm || '').toLowerCase();
         const matchesSearch = !query || 
             qrId.includes(query) || 
-            info.name.toLowerCase().includes(query) || 
-            info.email.toLowerCase().includes(query) || 
-            info.phone.toLowerCase().includes(query) ||
-            (sub.planName || '').toLowerCase().includes(query);
+            String(info.name || '').toLowerCase().includes(query) || 
+            String(info.email || '').toLowerCase().includes(query) || 
+            String(info.phone || '').toLowerCase().includes(query) ||
+            String(sub.planName || '').toLowerCase().includes(query);
 
         if (!matchesSearch) return false;
 
@@ -1811,16 +1812,16 @@ export default function AdminPanel() {
         if (!filterPaymentByDate(pDate)) return false;
 
         if (paymentSearchQuery.trim()) {
-            const q = paymentSearchQuery.toLowerCase();
+            const q = paymentSearchQuery.trim().toLowerCase();
             const matches = 
-                (p.userName || '').toLowerCase().includes(q) ||
-                (p.userEmail || '').toLowerCase().includes(q) ||
-                (p.userPhone || '').toLowerCase().includes(q) ||
-                (p.userId || '').toLowerCase().includes(q) ||
-                (p.paymentId || '').toLowerCase().includes(q) ||
-                (p.razorpayPaymentId || '').toLowerCase().includes(q) ||
-                (p.razorpayOrderId || p.orderId || '').toLowerCase().includes(q) ||
-                (p.receiptNumber || '').toLowerCase().includes(q);
+                String(p.userName || '').toLowerCase().includes(q) ||
+                String(p.userEmail || '').toLowerCase().includes(q) ||
+                String(p.userPhone || '').toLowerCase().includes(q) ||
+                String(p.userId || '').toLowerCase().includes(q) ||
+                String(p.paymentId || '').toLowerCase().includes(q) ||
+                String(p.razorpayPaymentId || '').toLowerCase().includes(q) ||
+                String(p.razorpayOrderId || p.orderId || '').toLowerCase().includes(q) ||
+                String(p.receiptNumber || '').toLowerCase().includes(q);
             if (!matches) return false;
         }
 
@@ -2747,11 +2748,11 @@ export default function AdminPanel() {
                                         <tr key={profile.id || idx} className="hover:bg-white/5 transition-all group">
                                             <td className="px-10 py-8">
                                                 <code className="text-[11px] bg-slate-950 px-4 py-2 rounded-xl text-primary font-black border border-white/5 group-hover:border-primary/20 shadow-inner">
-                                                    {profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}
+                                                    {profile.id || (profile.name ? String(profile.name).toLowerCase().replace(/\s+/g, '-') : 'profile')}
                                                 </code>
                                             </td>
                                             <td className="px-10 py-8 font-black text-white italic tracking-tight text-lg">
-                                                {profile.name}
+                                                {profile.name || 'Anonymous'}
                                                 <div className="mt-2">
                                                     <Badge className={`${profile.payment_status === 'paid' ? 'bg-green-500/10 text-green-500' : profile.payment_status === undefined ? 'bg-blue-500/10 text-blue-500' : 'bg-red-500/10 text-red-500'} border-none font-black italic tracking-widest text-[7px] px-2 py-0.5`}>
                                                         {profile.payment_status === 'paid' ? 'SECURED' : profile.payment_status === undefined ? 'LEGACY' : 'UNSECURED'}
@@ -2759,14 +2760,14 @@ export default function AdminPanel() {
                                                 </div>
                                             </td>
                                             <td className="px-10 py-8">
-                                                <Badge className="bg-primary/20 text-primary border-none font-black italic px-4 py-1 text-sm font-poppins">{profile.bloodGroup}</Badge>
+                                                <Badge className="bg-primary/20 text-primary border-none font-black italic px-4 py-1 text-sm font-poppins">{profile.bloodGroup || 'N/A'}</Badge>
                                             </td>
-                                            <td className="px-10 py-8 text-[11px] font-black text-slate-500 uppercase italic tracking-widest">{profile.phone}</td>
+                                            <td className="px-10 py-8 text-[11px] font-black text-slate-500 uppercase italic tracking-widest">{profile.phone || 'N/A'}</td>
                                             <td className="px-10 py-8">
                                                 <div className="bg-white p-2 rounded-lg inline-block border border-white/10 shadow-sm text-center">
                                                     <p className="text-[6px] font-black text-primary uppercase tracking-widest mb-1 italic">resqr</p>
                                                     <QRCodeCanvas
-                                                        value={`${window.location.origin}/e/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}`}
+                                                        value={`${window.location.origin}/e/${profile.id || (profile.name ? String(profile.name).toLowerCase().replace(/\s+/g, '-') : 'profile')}`}
                                                         size={60}
                                                         level="H"
                                                         includeMargin={false}
@@ -2779,14 +2780,14 @@ export default function AdminPanel() {
                                                     />
                                                     <div className="mt-1">
                                                         <p className="text-[5px] font-black text-slate-900 uppercase tracking-tighter italic leading-none">emergency qr</p>
-                                                        <p className="text-[4px] font-bold text-slate-500 uppercase tracking-tighter truncate max-w-[60px]">{profile.name}</p>
+                                                        <p className="text-[4px] font-bold text-slate-500 uppercase tracking-tighter truncate max-w-[60px]">{profile.name || 'Citizen'}</p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-10 py-8 text-right">
                                                 <div className="flex items-center justify-end gap-2.5">
                                                     <Link
-                                                        to={`/admin/users/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}/emergency-profile`}
+                                                        to={`/admin/users/${profile.id || (profile.name ? String(profile.name).toLowerCase().replace(/\s+/g, '-') : 'profile')}/emergency-profile`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-primary/50 hover:bg-primary/10 text-primary flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
@@ -2796,7 +2797,7 @@ export default function AdminPanel() {
                                                     </Link>
                                                     <button
                                                         className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 hover:border-rose-500/50 hover:bg-rose-500/10 text-rose-400 flex items-center justify-center transition-all cursor-pointer shadow-sm shrink-0"
-                                                        onClick={() => deleteItem(`profiles/${profile.id || profile.name?.toLowerCase().replace(/\s+/g, '-')}`)}
+                                                        onClick={() => deleteItem(`profiles/${profile.id || (profile.name ? String(profile.name).toLowerCase().replace(/\s+/g, '-') : 'profile')}`)}
                                                         title="Delete Vault"
                                                     >
                                                         <Trash2 size={18} className="text-rose-400" />
