@@ -14,7 +14,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Missing userId or requestType.' });
         }
 
-        const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || 'https://resqr-d8e20-default-rtdb.firebaseio.com';
+        const FIREBASE_RTDB_URL = process.env.FIREBASE_RTDB_URL || 'https://emergency-qr-b0adf-default-rtdb.asia-southeast1.firebasedatabase.app';
         const now = new Date().toISOString();
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 

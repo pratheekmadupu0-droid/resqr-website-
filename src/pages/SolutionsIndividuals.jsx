@@ -21,54 +21,54 @@ export default function SolutionsIndividuals() {
 
     const segments = [
         { 
-            title: 'Students', 
-            desc: 'Secure campus protection and emergency contacts link for school/university hours.',
+            title: 'Students & Youth', 
+            desc: 'Secure campus protection and quick next-of-kin emergency contacts during school or college hours.',
             icon: <GraduationCap size={22} className="text-primary" />
         },
         { 
-            title: 'Drivers & Riders', 
-            desc: 'Instant identification and crash detection alerts on high-speed transits.',
+            title: 'Drivers & Commuters', 
+            desc: 'Instant rider identification and fast bystander contact relay on high-speed transits.',
             icon: <Navigation size={22} className="text-primary" />
         },
         { 
             title: 'Senior Citizens', 
-            desc: 'Pre-existing condition details and medication protocols accessible in vital moments.',
+            desc: 'Pre-existing medical conditions, critical allergies, and medication notes accessible in golden-hour emergencies.',
             icon: <Heart size={22} className="text-primary" />
         },
         { 
             title: 'Travellers', 
-            desc: 'Multilingual profile options and secure insurance parameters globally mapped.',
+            desc: 'Essential emergency profile parameters and family contact triggers available wherever you travel.',
             icon: <Globe size={22} className="text-primary" />
         },
         { 
-            title: 'Industrial Workers', 
-            desc: 'Compliance tracking and immediate occupational hazard emergency reporting.',
+            title: 'Industrial & Field Workers', 
+            desc: 'Rapid identification and immediate next-of-kin notification for on-site occupational incidents.',
             icon: <ShieldAlert size={22} className="text-primary" />
         },
         { 
             title: 'Parents & Families', 
-            desc: 'Coordinated child profiles with next-of-kin links and active GPS tracking.',
+            desc: 'Coordinated child profiles with next-of-kin emergency links and incident scan notifications.',
             icon: <Users size={22} className="text-primary" />
         },
         { 
-            title: 'Medical Condition Holders', 
-            desc: 'Immediate notification of allergies, epilepsy, diabetes, or rare conditions.',
+            title: 'Critical Health Conditions', 
+            desc: 'Immediate emergency display of allergies, asthma, diabetes, or rare medical alerts to responders.',
             icon: <Activity size={22} className="text-primary" />
         },
         { 
             title: 'Children', 
-            desc: 'Simplified wearables/stickers for immediate location and guardian link.',
+            desc: 'Durable stickers and backpack tags for immediate bystander notification and guardian link.',
             icon: <Smile size={22} className="text-primary" />
         }
     ];
 
     const emergencyWorkflow = [
-        { title: 'Incident Occurs', desc: 'Individual is found unresponsive or unable to speak.' },
-        { title: 'RESQR Tag Found', desc: 'First responder spots the helmet sticker, band, or wallet card.' },
-        { title: 'QR Scan Initiated', desc: 'A smartphone camera scans the unique QR code instantly.' },
-        { title: 'Emergency Profile Opens', desc: 'Bystander sees key action options to coordinate care.' },
-        { title: 'Family Notified', desc: 'Emergency contacts receive SMS alerts with live GPS coordinates.' },
-        { title: 'Hospital Alerted', desc: 'Local network hospitals receive incoming medical notifications.' }
+        { title: 'Incident Occurs', desc: 'Individual is found in need of immediate assistance or unresponsive.' },
+        { title: 'RESQR Tag Found', desc: 'Responder spots the reflective helmet sticker, wallet card, or keychain.' },
+        { title: 'QR Scan Initiated', desc: 'A standard smartphone camera scans the secure QR code instantly.' },
+        { title: 'Emergency Profile Opens', desc: 'Bystander accesses permitted emergency contacts and vital triage info.' },
+        { title: 'Family Reached', desc: 'Responder initiates masked call or shares incident GPS coordinates upon prompt.' },
+        { title: 'Clinical Care Administered', desc: 'Hospital clinicians decrypt authorized medical history at bedside.' }
     ];
 
     return (

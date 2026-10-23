@@ -55,8 +55,11 @@ export default function SolutionsAmbulances() {
             <section className="py-24 bg-slate-950 border-y border-white/5 px-4">
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter font-poppins">ACTIVE TELEMETRY & MAP DISPLAY</h2>
-                        <p className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mt-3">Live ambulance tracking terminal interface</p>
+                        <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-4 px-4 py-1 text-[10px] font-black uppercase tracking-widest">
+                            SIMULATED ARCHITECTURE DEMO
+                        </Badge>
+                        <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter font-poppins">PARAMEDIC TRIAGE WORKFLOW PREVIEW</h2>
+                        <p className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mt-3">Conceptual CAD fleet routing and triage decryption interface</p>
                     </div>
 
                     <Card className="bg-medical-card border-white/5 overflow-hidden p-0 rounded-[40px] shadow-2xl">

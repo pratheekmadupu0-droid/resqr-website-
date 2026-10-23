@@ -9,29 +9,40 @@ export default {
         extend: {
             colors: {
                 primary: {
-                    DEFAULT: '#E63946', // Emergency Red
-                    dark: '#D62828',
+                    DEFAULT: '#D71920', // Official Emergency Red
+                    dark: '#A80F19',    // Deep Crimson
+                    crimson: '#A80F19',
+                    hover: '#B8141B',
+                    light: '#F87171',
+                    soft: 'rgba(215, 25, 32, 0.08)',
+                    glow: 'rgba(215, 25, 32, 0.25)',
                 },
-                secondary: {
-                    DEFAULT: '#1D3557', // Dark Blue
-                    light: '#457B9D',
+                charcoal: {
+                    DEFAULT: '#17191D', // Charcoal
+                    dark: '#0E1013',
+                    card: '#131519',
+                    surface: '#1A1D22',
+                    border: '#272B33',
+                    muted: '#626975',
+                },
+                slate: {
+                    950: '#0C0E12',
+                    900: '#12151B',
+                    850: '#17191D',
+                    800: '#1E232B',
+                },
+                resqr: {
+                    red: '#D71920',
+                    crimson: '#A80F19',
+                    charcoal: '#17191D',
+                    softbg: '#F6F7F8',
+                    muted: '#626975',
+                    border: '#E5E7EB',
                 },
                 medical: {
-                    bg: '#05080F', // Deep Medical Night
-                    card: '#0C1322', // Medical Dark Card
-                    accent: '#E63946',
-                },
-                gold: {
-                    DEFAULT: '#D9A441', // Vinayaka Chavithi premium gold
-                    light: '#F2C94C',
-                    dark: '#B8863B',
-                },
-                maroon: {
-                    DEFAULT: '#7A1F2E', // Deep festive maroon
-                },
-                night: {
-                    bg: '#04070C',
-                    card: '#0A101D',
+                    bg: '#0E1013',
+                    card: '#14171D',
+                    accent: '#D71920',
                 },
             },
             borderRadius: {
@@ -40,14 +51,16 @@ export default {
                 '3xl': '2rem',
             },
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
-                poppins: ['Poppins', 'sans-serif'],
-                manrope: ['Manrope', 'sans-serif'],
+                sans: ['Inter', 'Manrope', 'system-ui', '-apple-system', 'sans-serif'],
+                poppins: ['Inter', 'Manrope', 'sans-serif'],
+                manrope: ['Manrope', 'Inter', 'sans-serif'],
+                heading: ['Inter', 'Manrope', 'sans-serif'],
             },
             boxShadow: {
-                'gold-glow': '0 0 24px rgba(217, 164, 65, 0.35)',
-                'red-glow': '0 0 28px rgba(230, 57, 70, 0.35)',
-                'card-premium': '0 20px 48px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.35)',
+                'red-glow': '0 0 28px rgba(215, 25, 32, 0.35)',
+                'red-subtle': '0 4px 20px rgba(215, 25, 32, 0.15)',
+                'card-premium': '0 20px 48px rgba(0,0,0,0.45), 0 2px 10px rgba(0,0,0,0.3)',
+                'card-light': '0 10px 30px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
             },
         },
     },

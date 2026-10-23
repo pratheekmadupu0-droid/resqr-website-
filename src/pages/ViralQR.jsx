@@ -173,7 +173,7 @@ export default function ViralQR() {
                                     value={`${window.location.origin}/free-qr?name=${encodeURIComponent(name)}&bg=${encodeURIComponent(bloodGroup)}`}
                                     size={250}
                                     bgColor={"#ffffff"}
-                                    fgColor={"#e63946"}
+                                    fgColor={"#D71920"}
                                     level={"H"}
                                     includeMargin={false}
                                 />

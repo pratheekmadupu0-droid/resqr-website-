@@ -10,12 +10,12 @@ export default function SiconBadge() {
             id="sicon-floating-badge"
         >
             <span className="text-[10px] sm:text-xs font-black tracking-[0.2em] text-slate-300 group-hover:text-white transition-colors uppercase select-none font-poppins">
-                powered by sicon enterprises
+                powered by sion enterprises
             </span>
             <div className="h-5 w-[1px] bg-white/20 mx-0.5" />
             <img
                 src={`${import.meta.env.BASE_URL}sicon_logo.png`}
-                alt="Sicon Enterprises"
+                alt="Sion Enterprises"
                 style={{ height: '32px', width: 'auto' }}
                 className="object-contain transition-all"
                 onError={(e) => {

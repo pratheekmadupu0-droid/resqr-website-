@@ -62,6 +62,10 @@ const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const EmergencyAwareness = lazy(() => import('./pages/EmergencyAwareness'));
 const FAQPage = lazy(() => import('./pages/FAQPage'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter'));
+const GovernmentPartnerships = lazy(() => import('./pages/GovernmentPartnerships'));
+const AccountDeletion = lazy(() => import('./pages/AccountDeletion'));
+const SecurityDisclosure = lazy(() => import('./pages/SecurityDisclosure'));
+const AccessibilityStatement = lazy(() => import('./pages/AccessibilityStatement'));
 
 class AdminErrorBoundary extends Component {
     constructor(props) {
@@ -132,7 +136,7 @@ function ScrollToTop() {
 
 function App() {
     const location = useLocation();
-    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/pet/') || location.pathname.startsWith('/pet-qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'create-pet', 'pet-dashboard', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings', 'privacy-policy', 'demo', 'demo-admin'].includes(location.pathname.split('/')[1]));
+    const isScanPage = location.pathname.startsWith('/e/') || location.pathname.startsWith('/qr/') || location.pathname.startsWith('/pet/') || location.pathname.startsWith('/pet-qr/') || location.pathname.startsWith('/u/') || (location.pathname.length > 1 && !['dashboard', 'create-profile', 'create-identity', 'create-pet', 'pet-dashboard', 'payment', 'success', 'admin', 'login', 'contact', 'legal', 'about', 'free-qr', 'viral-id', 'scanner', 'store', 'how-it-works', 'solutions', 'safety-privacy', 'technology', 'products', 'pricing', 'partners', 'stories', 'emergency-awareness', 'faq', 'help-center', 'my-qr', 'emergency-preview', 'emergency-profile', 'privacy-settings', 'privacy-policy', 'demo', 'demo-admin', 'government-partnerships', 'institutional', 'account-deletion', 'data-deletion', 'security', 'responsible-disclosure', 'accessibility', 'terms', 'refund-policy', 'shipping-policy', 'privacy-center'].includes(location.pathname.split('/')[1]));
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
@@ -171,6 +175,7 @@ function App() {
                         <Route path="/payment" element={<PaymentPage />} />
                         <Route path="/privacy-settings" element={<PrivacySettings />} />
                         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                        <Route path="/privacy-center" element={<PrivacySettings />} />
                         <Route path="/success" element={<SuccessPage />} />
                         <Route path="/e/:id" element={<EmergencyPage />} />
                         <Route path="/qr/:profileId" element={<QRScanPage />} />
@@ -195,8 +200,18 @@ function App() {
                         <Route path="/solutions/enterprises" element={<SolutionsEnterprises />} />
                         <Route path="/solutions/schools" element={<SolutionsSchools />} />
                         <Route path="/solutions/government" element={<SolutionsGovernment />} />
+                        <Route path="/government-partnerships" element={<GovernmentPartnerships />} />
+                        <Route path="/institutional" element={<GovernmentPartnerships />} />
+                        <Route path="/account-deletion" element={<AccountDeletion />} />
+                        <Route path="/data-deletion" element={<AccountDeletion />} />
+                        <Route path="/security" element={<SecurityDisclosure />} />
+                        <Route path="/responsible-disclosure" element={<SecurityDisclosure />} />
+                        <Route path="/accessibility" element={<AccessibilityStatement />} />
                         <Route path="/safety-privacy" element={<SafetyPrivacy />} />
                         <Route path="/legal" element={<LegalPage />} />
+                        <Route path="/terms" element={<LegalPage />} />
+                        <Route path="/refund-policy" element={<LegalPage />} />
+                        <Route path="/shipping-policy" element={<LegalPage />} />
                         <Route path="/technology" element={<Technology />} />
                         <Route path="/products" element={<ProductsPage />} />
                         <Route path="/pricing" element={<PricingPage />} />

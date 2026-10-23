@@ -4,5 +4,7 @@ Disallow: /admin
 Disallow: /dashboard
 Disallow: /payment
 Disallow: /success
+Disallow: /privacy-settings
+Disallow: /api/
 
-Sitemap: https://resqr.co.in/sitemap.xml
+Sitemap: https://www.resqr.co.in/sitemap.xml

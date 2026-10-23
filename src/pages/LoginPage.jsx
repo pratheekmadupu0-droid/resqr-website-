@@ -10,7 +10,16 @@ import { Input, Select } from '../components/ui/Input';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { auth, db } from '../lib/firebase';
-import { signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
+import { 
+    signInAnonymously, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    GoogleAuthProvider, 
+    signInWithPopup, 
+    onAuthStateChanged,
+    RecaptchaVerifier,
+    signInWithPhoneNumber
+} from 'firebase/auth';
 import { ref, update, set, get } from 'firebase/database';
 import { extractFeatures } from '../lib/cvHelper';
 import { calculateAge } from '../lib/dateUtils';
@@ -62,16 +71,22 @@ function GoogleIcon() {
 
 export default function LoginPage() {
     const navigate = useNavigate();
-    const [selectedRole, setSelectedRole] = useState(null); // null, 'citizen', 'agent', 'hospital'
-    const [authState, setAuthState] = useState('card_select'); // card_select, google_verify, register_wizard, email_login, email_register
+    const [selectedRole, setSelectedRole] = useState('citizen'); // 'citizen' (default), 'agent', 'hospital', 'admin'
+    const [authState, setAuthState] = useState('card_select'); // card_select (now unified split-screen), register_wizard, email_login, email_register
     const [isRazorpayOpen, setIsRazorpayOpen] = useState(false);
     const [isQrPreviewOpen, setIsQrPreviewOpen] = useState(false);
-    const [expandedPortal, setExpandedPortal] = useState('citizen'); // 'citizen' default expanded
+    const [expandedPortal, setExpandedPortal] = useState('citizen');
     
     // Auth variables
     const [phoneNumber, setPhoneNumber] = useState('');
     const [generatedOtp, setGeneratedOtp] = useState('');
     const [enteredOtp, setEnteredOtp] = useState('');
+    const [countryCode, setCountryCode] = useState('+91');
+    const [confirmationResult, setConfirmationResult] = useState(null);
+    const [otpSent, setOtpSent] = useState(false);
+    const [resendTimer, setResendTimer] = useState(0);
+    const [phoneError, setPhoneError] = useState('');
+    const [authTab, setAuthTab] = useState('phone'); // 'phone' | 'email'
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -301,6 +316,165 @@ export default function LoginPage() {
             const nextFn = pendingConsentContext.onProceed;
             setPendingConsentContext(null);
             await nextFn();
+        }
+    };
+
+    // Resend Timer Effect for Phone OTP
+    useEffect(() => {
+        let interval = null;
+        if (resendTimer > 0) {
+            interval = setInterval(() => {
+                setResendTimer(prev => prev - 1);
+            }, 1000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [resendTimer]);
+
+    // Send Phone Verification Code via Firebase RecaptchaVerifier
+    const handleSendOtp = async (e) => {
+        if (e) e.preventDefault();
+        setPhoneError('');
+        const rawDigits = phoneNumber.replace(/[^0-9]/g, '');
+        if (rawDigits.length < 10) {
+            setPhoneError("Please enter a valid 10-digit mobile number.");
+            return;
+        }
+        setAuthLoading(true);
+        try {
+            if (!window.recaptchaVerifier) {
+                window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                    size: 'invisible',
+                    callback: () => {
+                        // reCAPTCHA solved - allow signInWithPhoneNumber
+                    },
+                    'expired-callback': () => {
+                        toast.error("Security verification expired. Please request OTP again.");
+                        if (window.recaptchaVerifier) {
+                            try { window.recaptchaVerifier.clear(); } catch(err) {}
+                            window.recaptchaVerifier = null;
+                        }
+                    }
+                });
+            }
+            const formattedPhone = `${countryCode}${rawDigits.slice(-10)}`;
+            const confirmation = await signInWithPhoneNumber(auth, formattedPhone, window.recaptchaVerifier);
+            setConfirmationResult(confirmation);
+            setOtpSent(true);
+            setResendTimer(60);
+            toast.success(`Verification code sent to ${formattedPhone}`);
+        } catch (err) {
+            console.error("Firebase phone auth error:", err);
+            if (window.recaptchaVerifier) {
+                try { window.recaptchaVerifier.clear(); } catch(e) {}
+                window.recaptchaVerifier = null;
+            }
+            if (err.code === 'auth/invalid-phone-number') {
+                setPhoneError("Invalid phone number format. Please check digits.");
+            } else if (err.code === 'auth/too-many-requests') {
+                setPhoneError("Too many OTP requests. Please wait a few minutes before trying again.");
+            } else if (err.code === 'auth/quota-exceeded') {
+                setPhoneError("SMS gateway quota reached. Please use Google Sign-In.");
+                toast.error("SMS limit reached. Please continue with Google.");
+            } else if (err.code === 'auth/captcha-check-failed') {
+                setPhoneError("reCAPTCHA check failed. Please refresh and try again.");
+            } else {
+                setPhoneError(err.message || "Failed to send verification code. Please check your network.");
+            }
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    // Verify 6-digit Phone OTP with Firebase Confirmation
+    const handleVerifyOtp = async (e) => {
+        if (e) e.preventDefault();
+        const cleanOtp = enteredOtp.replace(/[^0-9]/g, '');
+        if (cleanOtp.length !== 6) {
+            toast.error("Please enter the complete 6-digit verification code.");
+            return;
+        }
+        setAuthLoading(true);
+        try {
+            if (!confirmationResult) {
+                throw new Error("No active verification session. Please request a new code.");
+            }
+            const userCredential = await confirmationResult.confirm(cleanOtp);
+            const user = userCredential.user;
+
+            await logPrivacyAudit({
+                userId: user.uid,
+                action: 'PHONE_LOGIN',
+                details: { phone: user.phoneNumber }
+            });
+
+            // Immediately synchronize user in Realtime Database
+            const userData = await syncUserOnLogin(user, {
+                role: selectedRole || 'citizen'
+            });
+
+            if (userData) {
+                if (userData.status === 'pending') {
+                    toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
+                    await auth.signOut();
+                    setAuthLoading(false);
+                    return;
+                }
+
+                if (userData.role === 'admin') {
+                    localStorage.setItem('resqr_active_role', 'admin');
+                    toast.success("Welcome back, Administrator!");
+                    navigate('/admin');
+                    return;
+                }
+
+                const hasConsent = hasAcceptedLatestConsent(userData);
+                if (userData.role === 'citizen') {
+                    const hasProfiles = userData.profiles && Object.keys(userData.profiles).length > 0;
+                    if ((userData.profileCompleted || hasProfiles) && hasConsent) {
+                        toast.success(`Welcome back, ${userData.name || 'Citizen'}!`);
+                        navigate('/dashboard');
+                        return;
+                    }
+                } else if ((userData.role === 'agent' || userData.role === 'hospital') && hasConsent) {
+                    toast.success(`Welcome back, ${userData.name || 'User'}!`);
+                    navigate('/dashboard');
+                    return;
+                }
+            }
+
+            // Route new citizen to sequential registration wizard
+            setSelectedRole(selectedRole || 'citizen');
+            setPhoneNumber(user.phoneNumber || phoneNumber);
+            const regState = await fetchAuthoritativeRegistrationState(user.uid);
+            setCompletedSteps(regState.completedSteps || {});
+            const nextStep = getFirstIncompleteStep(regState.completedSteps);
+            setCitizenStep(nextStep);
+            setAuthState('register_wizard');
+            toast.success("Phone verified! Completing your emergency profile setup.");
+        } catch (err) {
+            console.error("OTP verification error:", err);
+            if (err.code === 'auth/invalid-verification-code') {
+                toast.error("Incorrect verification code. Please check and re-enter.");
+            } else if (err.code === 'auth/code-expired') {
+                toast.error("Verification code has expired. Please request a new OTP.");
+            } else {
+                toast.error(err.message || "OTP verification failed. Please try again.");
+            }
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const handleResetPhoneForm = () => {
+        setOtpSent(false);
+        setEnteredOtp('');
+        setConfirmationResult(null);
+        setPhoneError('');
+        if (window.recaptchaVerifier) {
+            try { window.recaptchaVerifier.clear(); } catch(e) {}
+            window.recaptchaVerifier = null;
         }
     };
 
@@ -1021,439 +1195,575 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-medical-bg flex items-center justify-center p-6 font-manrope selection:bg-primary/30 relative overflow-hidden">
-            <div className="w-full max-w-5xl py-12 relative z-10">
-                {/* Header branding */}
-                <div className="text-center mb-12">
-                    <Link to="/" className="inline-block relative group">
-                        <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <ResqrLogo className="relative h-16 w-auto" />
-                    </Link>
-                    <p className="text-slate-500 font-bold uppercase tracking-[0.25em] text-[10px] italic mt-4">
-                        Secure Enterprise-Grade Safety Network
-                    </p>
-                </div>
+        <div className="min-h-screen bg-[#111317] text-white font-manrope selection:bg-primary/30 relative overflow-hidden">
+            {/* Background ambient lighting */}
+            <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[140px] pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-crimson/10 rounded-full blur-[140px] pointer-events-none" />
+            <div className="absolute inset-0 qr-grid-pattern opacity-20 pointer-events-none" />
 
-                <AnimatePresence mode="wait">
-                    {/* Role Card Selector */}
-                    {authState === 'card_select' && (
-                        <motion.div 
-                            key="card_select"
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -30 }}
-                            className="space-y-12"
-                        >
-                            <div className="text-center space-y-3">
-                                <h1 className="text-4xl md:text-5xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
-                                    LOGIN TO <span className="text-primary italic-display">RESQR</span>
-                                </h1>
-                                <p className="text-slate-400 max-w-md mx-auto text-xs font-black uppercase tracking-[0.2em]">
-                                    Select your system portal to continue
-                                </p>
+            {/* Invisible container for Firebase Phone RecaptchaVerifier */}
+            <div id="recaptcha-container" className="hidden" />
+
+            <AnimatePresence mode="wait">
+                {/* Unified Split-Screen Authentication Experience (Citizen, Hospital, Agent, Admin) */}
+                {(authState === 'card_select' || authState === 'google_verify') && (
+                    <motion.div
+                        key="unified_auth_screen"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="min-h-screen flex flex-col lg:grid lg:grid-cols-12 relative z-10"
+                    >
+                        {/* LEFT COLUMN: Desktop Brand & Clinical Product Presentation (Hidden on Mobile) */}
+                        <div className="hidden lg:flex lg:col-span-5 xl:col-span-5 flex-col justify-between p-10 xl:p-14 bg-gradient-to-b from-[#14171C] via-[#101215] to-[#0D0E11] border-r border-white/5 relative">
+                            {/* Brand Header */}
+                            <div>
+                                <Link to="/" className="inline-flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-primary rounded-xl p-1">
+                                    <ResqrLogo className="h-12 w-auto" />
+                                </Link>
+                                <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                    Operated by Sion Enterprises
+                                </div>
                             </div>
 
-                            <div className="space-y-6">
-                                {/* Card 1: Citizen */}
-                                <Card 
-                                    onClick={() => setExpandedPortal(expandedPortal === 'citizen' ? null : 'citizen')}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-primary/30 hover:shadow-[0_15px_40px_rgba(230,57,70,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                                        {/* Left part: Icon & Role */}
-                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                            <div className="w-16 h-16 bg-primary/5 rounded-2xl flex items-center justify-center text-primary border border-primary/10 group-hover:scale-105 transition-transform">
-                                                <User size={30} />
+                            {/* Center Product Illustration / Editorial Narrative */}
+                            <div className="my-8 space-y-6">
+                                <div className="space-y-3">
+                                    <span className="text-[11px] font-black uppercase tracking-[0.25em] text-primary">
+                                        Intelligent Emergency Infrastructure
+                                    </span>
+                                    <h1 className="text-3xl xl:text-4xl font-black text-white tracking-tight leading-tight">
+                                        Emergency Information. <br />
+                                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400">
+                                            Within Reach.
+                                        </span>
+                                    </h1>
+                                    <p className="text-slate-400 text-xs xl:text-sm leading-relaxed font-normal">
+                                        RESQR connects a registered emergency profile to a scannable QR or NFC identifier, helping people reach designated emergency contacts and access permitted emergency information.
+                                    </p>
+                                </div>
+
+                                {/* Fictional Emergency Profile HUD Card */}
+                                <div className="bg-[#171A20]/90 rounded-2xl border border-white/10 p-5 shadow-2xl space-y-4 backdrop-blur-md">
+                                    <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-xs">
+                                                O+
                                             </div>
                                             <div>
-                                                <span className="inline-block text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                    CITIZEN CORE
-                                                </span>
-                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                    Users Portal
-                                                </h3>
+                                                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                    Rohan Sharma
+                                                    <span className="text-[9px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Active</span>
+                                                </div>
+                                                <div className="text-[10px] text-slate-500">ID: RQ-DEL-88219 • Age 31</div>
                                             </div>
                                         </div>
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                                            Simulated
+                                        </span>
+                                    </div>
 
-                                        {/* Center part: Detailed Info */}
-                                        <div className="flex-1 space-y-4">
-                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                                Create, secure, and manage your Emergency Medical Identity. Link next-of-kin, medical history, and insurance records to physical smart stickers.
-                                            </p>
-                                            <div className="flex flex-wrap gap-3">
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" /> Wallet QR Pass
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Sticker Mapping
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-primary" /> Encrypted Cloud
-                                                </span>
-                                            </div>
+                                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                        <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                                            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Emergency Contact</div>
+                                            <div className="text-white font-medium truncate mt-0.5">Ananya Sharma (Wife)</div>
+                                            <div className="text-[10px] text-primary font-mono mt-0.5">+91 98XXX XXXXX</div>
                                         </div>
-
-                                        {/* Right part: Action / Chevron */}
-                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
-                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
-                                                {expandedPortal === 'citizen' ? 'Collapse Specs' : 'View Portal Specs'}
-                                            </span>
-                                            {expandedPortal === 'citizen' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
+                                        <div className="p-2.5 rounded-xl bg-black/30 border border-white/5">
+                                            <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Clinical Allergies</div>
+                                            <div className="text-amber-400 font-medium truncate mt-0.5">Penicillin, Peanuts</div>
+                                            <div className="text-[10px] text-slate-400 mt-0.5">Carries Auto-Injector</div>
                                         </div>
                                     </div>
 
-                                    {/* Expanded Details */}
-                                    <AnimatePresence initial={false}>
-                                        {expandedPortal === 'citizen' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">01 / Dynamic Health Profile</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Input allergies, blood type, surgical history, and emergency contacts. Modify your safety parameters in real time.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">02 / Medical Sticker Sync</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Map your digital safety QR pass to premium physical stickers. Apply to helmets, gear, or carry as a wallet card.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-primary uppercase tracking-wider">03 / Granular Privacy Locks</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Choose what bystanders see (e.g., emergency contact only) versus verified medical response personnel.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
-                                                    <div className="text-left">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">SECURE REGISTRATION</span>
-                                                        <p className="text-[11px] text-slate-400">Verifying via secure Google Authentication protocol</p>
-                                                    </div>
-                                                    <Button 
-                                                        onClick={() => { setSelectedRole('citizen'); setAuthState('google_verify'); }}
-                                                        className="w-full sm:w-auto px-10 py-4 bg-primary hover:bg-primary/95 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
-                                                    >
-                                                        Login / Register
-                                                    </Button>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Card>
-
-                                {/* Card 2: Agent */}
-                                <Card 
-                                    onClick={() => setExpandedPortal(expandedPortal === 'agent' ? null : 'agent')}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-blue-500/30 hover:shadow-[0_15px_40px_rgba(59,130,246,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                                        {/* Left part: Icon & Role */}
-                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                            <div className="w-16 h-16 bg-blue-500/5 rounded-2xl flex items-center justify-center text-blue-400 border border-blue-500/10 group-hover:scale-105 transition-transform">
-                                                <ShieldCheck size={30} />
-                                            </div>
-                                            <div>
-                                                <span className="inline-block text-[9px] font-black tracking-widest text-blue-400 uppercase bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                    PARTNER FIELD
-                                                </span>
-                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                    Agent Portal
-                                                </h3>
-                                            </div>
-                                        </div>
-
-                                        {/* Center part: Detailed Info */}
-                                        <div className="flex-1 space-y-4">
-                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                                Authorized RESQR Sales, Distribution, & Support Channel Partner console. Review registration pipelines and track community onboardings.
-                                            </p>
-                                            <div className="flex flex-wrap gap-3">
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /> Sales Telemetry
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Onboarding Audits
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" /> CSV Deployment
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Right part: Action / Chevron */}
-                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
-                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
-                                                {expandedPortal === 'agent' ? 'Collapse Specs' : 'View Portal Specs'}
-                                            </span>
-                                            {expandedPortal === 'agent' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
-                                        </div>
+                                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-400">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                            Bystander Scan View Level
+                                        </span>
+                                        <span className="font-mono text-slate-500">DPDP Consent v2.4</span>
                                     </div>
+                                </div>
 
-                                    {/* Expanded Details */}
-                                    <AnimatePresence initial={false}>
-                                        {expandedPortal === 'agent' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">01 / Onboarding Telemetry</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Track your local citizen registrations, distribution statistics, and commission pipeline from a unified dashboard.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">02 / Physical Sticker Kits</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Distribute, map, and scan safety codes on the field. Act as a verified agent for citizen account creations.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-blue-400 uppercase tracking-wider">03 / Institutional Audits</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Perform direct validation checks for community partners, ensuring absolute accuracy of emergency medical databases.
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
-                                                    <div className="text-left">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">AGENT AUTHENTICATION</span>
-                                                        <p className="text-[11px] text-slate-400">Restricted to authorized channel partners</p>
-                                                    </div>
-                                                    <Button 
-                                                        onClick={() => { setSelectedRole('agent'); setAuthState('google_verify'); }}
-                                                        className="w-full sm:w-auto px-10 py-4 bg-slate-950 border border-white/5 hover:border-blue-500/20 hover:bg-blue-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all"
-                                                    >
-                                                        Agent Login
-                                                    </Button>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Card>
+                                {/* 4 Trust Points */}
+                                <div className="space-y-2.5 pt-2">
+                                    {[
+                                        'Standardized scannable QR & NFC hardware identifiers',
+                                        'Granular role-based emergency access controls',
+                                        'Zero app installation required for first responders',
+                                        'Aligned with DPDP Act 2023 & IT Act 2000'
+                                    ].map((point, idx) => (
+                                        <div key={idx} className="flex items-center gap-2 text-xs text-slate-400">
+                                            <Check size={14} className="text-primary shrink-0" />
+                                            <span>{point}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
 
-                                {/* Card 3: Hospital */}
-                                <Card 
-                                    onClick={() => setExpandedPortal(expandedPortal === 'hospital' ? null : 'hospital')}
-                                    className="p-8 md:p-10 bg-slate-900/40 border-white/5 hover:border-emerald-500/30 hover:shadow-[0_15px_40px_rgba(16,185,129,0.12)] transition-all duration-300 rounded-[35px] cursor-pointer backdrop-blur-md relative overflow-hidden group"
+                            {/* Institutional Entity Note */}
+                            <div className="pt-6 border-t border-white/5 text-[11px] text-slate-500 flex items-center justify-between">
+                                <span>Emergency Tech Platform</span>
+                                <span>resqr.co.in</span>
+                            </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: Interactive Authentication Console */}
+                        <div className="flex-1 lg:col-span-7 xl:col-span-7 flex flex-col justify-between p-6 sm:p-10 lg:p-12 xl:p-16 overflow-y-auto">
+                            {/* Top Navigation Bar */}
+                            <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+                                <div className="flex items-center gap-3 lg:hidden">
+                                    <Link to="/" className="inline-block">
+                                        <ResqrLogo className="h-9 w-auto" />
+                                    </Link>
+                                </div>
+                                <div className="hidden lg:block">
+                                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                                        Portal Sign In & Registration
+                                    </span>
+                                </div>
+                                <Link
+                                    to="/"
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors py-1 px-3 rounded-lg hover:bg-white/5"
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                    
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                                        {/* Left part: Icon & Role */}
-                                        <div className="flex items-center gap-6 md:w-1/4 shrink-0">
-                                            <div className="w-16 h-16 bg-emerald-500/5 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/10 group-hover:scale-105 transition-transform">
-                                                <Building size={30} />
-                                            </div>
-                                            <div>
-                                                <span className="inline-block text-[9px] font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                    CLINICAL NODE
-                                                </span>
-                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                    Hospital Hub
-                                                </h3>
-                                            </div>
-                                        </div>
+                                    <ArrowLeft size={14} /> Back to resqr.co.in
+                                </Link>
+                            </div>
 
-                                        {/* Center part: Detailed Info */}
-                                        <div className="flex-1 space-y-4">
-                                            <p className="text-slate-400 text-sm leading-relaxed font-medium max-w-xl">
-                                                Verified Trauma, ER admissions, & Hospital Emergency Response integration terminal. Instant verified access to incoming patient telemetry.
-                                            </p>
-                                            <div className="flex flex-wrap gap-3">
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Paramedic Sync
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Trauma Unit Active
-                                                </span>
-                                                <span className="text-[10px] font-bold text-slate-500 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/5 uppercase tracking-wider flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Compliance Logs
-                                                </span>
+                            {/* Center Authentication Card */}
+                            <div className="w-full max-w-xl mx-auto my-auto space-y-6">
+                                {/* Role Switcher Pills */}
+                                <div className="p-1.5 bg-[#171A20] rounded-2xl border border-white/5 flex gap-1 overflow-x-auto">
+                                    {[
+                                        { id: 'citizen', label: 'Citizen', desc: 'Personal Safety' },
+                                        { id: 'hospital', label: 'Hospital / ER', desc: 'Clinical Access' },
+                                        { id: 'agent', label: 'Channel Agent', desc: 'Partner Console' },
+                                        { id: 'admin', label: 'Administrator', desc: 'Platform Governance' }
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setSelectedRole(tab.id);
+                                                handleResetPhoneForm();
+                                            }}
+                                            className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl text-center transition-all ${
+                                                selectedRole === tab.id
+                                                    ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20 scale-[1.01]'
+                                                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium'
+                                            }`}
+                                        >
+                                            <div className="text-xs leading-none">{tab.label}</div>
+                                            <div className={`text-[9px] mt-1 leading-none ${selectedRole === tab.id ? 'text-white/80' : 'text-slate-500'}`}>
+                                                {tab.desc}
                                             </div>
-                                        </div>
+                                        </button>
+                                    ))}
+                                </div>
 
-                                        {/* Right part: Action / Chevron */}
-                                        <div className="shrink-0 flex items-center gap-3 text-slate-500 group-hover:text-white transition-colors">
-                                            <span className="text-[9px] font-bold uppercase tracking-wider hidden md:inline">
-                                                {expandedPortal === 'hospital' ? 'Collapse Specs' : 'View Portal Specs'}
-                                            </span>
-                                            {expandedPortal === 'hospital' ? <ChevronUp size={18} /> : <ChevronDown size={18} className="transform group-hover:translate-y-0.5 transition-transform" />}
-                                        </div>
-                                    </div>
-
-                                    {/* Expanded Details */}
-                                    <AnimatePresence initial={false}>
-                                        {expandedPortal === 'hospital' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="overflow-hidden mt-6 pt-6 border-t border-white/5 space-y-6"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">01 / Intake Stream Feed</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Receive instant telemetry updates of incoming patients before they arrive. Prepare triage units and ICU beds in advance.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">02 / EHR Sync</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Secure, HIPAA-compliant access to emergency contact details, blood groups, allergies, and pre-existing conditions.
-                                                        </p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
-                                                        <h4 className="text-xs font-black text-emerald-400 uppercase tracking-wider">03 / Compliance Logs</h4>
-                                                        <p className="text-slate-500 text-[11px] leading-relaxed">
-                                                            Manage ambulance integrations, trace field scans, and monitor security access logs across multiple wards.
-                                                        </p>
-                                                    </div>
+                                {/* Form Panel Card */}
+                                <Card className="p-6 sm:p-8 bg-[#171A20]/80 border-white/10 shadow-2xl rounded-3xl backdrop-blur-xl relative">
+                                    {/* CITIZEN AUTHENTICATION VIEW */}
+                                    {selectedRole === 'citizen' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            {/* Heading & Subhead */}
+                                            <div className="space-y-1.5 text-left">
+                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
+                                                    Citizen Access
                                                 </div>
-                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/5">
-                                                    <div className="text-left">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">CLINICAL HUB LOGIN</span>
-                                                        <p className="text-[11px] text-slate-400">Requires verified trauma center authorization credentials</p>
-                                                    </div>
-                                                    <Button 
-                                                        onClick={() => { setSelectedRole('hospital'); setAuthState('email_login'); }}
-                                                        className="w-full sm:w-auto px-10 py-4 bg-slate-950 border border-white/5 hover:border-emerald-500/20 hover:bg-emerald-500/5 text-white rounded-2xl font-black italic uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-95 transition-all"
-                                                    >
-                                                        Hospital Login
-                                                    </Button>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </Card>
-
-                                {/* Card 4: Pet RESQR Safety Profile */}
-                                <Card 
-                                    className="p-8 md:p-10 bg-gradient-to-r from-[#090E1A] via-slate-900/60 to-[#090E1A] border-white/10 hover:border-primary/40 hover:shadow-[0_15px_40px_rgba(230,57,70,0.15)] transition-all duration-300 rounded-[35px] backdrop-blur-md relative overflow-hidden"
-                                >
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div className="flex items-center gap-6">
-                                            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary text-2xl border border-primary/20 shrink-0">
-                                                🐾
-                                            </div>
-                                            <div>
-                                                <span className="inline-block text-[9px] font-black tracking-widest text-primary uppercase bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full italic mb-2">
-                                                    PET RESQR IDENTITY
-                                                </span>
-                                                <h3 className="text-2xl font-black italic uppercase tracking-tighter font-poppins text-white">
-                                                    Create Pet RESQR
-                                                </h3>
-                                                <p className="text-slate-400 text-sm font-medium mt-1">
-                                                    Help your pet get home safely.
+                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                                                    Welcome to RESQR
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
+                                                    Sign in or create your account to manage your emergency profile.
                                                 </p>
                                             </div>
-                                        </div>
 
-                                        <div className="flex items-center gap-3">
-                                            <Link
-                                                to="/create-pet"
-                                                className="w-full sm:w-auto btn-app-primary py-3.5 px-8 text-xs font-bold inline-flex items-center justify-center gap-2 shadow-xl shadow-primary/20"
-                                            >
-                                                Create Pet RESQR <ArrowRight size={16} />
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </Card>
-                            </div>
-                        </motion.div>
-                    )}
+                                            {/* PHONE OTP FLOW (PRIMARY METHOD) */}
+                                            <div className="space-y-4 pt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                                                        <Phone size={14} className="text-primary" />
+                                                        Continue with Phone
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">
+                                                        Primary Method
+                                                    </span>
+                                                </div>
 
-                    {/* Google verification flow (Citizen / Agent) */}
-                    {authState === 'google_verify' && (
-                        <motion.div 
-                            key="google_verify"
-                            initial={{ opacity: 0, x: -30 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 30 }}
-                            className="max-w-md mx-auto"
-                        >
-                            <Card className="p-10 bg-medical-card border-white/5 shadow-2xl rounded-[40px] relative overflow-hidden">
-                                <button onClick={() => setAuthState('card_select')} className="mb-6 flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-widest italic">
-                                    <ArrowLeft size={14} /> Back
-                                </button>
-                                <div className="space-y-4 mb-8">
-                                    <h2 className="text-3xl font-black italic uppercase tracking-tighter font-poppins">
-                                        {selectedRole === 'citizen' ? 'Citizen' : 'Agent'} Login
-                                    </h2>
-                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-widest italic">
-                                        Secure Google Authentication Sequence
-                                    </p>
-                                </div>
+                                                {!otpSent ? (
+                                                    /* Phase 1: Enter Phone Number */
+                                                    <form onSubmit={handleSendOtp} className="space-y-3">
+                                                        <div className="flex gap-2">
+                                                            {/* Country Code Selector */}
+                                                            <div className="w-28 shrink-0">
+                                                                <select
+                                                                    value={countryCode}
+                                                                    onChange={(e) => setCountryCode(e.target.value)}
+                                                                    aria-label="Country calling code"
+                                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer"
+                                                                >
+                                                                    <option value="+91" className="bg-[#17191D] text-white">🇮🇳 +91 (IN)</option>
+                                                                    <option value="+1" className="bg-[#17191D] text-white">🇺🇸 +1 (US)</option>
+                                                                    <option value="+44" className="bg-[#17191D] text-white">🇬🇧 +44 (UK)</option>
+                                                                    <option value="+971" className="bg-[#17191D] text-white">🇦🇪 +971 (AE)</option>
+                                                                    <option value="+65" className="bg-[#17191D] text-white">🇸🇬 +65 (SG)</option>
+                                                                    <option value="+61" className="bg-[#17191D] text-white">🇦🇺 +61 (AU)</option>
+                                                                </select>
+                                                            </div>
 
-                                <div className="space-y-6">
-                                    <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                                        Authenticate using your official Google Account to access the RESQR platform.
-                                    </p>
+                                                            {/* Phone Number Input */}
+                                                            <div className="flex-1 relative">
+                                                                <input
+                                                                    type="tel"
+                                                                    inputMode="numeric"
+                                                                    autoComplete="tel"
+                                                                    placeholder="98765 43210"
+                                                                    value={phoneNumber}
+                                                                    onChange={(e) => {
+                                                                        setPhoneError('');
+                                                                        setPhoneNumber(e.target.value.replace(/\D/g, ''));
+                                                                    }}
+                                                                    maxLength={12}
+                                                                    aria-label="Phone number"
+                                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-sm font-semibold text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                                                />
+                                                            </div>
+                                                        </div>
 
-                                    <Button 
-                                        onClick={handleGoogleSignIn}
-                                        disabled={authLoading}
-                                        className="w-full py-7 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black italic uppercase tracking-widest text-xs shadow-xl flex items-center justify-center border border-slate-200"
-                                    >
-                                        {authLoading ? (
-                                            <>
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                                Connecting Securely...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <GoogleIcon />
-                                                Continue with Google
-                                            </>
-                                        )}
-                                    </Button>
+                                                        {phoneError && (
+                                                            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                                                                <AlertTriangle size={14} className="shrink-0" />
+                                                                <span>{phoneError}</span>
+                                                            </div>
+                                                        )}
 
-                                    {selectedRole === 'citizen' && (
-                                        <div className="pt-2 text-center">
-                                            <div className="flex items-center gap-3 my-4">
-                                                <div className="h-px bg-white/10 flex-1" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Or</span>
-                                                <div className="h-px bg-white/10 flex-1" />
+                                                        <Button
+                                                            type="submit"
+                                                            disabled={authLoading || !phoneNumber}
+                                                            className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                        >
+                                                            {authLoading ? (
+                                                                <>
+                                                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                    Sending Verification Code...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    Send OTP Verification Code <ArrowRight size={14} />
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </form>
+                                                ) : (
+                                                    /* Phase 2: Enter 6-digit OTP */
+                                                    <form onSubmit={handleVerifyOtp} className="space-y-4 bg-black/30 p-4 rounded-2xl border border-white/5">
+                                                        <div className="flex items-center justify-between text-xs">
+                                                            <span className="text-slate-400">
+                                                                Code sent to <span className="text-white font-mono font-bold">{countryCode} {phoneNumber}</span>
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleResetPhoneForm}
+                                                                className="text-primary hover:underline font-bold text-[11px]"
+                                                            >
+                                                                Change Number
+                                                            </button>
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1.5">
+                                                                Enter 6-Digit OTP Code
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                inputMode="numeric"
+                                                                pattern="[0-9]*"
+                                                                autoComplete="one-time-code"
+                                                                autoFocus
+                                                                maxLength={6}
+                                                                value={enteredOtp}
+                                                                onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
+                                                                placeholder="••••••"
+                                                                className="w-full h-13 bg-black/60 border border-primary/40 rounded-xl px-4 text-center text-2xl font-mono font-black tracking-[0.5em] text-white focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                                                            />
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between text-xs">
+                                                            <span className="text-slate-500">
+                                                                {resendTimer > 0 ? (
+                                                                    <>Resend code in <span className="text-primary font-mono font-bold">{resendTimer}s</span></>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleSendOtp}
+                                                                        disabled={authLoading}
+                                                                        className="text-primary hover:underline font-bold"
+                                                                    >
+                                                                        Resend OTP
+                                                                    </button>
+                                                                )}
+                                                            </span>
+                                                            <span className="text-[10px] text-slate-500">Firebase Auth</span>
+                                                        </div>
+
+                                                        <Button
+                                                            type="submit"
+                                                            disabled={authLoading || enteredOtp.length !== 6}
+                                                            className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                                        >
+                                                            {authLoading ? (
+                                                                <>
+                                                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                                    Verifying Code...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Check size={16} /> Verify & Access Profile
+                                                                </>
+                                                            )}
+                                                        </Button>
+                                                    </form>
+                                                )}
                                             </div>
+
+                                            {/* DIVIDER */}
+                                            <div className="relative flex items-center justify-center">
+                                                <div className="absolute inset-0 flex items-center">
+                                                    <div className="w-full border-t border-white/10" />
+                                                </div>
+                                                <div className="relative px-3 bg-[#171A20] text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                                    Or continue with
+                                                </div>
+                                            </div>
+
+                                            {/* GOOGLE SIGN-IN (SECONDARY METHOD) */}
                                             <button
                                                 type="button"
-                                                onClick={handleStartDirectCitizenRegistration}
+                                                onClick={handleGoogleSignIn}
                                                 disabled={authLoading}
-                                                className="w-full py-4 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 rounded-2xl font-black uppercase italic tracking-widest text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
                                             >
-                                                Start Registration Directly
-                                                <ArrowRight size={14} />
+                                                {authLoading ? (
+                                                    <>
+                                                        <span className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin mr-2" />
+                                                        Connecting Securely...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <GoogleIcon />
+                                                        Continue with Google
+                                                    </>
+                                                )}
                                             </button>
+
+                                            {/* ALTERNATIVE ACTIONS */}
+                                            <div className="pt-2 border-t border-white/5 space-y-3">
+                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleStartDirectCitizenRegistration}
+                                                        className="text-primary hover:underline font-bold inline-flex items-center gap-1"
+                                                    >
+                                                        Create new profile without sign-in <ArrowRight size={12} />
+                                                    </button>
+                                                    <Link
+                                                        to="/create-pet"
+                                                        className="text-slate-400 hover:text-white transition-colors text-[11px] font-medium"
+                                                    >
+                                                        Protect a Pet 🐾
+                                                    </Link>
+                                                </div>
+
+                                                {/* Demo Citizen Shortcut */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDemoLogin('citizen')}
+                                                    className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-[11px] font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Sparkles size={13} className="text-primary" />
+                                                    1-Click Demo Citizen (Government / Evaluator Preview)
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
+
+                                    {/* HOSPITAL & ER CLINICAL VIEW */}
+                                    {selectedRole === 'hospital' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="space-y-1.5 text-left">
+                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
+                                                    Clinical Infrastructure
+                                                </div>
+                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                                                    Hospital & ER Portal
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
+                                                    Authorized access for trauma centers, ER admissions, and clinical staff.
+                                                </p>
+                                            </div>
+
+                                            <form onSubmit={handleHospitalEmailSubmit} className="space-y-4">
+                                                <Input
+                                                    label="Hospital Email Address"
+                                                    type="email"
+                                                    placeholder="er.coordinator@hospital.org"
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    required
+                                                />
+                                                <Input
+                                                    label="Vault Access Key / Password"
+                                                    type="password"
+                                                    placeholder="••••••••"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    required
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    disabled={authLoading}
+                                                    className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25"
+                                                >
+                                                    {authLoading ? 'Verifying Hospital Credentials...' : 'Access Hospital Command Terminal'}
+                                                </Button>
+                                            </form>
+
+                                            <div className="pt-2 border-t border-white/5 space-y-3 text-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAuthState('email_register')}
+                                                    className="text-xs text-primary font-bold hover:underline"
+                                                >
+                                                    Register New Hospital or Trauma Facility →
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDemoLogin('hospital')}
+                                                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[11px] font-bold text-emerald-300 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Sparkles size={13} className="text-emerald-400" />
+                                                    1-Click Demo Hospital Console (Evaluator Mode)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* AGENT PORTAL VIEW */}
+                                    {selectedRole === 'agent' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="space-y-1.5 text-left">
+                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
+                                                    Distribution Partner
+                                                </div>
+                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                                                    Authorized Agent Console
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
+                                                    Sales telemetry, community onboarding, and sticker distribution.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleGoogleSignIn}
+                                                disabled={authLoading}
+                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
+                                            >
+                                                {authLoading ? 'Verifying...' : (
+                                                    <>
+                                                        <GoogleIcon />
+                                                        Sign In with Agent Google Account
+                                                    </>
+                                                )}
+                                            </button>
+
+                                            <div className="pt-2 border-t border-white/5 space-y-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDemoLogin('agent')}
+                                                    className="w-full py-2.5 px-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[11px] font-bold text-blue-300 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Sparkles size={13} className="text-blue-400" />
+                                                    1-Click Demo Agent Console (Field Partner Mode)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ADMINISTRATOR VIEW */}
+                                    {selectedRole === 'admin' && (
+                                        <div className="space-y-6 animate-in fade-in duration-200">
+                                            <div className="space-y-1.5 text-left">
+                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
+                                                    Platform Governance
+                                                </div>
+                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                                                    System Administrator
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
+                                                    Authorized access restricted to Sion Enterprises platform operators.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleGoogleSignIn}
+                                                disabled={authLoading}
+                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
+                                            >
+                                                <GoogleIcon />
+                                                Sign In with Authorized Admin Account
+                                            </button>
+
+                                            <div className="pt-2 border-t border-white/5 space-y-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDemoLogin('admin')}
+                                                    className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-[11px] font-bold text-amber-300 transition-all flex items-center justify-center gap-2"
+                                                >
+                                                    <Sparkles size={13} className="text-amber-400" />
+                                                    1-Click Demo Admin Console (Audit & Telemetry Mode)
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </Card>
+
+                                {/* Privacy Note & Mandatory Legal Disclosures */}
+                                <div className="text-center space-y-2 pt-2">
+                                    <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
+                                        Your information is handled according to RESQR's{' '}
+                                        <Link to="/privacy-policy" className="text-white hover:text-primary underline font-medium">
+                                            Privacy Policy
+                                        </Link>{' '}
+                                        and access controls.
+                                    </p>
+                                    <div className="flex flex-wrap justify-center gap-3 text-[10px] text-slate-500 uppercase tracking-wider">
+                                        <Link to="/terms" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
+                                        <span>•</span>
+                                        <Link to="/security-disclosure" className="hover:text-slate-300 transition-colors">Security Disclosure</Link>
+                                        <span>•</span>
+                                        <Link to="/account-deletion" className="hover:text-slate-300 transition-colors">Data Rights (DPDP 2023)</Link>
+                                    </div>
                                 </div>
-                            </Card>
-                        </motion.div>
-                    )}
+                            </div>
+
+                            {/* Bottom Operational Status Bar */}
+                            <div className="pt-8 text-center text-[10px] text-slate-600 flex items-center justify-center gap-4">
+                                <span className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                    Firebase Auth Active
+                                </span>
+                                <span>•</span>
+                                <span>Sion Enterprises</span>
+                                <span>•</span>
+                                <span>v2.6 Enterprise</span>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
 
                     {/* Citizen Registration Wizard */}
                     {authState === 'register_wizard' && selectedRole === 'citizen' && (
@@ -2788,7 +3098,6 @@ export default function LoginPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
 
             {/* Reusable Demo Razorpay Payment Gateway Modal */}
             <Suspense fallback={null}>

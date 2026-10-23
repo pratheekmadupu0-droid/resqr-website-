@@ -113,7 +113,7 @@ export default function MyQR() {
         ctx.textAlign = 'center';
         ctx.fillText(userNameText, CANVAS_W / 2, logoH + 130 + 720 + 80);
 
-        ctx.fillStyle = '#E63946';
+        ctx.fillStyle = '#D71920';
         ctx.font = 'italic 900 44px sans-serif';
         ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, logoH + 130 + 720 + 150);
 
@@ -379,10 +379,10 @@ export default function MyQR() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[#050B18] border border-white/5">
-                                        <Droplet size={18} className="text-[#E63946]" />
+                                        <Droplet size={18} className="text-primary" />
                                         <div>
                                             <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">Blood Group</p>
-                                            <p className="text-2xl font-black italic text-[#E63946] font-poppins leading-none">{resolved.bloodGroup || '—'}</p>
+                                            <p className="text-2xl font-black italic text-primary font-poppins leading-none">{resolved.bloodGroup || '—'}</p>
                                         </div>
                                     </div>
                                 </div>

@@ -270,8 +270,11 @@ export default function SolutionsHospitals() {
             <section className="py-24 bg-slate-950 border-y border-white/5 px-4">
                 <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-16">
+                        <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 mb-4 px-4 py-1 text-[10px] font-black uppercase tracking-widest">
+                            SIMULATED WORKFLOW DEMO · FICTIONAL PROFILES
+                        </Badge>
                         <h2 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter font-poppins">HOSPITAL TRIAGE DASHBOARD PREVIEW</h2>
-                        <p className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mt-3">Interactive ER reception system interface</p>
+                        <p className="text-slate-500 text-xs font-black uppercase tracking-[0.2em] mt-3">Interactive ER reception system interface for clinical partners</p>
                     </div>
 
                     <Card className="bg-medical-card border-white/5 overflow-hidden p-0 rounded-[40px] shadow-2xl relative">

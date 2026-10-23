@@ -8,20 +8,23 @@
    ============================================================ */
 
 :root {
-    --resqr-bg: #05080F;
-    --resqr-bg-alt: #0A101D;
-    --resqr-card: #0C1322;
-    --resqr-card-2: #11192A;
-    --resqr-red: #E63946;
-    --resqr-red-soft: rgba(230, 57, 70, 0.14);
-    --resqr-gold: #D9A441;
-    --resqr-gold-soft: rgba(217, 164, 65, 0.16);
-    --resqr-green: #22C55E;
-    --resqr-text: #F4F5F7;
-    --resqr-text-dim: #8A93A6;
-    --resqr-radius-xl: 24px;
-    --resqr-radius-2xl: 32px;
-    --resqr-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --resqr-bg: #0C0E12;
+    --resqr-bg-alt: #131519;
+    --resqr-card: #17191D;
+    --resqr-card-2: #1E2228;
+    --resqr-red: #D71920;
+    --resqr-crimson: #A80F19;
+    --resqr-charcoal: #17191D;
+    --resqr-softbg: #F6F7F8;
+    --resqr-muted: #626975;
+    --resqr-border: #E5E7EB;
+    --resqr-red-soft: rgba(215, 25, 32, 0.12);
+    --resqr-green: #10B981;
+    --resqr-text: #F8F9FA;
+    --resqr-text-dim: #94A3B8;
+    --resqr-radius-xl: 20px;
+    --resqr-radius-2xl: 28px;
+    --resqr-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html {
@@ -33,33 +36,33 @@ html {
 body {
     background: var(--resqr-bg);
     color: var(--resqr-text);
-    font-family: 'Inter', 'Manrope', sans-serif;
+    font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
 }
 
 ::selection {
-    background: rgba(230, 57, 70, 0.35);
+    background: rgba(215, 25, 32, 0.35);
     color: #fff;
 }
 
 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: #060A13;
+    background: #0C0E12;
 }
 ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #2a3348, #1a2132);
-    border-radius: 8px;
+    background: #272B33;
+    border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
     background: var(--resqr-red);
 }
 
-/* ---------- Tileable premium backdrop ---------- */
+/* ---------- Elegant subtle emergency grid backdrop ---------- */
 body::before {
     content: '';
     position: fixed;
@@ -67,14 +70,21 @@ body::before {
     z-index: -1;
     pointer-events: none;
     background:
-        radial-gradient(1200px 600px at 85% 8%, rgba(230, 57, 70, 0.055), transparent 60%),
-        radial-gradient(900px 500px at 12% 30%, rgba(217, 164, 65, 0.035), transparent 60%),
-        radial-gradient(1400px 800px at 50% 100%, rgba(29, 53, 87, 0.12), transparent 65%),
-        linear-gradient(180deg, #04070C 0%, #05080F 40%, #060A13 100%);
+        radial-gradient(1000px 500px at 80% 5%, rgba(215, 25, 32, 0.05), transparent 60%),
+        radial-gradient(1200px 700px at 20% 90%, rgba(23, 25, 29, 0.5), transparent 70%),
+        linear-gradient(180deg, #0C0E12 0%, #111317 40%, #0C0E12 100%);
+}
+
+/* Subtle QR geometric grid overlay */
+.qr-grid-pattern {
+    background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
 }
 
 /* ---------- Standard Page Container ---------- */
-.page-bg-ganesha {
+.page-bg-ganesha, .page-bg-resqr {
     position: relative;
     z-index: 0;
     isolation: isolate;
@@ -680,8 +690,8 @@ body::before {
 }
 
 .step-line-done {
-    background: linear-gradient(90deg, var(--resqr-red), var(--resqr-gold));
-    box-shadow: 0 0 10px rgba(217, 164, 65, 0.35);
+    background: linear-gradient(90deg, var(--resqr-red), var(--resqr-crimson));
+    box-shadow: 0 0 10px rgba(215, 25, 32, 0.35);
 }
 
 /* ---------- Buttons ---------- */
@@ -691,17 +701,17 @@ body::before {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    min-height: 54px;
+    min-height: 52px;
     padding: 0 26px;
     border: none;
-    border-radius: 18px;
-    background: linear-gradient(135deg, #E63946 0%, #E63946 60%, #D22A38 100%);
+    border-radius: 16px;
+    background: linear-gradient(135deg, #D71920 0%, #B8141B 60%, #A80F19 100%);
     color: #fff;
-    font-family: 'Manrope', 'Inter', sans-serif;
-    font-size: 15px;
-    font-weight: 800;
+    font-family: 'Inter', 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
     letter-spacing: 0.02em;
-    box-shadow: 0 10px 26px rgba(230, 57, 70, 0.32), 0 2px 8px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 24px rgba(215, 25, 32, 0.28), 0 2px 6px rgba(0, 0, 0, 0.3);
     transition: transform 0.18s var(--resqr-ease), box-shadow 0.25s ease, filter 0.2s ease;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -709,12 +719,12 @@ body::before {
 
 .btn-app-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(230, 57, 70, 0.4);
-    filter: brightness(1.06);
+    box-shadow: 0 14px 30px rgba(215, 25, 32, 0.38);
+    filter: brightness(1.08);
 }
 
 .btn-app-primary:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
 }
 
 .btn-app-primary:disabled {
@@ -722,33 +732,35 @@ body::before {
     pointer-events: none;
 }
 
-.btn-app-gold {
+.btn-app-charcoal {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    min-height: 54px;
+    min-height: 52px;
     padding: 0 26px;
-    border: none;
-    border-radius: 18px;
-    background: linear-gradient(135deg, #F2C94C 0%, #D9A441 55%, #B8863B 100%);
-    color: #1B0E05;
-    font-family: 'Manrope', 'Inter', sans-serif;
-    font-size: 15px;
-    font-weight: 800;
-    box-shadow: 0 10px 26px rgba(217, 164, 65, 0.3), 0 2px 8px rgba(0, 0, 0, 0.4);
-    transition: transform 0.18s var(--resqr-ease), box-shadow 0.25s ease;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    background: #17191D;
+    color: #FFFFFF;
+    font-family: 'Inter', 'Manrope', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    transition: transform 0.18s var(--resqr-ease), box-shadow 0.25s ease, border-color 0.2s ease, background 0.2s ease;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
 
-.btn-app-gold:hover {
+.btn-app-charcoal:hover {
     transform: translateY(-2px);
-    box-shadow: 0 16px 34px rgba(217, 164, 65, 0.4);
+    border-color: rgba(255, 255, 255, 0.25);
+    background: #1F2228;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
 }
 
-.btn-app-gold:active {
-    transform: scale(0.96);
+.btn-app-charcoal:active {
+    transform: scale(0.97);
 }
 
 .btn-app-outline {

@@ -305,7 +305,7 @@ export default function DashboardCitizen() {
             ctx.textAlign = 'center';
             ctx.fillText(displayName, CANVAS_W / 2, logoH + 130 + 720 + 80);
 
-            ctx.fillStyle = '#E63946';
+            ctx.fillStyle = '#D71920';
             ctx.font = 'italic 900 44px sans-serif';
             ctx.fillText('SCAN IN EMERGENCY', CANVAS_W / 2, logoH + 130 + 720 + 150);
 
@@ -406,7 +406,7 @@ export default function DashboardCitizen() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6 cursor-pointer hover:border-indigo-500/30 transition-all group/stat" onClick={() => document.getElementById('recent-scans')?.scrollIntoView({ behavior: 'smooth' })}><div className="w-14 h-14 bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-500/20 group-hover/stat:bg-indigo-500/20 transition-all"><QrCode size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Total Scans</p><p className="text-4xl font-black italic uppercase tracking-tight font-poppins text-white">{activeProfile?.scans ? Object.keys(activeProfile.scans).length : 0}</p></div></div>
                     <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6"><div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-500/20"><User size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Health Status</p><p className="text-4xl font-black italic uppercase tracking-tighter font-poppins text-emerald-400">Verified</p></div></div>
-                    <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6"><div className="w-14 h-14 bg-[#E63946]/10 rounded-2xl flex items-center justify-center border border-red-500/20"><ShieldCheck size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Safety Index</p><p className="text-4xl font-black italic uppercase tracking-tighter font-poppins text-white">High</p></div></div>
+                    <div className="bg-[#11192A] p-8 rounded-3xl border border-white/5 flex items-center gap-6"><div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20 text-primary"><ShieldCheck size={24} /></div><div><p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Safety Index</p><p className="text-4xl font-black italic uppercase tracking-tighter font-poppins text-white">High</p></div></div>
                     <div 
                         onClick={() => setIsFaceEnrollModalOpen(true)}
                         className={`bg-[#11192A] p-8 rounded-3xl border transition-all cursor-pointer group flex items-center gap-6 ${
@@ -686,7 +686,7 @@ export default function DashboardCitizen() {
                             ) : (
                                 <div className="flex flex-col md:flex-row gap-12">
                                     <div className="flex-1 space-y-10">
-                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Blood Group</p><p className="text-8xl font-black italic text-[#E63946] font-poppins tracking-tighter leading-none">{editData?.bloodGroup || 'B-'}</p></div>
+                                        <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Blood Group</p><p className="text-8xl font-black italic text-primary font-poppins tracking-tighter leading-none">{editData?.bloodGroup || 'B-'}</p></div>
                                         <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Medical Conditions</p><div className="bg-[#050B18] p-6 rounded-3xl border border-white/5 italic font-bold text-white/80">{editData?.healthIssues || 'Unknown status'}</div></div>
                                         <div className="space-y-4"><p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Allergies</p><div className="bg-red-500/5 p-6 rounded-3xl border border-red-500/10 italic font-bold text-red-400">{editData?.allergies || 'None reported'}</div></div>
                                     </div>

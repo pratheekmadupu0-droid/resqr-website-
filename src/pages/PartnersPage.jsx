@@ -26,7 +26,7 @@ export default function PartnersPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!name || !phone || !email || !message) {
-            toast.error('Please fill in all required telemetry fields.');
+            toast.error('Please complete all required fields.');
             return;
         }
         setSubmitting(true);
@@ -49,7 +49,7 @@ export default function PartnersPage() {
             setMessage('');
         } catch (err) {
             console.error('Error submitting partner inquiry:', err);
-            toast.error('Failed to commit partner telemetry to database.');
+            toast.error('Failed to submit inquiry. Please try again or reach out at admin@resqr.co.in.');
         } finally {
             setSubmitting(false);
         }

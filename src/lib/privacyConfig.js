@@ -268,7 +268,7 @@ export function hasAcceptedLatestConsent(userOrProfile) {
  */
 export const PRIVACY_OFFICER_DETAILS = {
     designation: "Data Protection & Grievance Officer",
-    organization: "RESQR HealthTech Platform (Sicon Enterprises)",
+    organization: "RESQR Emergency Technology (Sion Enterprises)",
     email: "privacy@resqr.co.in",
     officialEmail: "admin@resqr.co.in",
     supportEmail: "resqr.official@gmail.com",
