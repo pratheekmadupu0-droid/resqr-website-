@@ -51,10 +51,13 @@ export default {
                 '3xl': '2rem',
             },
             fontFamily: {
-                sans: ['Inter', 'Manrope', 'system-ui', '-apple-system', 'sans-serif'],
-                poppins: ['Inter', 'Manrope', 'sans-serif'],
-                manrope: ['Manrope', 'Inter', 'sans-serif'],
-                heading: ['Inter', 'Manrope', 'sans-serif'],
+                sans: ['"Plus Jakarta Sans"', 'Inter', 'Manrope', 'system-ui', '-apple-system', 'sans-serif'],
+                display: ['"Plus Jakarta Sans"', 'Outfit', 'sans-serif'],
+                heading: ['"Plus Jakarta Sans"', 'Outfit', 'sans-serif'],
+                outfit: ['Outfit', 'sans-serif'],
+                jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
+                poppins: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+                manrope: ['Manrope', '"Plus Jakarta Sans"', 'sans-serif'],
             },
             boxShadow: {
                 'red-glow': '0 0 28px rgba(215, 25, 32, 0.35)',

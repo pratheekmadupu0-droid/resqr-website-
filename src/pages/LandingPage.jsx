@@ -324,19 +324,19 @@ export default function LandingPage() {
                         <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
                             
                             {/* Understated Eyebrow Label (No excessive spacing) */}
-                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] text-slate-300 text-xs font-medium tracking-wide">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#D71920]" />
+                            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.04] text-slate-200 text-[11px] font-semibold tracking-[0.08em] uppercase">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#D71920] animate-pulse" />
                                 <span>Emergency Identification Platform</span>
                             </div>
 
-                            {/* Mandated Exact Headline */}
-                            <h1 className="text-4xl sm:text-6xl lg:text-[64px] xl:text-[72px] font-bold tracking-tight text-white leading-[1.08]">
+                            {/* Mandated Exact Headline with Authentic Editorial Typography */}
+                            <h1 className="font-heading text-4xl sm:text-6xl lg:text-[68px] xl:text-[76px] font-extrabold tracking-[-0.035em] text-white leading-[1.04]">
                                 Emergency information. <br />
-                                <span className="text-[#D71920]">Within reach.</span>
+                                <span className="text-[#D71920] drop-shadow-[0_4px_24px_rgba(215,25,32,0.30)]">Within reach.</span>
                             </h1>
 
                             {/* Mandated Exact Supporting Copy */}
-                            <p className="text-slate-300 text-base sm:text-lg lg:text-xl font-normal leading-relaxed max-w-xl">
+                            <p className="text-slate-300/90 text-base sm:text-lg lg:text-[19px] font-normal leading-[1.65] tracking-[-0.012em] max-w-xl">
                                 Connect a registered emergency identifier to designated contacts and permitted emergency information, helping make essential details easier to reach when assistance is needed.
                             </p>
 
@@ -344,21 +344,21 @@ export default function LandingPage() {
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-1">
                                 <Link 
                                     to={primaryHref} 
-                                    className="h-12 px-7 bg-[#D71920] hover:bg-[#A80F19] text-white rounded-xl font-semibold uppercase tracking-wider text-xs shadow-md shadow-[#D71920]/20 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D71920]"
+                                    className="h-12 px-7 bg-[#D71920] hover:bg-[#A80F19] text-white rounded-xl font-bold uppercase tracking-[0.06em] text-[12px] shadow-lg shadow-[#D71920]/25 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D71920]"
                                 >
                                     <HeartHandshake size={16} /> Create Your RESQR
                                 </Link>
 
                                 <a 
                                     href="#how-it-works" 
-                                    className="h-12 px-6 bg-transparent hover:bg-white/[0.04] text-white border border-[#303238] hover:border-slate-400 rounded-xl font-semibold uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                                    className="h-12 px-6 bg-transparent hover:bg-white/[0.05] text-white border border-[#303238] hover:border-slate-400 rounded-xl font-bold uppercase tracking-[0.06em] text-[12px] flex items-center justify-center gap-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                                 >
                                     Explore How It Works <ArrowRight size={15} />
                                 </a>
 
                                 <Link 
                                     to="/government-partnerships" 
-                                    className="h-12 px-4 text-slate-400 hover:text-white rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
+                                    className="h-12 px-4 text-slate-400 hover:text-white rounded-xl font-semibold text-xs tracking-wide flex items-center justify-center gap-1.5 transition-colors"
                                 >
                                     <Building2 size={15} className="text-[#D71920]" /> Institutional Partnerships
                                 </Link>
