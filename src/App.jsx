@@ -231,7 +231,6 @@ function App() {
             </main>
             {!isScanPage && <Footer />}
             {!isScanPage && <MobileNav />}
-            <SiconBadge />
             <LoginGuideModal />
         </div>
     );
