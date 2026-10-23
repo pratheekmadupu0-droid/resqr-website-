@@ -15,6 +15,9 @@ import { Link } from 'react-router-dom';
 import { db, auth } from '../lib/firebase';
 import { ref, onValue, get } from 'firebase/database';
 import ResqrLogo from '../components/branding/ResqrLogo';
+import HeroScene3D from '../components/3d/HeroScene3D';
+import Product3DViewer from '../components/3d/Product3DViewer';
+import Step3DIcon from '../components/3d/Step3DIcon';
 
 /**
  * RESQR — The Future of Emergency Identification
@@ -371,195 +374,12 @@ export default function LandingPage() {
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: The Signature Product Stage (~48% balance) */}
+                        {/* RIGHT COLUMN: The Interactive 3D Product Stage */}
                         <div className="lg:col-span-5 relative">
-                            
-                            {/* Subtle Crimson Radial Illumination Behind Product Stage */}
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-[#D71920]/[0.10] rounded-full blur-[100px] pointer-events-none" />
-
-                            {/* Stage Container */}
-                            <div className="relative space-y-3.5">
-                                
-                                {/* Top Scenario Control Bar */}
-                                <div className="flex items-center justify-between gap-3 px-1">
-                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                                        EXPLORE THE RESQR EXPERIENCE
-                                    </span>
-
-                                    {/* Accessible Two-Scenario Selector */}
-                                    <div className="inline-flex p-1 rounded-xl bg-[#14161B] border border-[#272B33] text-[11px] font-medium">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleTriggerScenario('emergency')}
-                                            disabled={isScanning}
-                                            className={`px-3 py-1.5 rounded-lg transition-all ${
-                                                scanScenario === 'emergency' 
-                                                    ? 'bg-[#D71920] text-white shadow-sm font-semibold' 
-                                                    : 'text-slate-400 hover:text-white'
-                                            }`}
-                                        >
-                                            Emergency Scan
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleTriggerScenario('clinical')}
-                                            disabled={isScanning}
-                                            className={`px-3 py-1.5 rounded-lg transition-all ${
-                                                scanScenario === 'clinical' 
-                                                    ? 'bg-[#22252C] text-white border border-white/10 shadow-sm font-semibold' 
-                                                    : 'text-slate-400 hover:text-white'
-                                            }`}
-                                        >
-                                            Authorized Clinical Access
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Physical Product & Smartphone Composition Stage */}
-                                <div className="relative bg-[#14161B] border border-[#272B33] rounded-[28px] p-5 sm:p-6 shadow-2xl space-y-4 overflow-hidden">
-                                    
-                                    {/* The Realistic Physical RESQR Tag Card */}
-                                    <div className="relative bg-gradient-to-br from-[#1C1F26] to-[#121418] border border-white/10 rounded-2xl p-4 shadow-lg overflow-hidden group">
-                                        
-                                        {/* Laser scanlight highlight */}
-                                        {isScanning && (
-                                            <motion.div
-                                                initial={{ x: '-100%' }}
-                                                animate={{ x: '200%' }}
-                                                transition={{ duration: 0.65, ease: "easeInOut" }}
-                                                className="absolute inset-y-0 w-28 bg-gradient-to-r from-transparent via-[#D71920]/30 to-transparent skew-x-12 z-20 pointer-events-none"
-                                            />
-                                        )}
-
-                                        <div className="flex items-center justify-between gap-4">
-                                            <div className="flex items-center gap-3.5">
-                                                {/* Physical Tag Symbol with Official RESQR Mark */}
-                                                <div className="w-13 h-13 rounded-xl bg-white p-1.5 shadow-md shrink-0 flex items-center justify-center relative">
-                                                    <QrCode size={42} className="text-slate-900" />
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                        <div className="w-3.5 h-3.5 rounded-[3px] bg-[#D71920] border border-white flex items-center justify-center">
-                                                            <span className="text-[6px] text-white font-bold">R</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="space-y-0.5">
-                                                    <div className="flex items-center gap-2">
-                                                        <ResqrLogo className="h-4 w-auto object-contain" />
-                                                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">TAG RQ-88219</span>
-                                                    </div>
-                                                    <p className="text-xs font-semibold text-slate-200">
-                                                        Physical Emergency Identifier
-                                                    </p>
-                                                    <p className="text-[11px] text-slate-400">
-                                                        Contactless NFC & Reflective Optical QR
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTriggerScenario(scanScenario === 'emergency' ? 'clinical' : 'emergency')}
-                                                disabled={isScanning}
-                                                className="h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold uppercase tracking-wider text-slate-300 hover:text-white flex items-center gap-1.5 transition-all shrink-0"
-                                                title="Simulate tag scan"
-                                            >
-                                                <RefreshCw size={11} className={isScanning ? "animate-spin text-[#D71920]" : ""} />
-                                                <span>Simulate Scan</span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Smartphone Emergency Interface Preview */}
-                                    <div className="bg-[#0D0F13] border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-inner">
-                                        
-                                        {/* Mobile Viewport Header */}
-                                        <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/5">
-                                            <span className="flex items-center gap-1.5 text-slate-400">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[#16845B]" />
-                                                RESQR Emergency Screen
-                                            </span>
-                                            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
-                                                {scanScenario === 'emergency' ? 'Public Bystander View' : 'Verified Clinical Gate'}
-                                            </span>
-                                        </div>
-
-                                        {/* Registered Citizen Profile */}
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider">Citizen Identity</span>
-                                                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                                                    {demoProfile.name}
-                                                </h3>
-                                                <p className="text-xs text-slate-400">Age 31 • Protected Profile</p>
-                                            </div>
-                                            <div className="px-3 py-1.5 rounded-lg bg-[#D71920]/10 border border-[#D71920]/25 text-[#D71920] font-bold text-xs flex items-center gap-1">
-                                                <span>O+</span>
-                                                <span className="text-[10px] font-medium text-slate-400">POSITIVE</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Emergency Contact */}
-                                        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
-                                            <div className="flex items-center justify-between text-[10px]">
-                                                <span className="font-semibold text-slate-400 uppercase tracking-wider">Designated Emergency Contact</span>
-                                                <span className="text-[#16845B] font-medium">Privacy Masked</span>
-                                            </div>
-                                            <p className="text-xs font-semibold text-white">
-                                                {demoProfile.primaryContact.name} ({demoProfile.primaryContact.relation})
-                                            </p>
-                                            <p className="text-xs font-mono text-[#D71920]">
-                                                {demoProfile.primaryContact.maskedPhone}
-                                            </p>
-                                        </div>
-
-                                        {/* Scenario Information (Allergy Alert vs Clinical ER) */}
-                                        {scanScenario === 'emergency' ? (
-                                            <div className="p-3 rounded-xl bg-[#D71920]/10 border border-[#D71920]/20 text-xs flex items-start gap-2.5">
-                                                <AlertTriangle size={15} className="text-[#D71920] shrink-0 mt-0.5" />
-                                                <div>
-                                                    <span className="font-semibold text-[#D71920] text-[11px] uppercase tracking-wider block">Critical Allergy Alert</span>
-                                                    <span className="text-slate-200 text-xs leading-relaxed block mt-0.5">{demoProfile.allergies}</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs space-y-1.5 animate-in fade-in">
-                                                <div className="flex items-center justify-between text-[10px]">
-                                                    <span className="font-semibold uppercase tracking-wider text-slate-300">Authorized Clinical Access</span>
-                                                    <span className="text-emerald-400 font-mono">ER Protocol Verified</span>
-                                                </div>
-                                                <p className="text-xs text-slate-300"><strong>Allergies:</strong> {demoProfile.allergies}</p>
-                                                <p className="text-xs text-slate-300"><strong>Chronic:</strong> {demoProfile.chronicConditions}</p>
-                                                <p className="text-xs text-slate-300"><strong>Protocol:</strong> {demoProfile.emergencyNotes}</p>
-                                            </div>
-                                        )}
-
-                                        {/* One Clear Primary Action */}
-                                        <div className="pt-1">
-                                            <button
-                                                type="button"
-                                                onClick={() => setSimulatedFeedback(`Demonstration: Direct dialer initiated for ${demoProfile.primaryContact.name}. Real device dials with masked privacy.`)}
-                                                className="w-full h-11 rounded-xl bg-[#D71920] hover:bg-[#A80F19] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                                            >
-                                                <PhoneCall size={14} /> Call Emergency Contact
-                                            </button>
-                                        </div>
-
-                                        {/* Simulation Feedback Toast */}
-                                        {simulatedFeedback && (
-                                            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] flex items-center justify-between">
-                                                <span>{simulatedFeedback}</span>
-                                                <button onClick={() => setSimulatedFeedback(null)} className="text-emerald-400 hover:text-white font-bold text-xs ml-2">✕</button>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Plain-Language Clarification Footer */}
-                                    <p className="text-[11px] text-slate-400 text-center leading-normal px-2">
-                                        Simulated demonstration. Strangers only see designated contact actions and permitted critical alerts.
-                                    </p>
-                                </div>
-                            </div>
+                            <HeroScene3D 
+                                scanScenario={scanScenario}
+                                onScenarioChange={setScanScenario}
+                            />
                         </div>
                     </div>
                 </div>
@@ -583,16 +403,19 @@ export default function LandingPage() {
                         </p>
                     </div>
 
-                    {/* 6-Step Visual Sequence Grid */}
+                    {/* 6-Step Visual Sequence Grid with 3D Micro-Illustrations */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {howItWorksSteps.map((step) => (
                             <div 
                                 key={step.num}
                                 className="bg-white border border-[#E3E6EB] hover:border-[#D71920]/50 rounded-2xl p-7 space-y-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between group"
                             >
-                                <div className="space-y-3">
+                                <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-base font-mono font-black text-[#D71920] tracking-widest">{step.num}</span>
+                                        <div className="flex items-center gap-3.5">
+                                            <span className="text-base font-mono font-black text-[#D71920] tracking-widest">{step.num}</span>
+                                            <Step3DIcon stepNumber={parseInt(step.num, 10)} />
+                                        </div>
                                         <span className="w-2.5 h-2.5 rounded-full bg-slate-200 group-hover:bg-[#D71920] transition-colors" />
                                     </div>
                                     <h3 className="text-lg font-black uppercase tracking-tight text-[#181A1F]">{step.title}</h3>
@@ -635,9 +458,17 @@ export default function LandingPage() {
                         {ecosystemProducts.map((p) => (
                             <div 
                                 key={p.name}
-                                className="bg-[#181A1F] border border-[#303238] hover:border-slate-500 rounded-2xl p-6 flex flex-col justify-between space-y-6 transition-all hover:-translate-y-1"
+                                className="bg-[#181A1F] border border-[#303238] hover:border-slate-500 rounded-2xl p-6 flex flex-col justify-between space-y-6 transition-all hover:-translate-y-1 group"
                             >
                                 <div className="space-y-4">
+                                    {/* Interactive 3D Product Mesh Viewer */}
+                                    <div className="w-full h-44 rounded-xl bg-[#121418] border border-white/5 relative flex items-center justify-center overflow-hidden">
+                                        <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] uppercase font-mono tracking-wider text-slate-400">
+                                            3D MODEL
+                                        </div>
+                                        <Product3DViewer productType={p.name} className="w-full h-full" />
+                                    </div>
+
                                     <div>
                                         <span className="text-[10px] uppercase font-bold text-[#D71920] tracking-widest">{p.format}</span>
                                         <h3 className="text-lg font-bold text-white uppercase mt-1">{p.name}</h3>
