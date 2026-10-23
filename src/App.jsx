@@ -153,7 +153,7 @@ function App() {
     }, []);
 
     return (
-        <div className="min-h-screen flex flex-col bg-slate-950 text-white">
+        <div className="min-h-screen flex flex-col bg-[#101114] text-white">
             <ScrollToTop />
             <DemoFloatingBar />
             {!isScanPage && <Navbar />}

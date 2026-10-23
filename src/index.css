@@ -8,20 +8,20 @@
    ============================================================ */
 
 :root {
-    --resqr-bg: #0C0E12;
-    --resqr-bg-alt: #131519;
-    --resqr-card: #17191D;
+    --resqr-bg: #101114;
+    --resqr-bg-alt: #14161B;
+    --resqr-card: #181A1F;
     --resqr-card-2: #1E2228;
     --resqr-red: #D71920;
     --resqr-crimson: #A80F19;
-    --resqr-charcoal: #17191D;
-    --resqr-softbg: #F6F7F8;
+    --resqr-charcoal: #181A1F;
+    --resqr-softbg: #F7F8FA;
     --resqr-muted: #626975;
-    --resqr-border: #E5E7EB;
+    --resqr-border: #E3E6EB;
     --resqr-red-soft: rgba(215, 25, 32, 0.12);
-    --resqr-green: #10B981;
-    --resqr-text: #F8F9FA;
-    --resqr-text-dim: #94A3B8;
+    --resqr-green: #16845B;
+    --resqr-text: #F7F8FA;
+    --resqr-text-dim: #AEB7C4;
     --resqr-radius-xl: 20px;
     --resqr-radius-2xl: 28px;
     --resqr-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -52,7 +52,7 @@ body {
     height: 8px;
 }
 ::-webkit-scrollbar-track {
-    background: #0C0E12;
+    background: #101114;
 }
 ::-webkit-scrollbar-thumb {
     background: #272B33;
@@ -70,9 +70,8 @@ body::before {
     z-index: -1;
     pointer-events: none;
     background:
-        radial-gradient(1000px 500px at 80% 5%, rgba(215, 25, 32, 0.05), transparent 60%),
-        radial-gradient(1200px 700px at 20% 90%, rgba(23, 25, 29, 0.5), transparent 70%),
-        linear-gradient(180deg, #0C0E12 0%, #111317 40%, #0C0E12 100%);
+        radial-gradient(1000px 500px at 80% 5%, rgba(215, 25, 32, 0.04), transparent 60%),
+        linear-gradient(180deg, #101114 0%, #14161B 40%, #101114 100%);
 }
 
 /* Subtle QR geometric grid overlay */

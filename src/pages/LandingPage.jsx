@@ -306,117 +306,97 @@ export default function LandingPage() {
         <div className="relative min-h-screen bg-[#101114] text-[#F7F8FA] font-manrope selection:bg-[#D71920]/30 overflow-x-hidden">
             
             {/* ========================================================================= */}
-            {/* 1. CINEMATIC HERO SECTION ("RESQR — The Future of Emergency Identification") */}
-            {/* Refined 52/48 balance, restrained illumination, clean negative space       */}
+            {/* 1. CINEMATIC HERO SECTION ("RESQR — Emergency Intelligence, Designed Around People") */}
+            {/* Balanced 52/48 composition, proper spacing below navbar, clean charcoal   */}
             {/* ========================================================================= */}
-            <section className="relative pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden z-10">
+            <section className="relative pt-6 pb-16 lg:pt-10 lg:pb-24 overflow-hidden z-10">
                 
-                {/* Subtle Near-Black to Charcoal Base Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-[#101114] via-[#14161B] to-[#181A1F] pointer-events-none" />
+                {/* Pure Near-Black to Charcoal Base Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-b from-[#101114] via-[#121418] to-[#15171B] pointer-events-none" />
 
-                {/* Restrained Crimson Ambient Glow behind the Product Scene */}
-                <div className="absolute top-1/4 right-[5%] w-[680px] h-[680px] bg-gradient-to-br from-[#D71920]/15 to-transparent rounded-full blur-[140px] pointer-events-none" />
-
-                {/* Soft Radial Illumination on Left for Text Legibility */}
-                <div className="absolute top-1/3 left-[-10%] w-[500px] h-[500px] bg-white/[0.02] rounded-full blur-[120px] pointer-events-none" />
-
-                {/* Very Faint QR-Inspired Geometry Used Sparingly (Masked to avoid text competition) */}
-                <div 
-                    className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:48px_48px] pointer-events-none opacity-40"
-                    style={{
-                        maskImage: 'radial-gradient(circle at 75% 45%, black 20%, transparent 70%)',
-                        WebkitMaskImage: 'radial-gradient(circle at 75% 45%, black 20%, transparent 70%)'
-                    }}
-                />
+                {/* Controlled Crimson Ambient Light Behind Product Scene */}
+                <div className="absolute top-1/3 right-[8%] w-[540px] h-[540px] bg-[#D71920]/[0.10] rounded-full blur-[130px] pointer-events-none" />
 
                 <div className="max-w-[1440px] mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
                         
                         {/* LEFT COLUMN: Editorial Typography & Intentional Actions (~52% balance) */}
-                        <div className="lg:col-span-7 space-y-7 text-left">
+                        <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
                             
-                            {/* Strategic Trust Badge */}
-                            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-[#303238] bg-white/[0.03] text-slate-300 text-xs font-semibold tracking-wide backdrop-blur-sm">
-                                <span className="flex h-2 w-2 relative">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D71920] opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#D71920]" />
-                                </span>
-                                <span>Intelligent Emergency Identification</span>
-                                <span className="text-slate-600">•</span>
-                                <span className="text-[11px] text-slate-400 font-mono">DPDP Act 2023</span>
+                            {/* Understated Eyebrow Label (No excessive spacing) */}
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.03] text-slate-300 text-xs font-medium tracking-wide">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#D71920]" />
+                                <span>Emergency Identification Platform</span>
                             </div>
 
                             {/* Mandated Exact Headline */}
-                            <h1 className="text-4xl sm:text-6xl xl:text-7xl font-black tracking-tight text-white leading-[1.08]">
+                            <h1 className="text-4xl sm:text-6xl lg:text-[64px] xl:text-[72px] font-bold tracking-tight text-white leading-[1.08]">
                                 Emergency information. <br />
                                 <span className="text-[#D71920]">Within reach.</span>
                             </h1>
 
                             {/* Mandated Exact Supporting Copy */}
                             <p className="text-slate-300 text-base sm:text-lg lg:text-xl font-normal leading-relaxed max-w-xl">
-                                One simple identifier can help connect a person in an emergency to designated contacts and permitted emergency information.
+                                Connect a registered emergency identifier to designated contacts and permitted emergency information, helping make essential details easier to reach when assistance is needed.
                             </p>
 
                             {/* Primary, Secondary, and Institutional Actions */}
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-1">
                                 <Link 
                                     to={primaryHref} 
-                                    className="h-12 px-7 bg-[#D71920] hover:bg-[#A80F19] text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-[#D71920]/25 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D71920]"
+                                    className="h-12 px-7 bg-[#D71920] hover:bg-[#A80F19] text-white rounded-xl font-semibold uppercase tracking-wider text-xs shadow-md shadow-[#D71920]/20 flex items-center justify-center gap-2.5 transition-all hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D71920]"
                                 >
-                                    <HeartHandshake size={17} /> Create Your RESQR
+                                    <HeartHandshake size={16} /> Create Your RESQR
                                 </Link>
 
                                 <a 
                                     href="#how-it-works" 
-                                    className="h-12 px-6 bg-transparent hover:bg-white/[0.06] text-white border border-[#303238] hover:border-slate-500 rounded-xl font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                                    className="h-12 px-6 bg-transparent hover:bg-white/[0.04] text-white border border-[#303238] hover:border-slate-400 rounded-xl font-semibold uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
                                 >
-                                    See How It Works <ArrowRight size={15} />
+                                    Explore How It Works <ArrowRight size={15} />
                                 </a>
 
                                 <Link 
                                     to="/government-partnerships" 
-                                    className="h-12 px-5 text-slate-400 hover:text-white rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                                    className="h-12 px-4 text-slate-400 hover:text-white rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-colors"
                                 >
-                                    <Building2 size={15} className="text-[#D71920]" /> Explore Partnerships
+                                    <Building2 size={15} className="text-[#D71920]" /> Institutional Partnerships
                                 </Link>
                             </div>
 
                             {/* Subtle Supporting Privacy Statement */}
-                            <div className="pt-6 border-t border-[#303238] flex flex-col sm:flex-row sm:items-center gap-4 text-xs text-slate-400">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck size={16} className="text-[#16845B] shrink-0" />
-                                    <span>User-configured privacy controls</span>
-                                </div>
-                                <span className="hidden sm:inline text-slate-600">•</span>
-                                <div className="flex items-center gap-2">
-                                    <Smartphone size={16} className="text-[#D71920] shrink-0" />
-                                    <span>Zero app required for first responders</span>
-                                </div>
+                            <div className="pt-5 border-t border-[#303238] flex items-center gap-3 text-xs text-slate-400">
+                                <ShieldCheck size={16} className="text-[#16845B] shrink-0" />
+                                <span>Permitted emergency access • Zero app required for first responders</span>
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: Signature RESQR Product Scene & Demonstration (~48% balance) */}
+                        {/* RIGHT COLUMN: The Signature Product Stage (~48% balance) */}
                         <div className="lg:col-span-5 relative">
                             
-                            {/* Ambient focal lighting behind the product scene */}
-                            <div className="absolute inset-0 bg-gradient-to-tr from-[#D71920]/15 via-transparent to-[#D71920]/5 rounded-[40px] blur-3xl pointer-events-none" />
+                            {/* Subtle Crimson Radial Illumination Behind Product Stage */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-[#D71920]/[0.10] rounded-full blur-[100px] pointer-events-none" />
 
-                            {/* Master Scene Card */}
-                            <div className="relative bg-[#181A1F] border border-[#303238] rounded-[32px] p-5 sm:p-7 shadow-2xl space-y-5 backdrop-blur-xl">
+                            {/* Stage Container */}
+                            <div className="relative space-y-3.5">
                                 
-                                {/* Compact Exploration Header & Scenario Selector */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[#303238]">
-                                    <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#AEB7C4]">
+                                {/* Top Scenario Control Bar */}
+                                <div className="flex items-center justify-between gap-3 px-1">
+                                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
                                         EXPLORE THE RESQR EXPERIENCE
                                     </span>
 
-                                    {/* Simple Two-Scenario Selector */}
-                                    <div className="inline-flex p-1 rounded-xl bg-black/40 border border-white/5 text-[10px] font-bold uppercase">
+                                    {/* Accessible Two-Scenario Selector */}
+                                    <div className="inline-flex p-1 rounded-xl bg-[#14161B] border border-[#272B33] text-[11px] font-medium">
                                         <button
                                             type="button"
                                             onClick={() => handleTriggerScenario('emergency')}
                                             disabled={isScanning}
-                                            className={`px-3 py-1.5 rounded-lg transition-all ${scanScenario === 'emergency' ? 'bg-[#D71920] text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                                scanScenario === 'emergency' 
+                                                    ? 'bg-[#D71920] text-white shadow-sm font-semibold' 
+                                                    : 'text-slate-400 hover:text-white'
+                                            }`}
                                         >
                                             Emergency Scan
                                         </button>
@@ -424,165 +404,161 @@ export default function LandingPage() {
                                             type="button"
                                             onClick={() => handleTriggerScenario('clinical')}
                                             disabled={isScanning}
-                                            className={`px-3 py-1.5 rounded-lg transition-all ${scanScenario === 'clinical' ? 'bg-[#181A1F] text-white border border-[#303238] shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                                            className={`px-3 py-1.5 rounded-lg transition-all ${
+                                                scanScenario === 'clinical' 
+                                                    ? 'bg-[#22252C] text-white border border-white/10 shadow-sm font-semibold' 
+                                                    : 'text-slate-400 hover:text-white'
+                                            }`}
                                         >
                                             Authorized Clinical Access
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Realistically Rendered Physical RESQR Tag Card */}
-                                <div className="relative bg-gradient-to-br from-[#121418] to-[#0A0B0D] border border-white/10 rounded-2xl p-4 shadow-inner overflow-hidden">
+                                {/* Physical Product & Smartphone Composition Stage */}
+                                <div className="relative bg-[#14161B] border border-[#272B33] rounded-[28px] p-5 sm:p-6 shadow-2xl space-y-4 overflow-hidden">
                                     
-                                    {/* Subtle Visual Highlight Moving Across the Tag on Scan */}
-                                    {isScanning && (
-                                        <motion.div
-                                            initial={{ x: '-100%' }}
-                                            animate={{ x: '200%' }}
-                                            transition={{ duration: 0.65, ease: "easeInOut" }}
-                                            className="absolute inset-y-0 w-24 bg-gradient-to-r from-transparent via-[#D71920]/40 to-transparent skew-x-12 z-20 pointer-events-none"
-                                        />
-                                    )}
+                                    {/* The Realistic Physical RESQR Tag Card */}
+                                    <div className="relative bg-gradient-to-br from-[#1C1F26] to-[#121418] border border-white/10 rounded-2xl p-4 shadow-lg overflow-hidden group">
+                                        
+                                        {/* Laser scanlight highlight */}
+                                        {isScanning && (
+                                            <motion.div
+                                                initial={{ x: '-100%' }}
+                                                animate={{ x: '200%' }}
+                                                transition={{ duration: 0.65, ease: "easeInOut" }}
+                                                className="absolute inset-y-0 w-28 bg-gradient-to-r from-transparent via-[#D71920]/30 to-transparent skew-x-12 z-20 pointer-events-none"
+                                            />
+                                        )}
 
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-center gap-3.5">
-                                            {/* Tangible QR/NFC Identifier Representation */}
-                                            <div className="w-14 h-14 rounded-xl bg-white p-1.5 shadow-md shrink-0 flex items-center justify-center relative">
-                                                <QrCode size={46} className="text-slate-900" />
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                    <div className="w-4 h-4 rounded-sm bg-[#D71920] border border-white flex items-center justify-center">
-                                                        <span className="text-[7px] text-white font-black">R</span>
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-center gap-3.5">
+                                                {/* Physical Tag Symbol with Official RESQR Mark */}
+                                                <div className="w-13 h-13 rounded-xl bg-white p-1.5 shadow-md shrink-0 flex items-center justify-center relative">
+                                                    <QrCode size={42} className="text-slate-900" />
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <div className="w-3.5 h-3.5 rounded-[3px] bg-[#D71920] border border-white flex items-center justify-center">
+                                                            <span className="text-[6px] text-white font-bold">R</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            <div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <Radio size={12} className="text-[#D71920] animate-pulse" />
-                                                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
-                                                        NFC + Reflective Tag
-                                                    </span>
+                                                <div className="space-y-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <ResqrLogo className="h-4 w-auto object-contain" />
+                                                        <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">TAG RQ-88219</span>
+                                                    </div>
+                                                    <p className="text-xs font-semibold text-slate-200">
+                                                        Physical Emergency Identifier
+                                                    </p>
+                                                    <p className="text-[11px] text-slate-400">
+                                                        Contactless NFC & Reflective Optical QR
+                                                    </p>
                                                 </div>
-                                                <p className="text-xs font-bold text-white uppercase tracking-wider mt-0.5">
-                                                    Tag ID: {demoProfile.id}
-                                                </p>
-                                                <p className="text-[10px] text-slate-400 mt-0.5">
-                                                    Permanent Cryptographic Token
-                                                </p>
                                             </div>
-                                        </div>
 
-                                        {/* Action to trigger scan demonstration */}
-                                        <button
-                                            type="button"
-                                            onClick={() => handleTriggerScenario(scanScenario === 'emergency' ? 'clinical' : 'emergency')}
-                                            disabled={isScanning}
-                                            className="h-9 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:text-white flex items-center gap-1.5 transition-all shrink-0"
-                                            title="Simulate smartphone scan"
-                                        >
-                                            <RefreshCw size={12} className={isScanning ? "animate-spin text-[#D71920]" : ""} />
-                                            <span>Simulate Scan</span>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Smartphone Mockup Framing: Illustrative Emergency Profile */}
-                                <div className="bg-[#0C0E12] border border-white/15 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xl relative">
-                                    
-                                    {/* Mock Smartphone Status Header */}
-                                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pb-2 border-b border-white/5">
-                                        <span className="flex items-center gap-1.5 text-slate-400">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[#16845B]" />
-                                            SECURE RESQR VIEW
-                                        </span>
-                                        <span className="text-[9px] uppercase tracking-widest text-[#D71920] font-bold">
-                                            {scanScenario === 'emergency' ? 'Public Scan' : 'Clinical ER Gate'}
-                                        </span>
-                                    </div>
-
-                                    {/* Registered Citizen Info */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Registered Citizen</span>
-                                            <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-tight">
-                                                {demoProfile.name}
-                                            </h3>
-                                        </div>
-                                        <div className="px-3 py-1 rounded-lg bg-[#D71920]/10 border border-[#D71920]/20 text-[#D71920] font-black text-xs">
-                                            {demoProfile.bloodGroup}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTriggerScenario(scanScenario === 'emergency' ? 'clinical' : 'emergency')}
+                                                disabled={isScanning}
+                                                className="h-8 px-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-semibold uppercase tracking-wider text-slate-300 hover:text-white flex items-center gap-1.5 transition-all shrink-0"
+                                                title="Simulate tag scan"
+                                            >
+                                                <RefreshCw size={11} className={isScanning ? "animate-spin text-[#D71920]" : ""} />
+                                                <span>Simulate Scan</span>
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Designated Emergency Contact Card */}
-                                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/5 space-y-1">
+                                    {/* Smartphone Emergency Interface Preview */}
+                                    <div className="bg-[#0D0F13] border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-inner">
+                                        
+                                        {/* Mobile Viewport Header */}
+                                        <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/5">
+                                            <span className="flex items-center gap-1.5 text-slate-400">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[#16845B]" />
+                                                RESQR Emergency Screen
+                                            </span>
+                                            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+                                                {scanScenario === 'emergency' ? 'Public Bystander View' : 'Verified Clinical Gate'}
+                                            </span>
+                                        </div>
+
+                                        {/* Registered Citizen Profile */}
                                         <div className="flex items-center justify-between">
-                                            <span className="text-[10px] uppercase font-bold text-slate-400">Emergency Contact</span>
-                                            <span className="text-[9px] font-mono text-[#16845B]">Masked Privacy</span>
-                                        </div>
-                                        <p className="text-xs font-bold text-white">{demoProfile.primaryContact.name} ({demoProfile.primaryContact.relation})</p>
-                                        <p className="text-xs font-mono text-[#D71920]">{demoProfile.primaryContact.maskedPhone}</p>
-                                    </div>
-
-                                    {/* Scenario-Dependent Alert & Information */}
-                                    {scanScenario === 'emergency' ? (
-                                        <div className="p-3 rounded-xl bg-[#D71920]/10 border border-[#D71920]/20 text-red-300 text-xs flex items-start gap-2">
-                                            <AlertTriangle size={15} className="text-[#D71920] shrink-0 mt-0.5" />
-                                            <div className="space-y-0.5">
-                                                <span className="font-bold text-[11px] uppercase tracking-wider block">Critical Medical Alert</span>
-                                                <span className="text-[11px] leading-tight text-slate-200 block">{demoProfile.allergies}</span>
+                                            <div>
+                                                <span className="text-[10px] uppercase font-medium text-slate-400 tracking-wider">Citizen Identity</span>
+                                                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                                                    {demoProfile.name}
+                                                </h3>
+                                                <p className="text-xs text-slate-400">Age 31 • Protected Profile</p>
+                                            </div>
+                                            <div className="px-3 py-1.5 rounded-lg bg-[#D71920]/10 border border-[#D71920]/25 text-[#D71920] font-bold text-xs flex items-center gap-1">
+                                                <span>O+</span>
+                                                <span className="text-[10px] font-medium text-slate-400">POSITIVE</span>
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-200 text-xs space-y-1 animate-in fade-in">
-                                            <div className="flex items-center justify-between font-bold text-[10px] uppercase text-slate-300">
-                                                <span>Authorized Clinical Access</span>
-                                                <span className="font-mono text-emerald-400">ER Verified</span>
+
+                                        {/* Emergency Contact */}
+                                        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 space-y-1">
+                                            <div className="flex items-center justify-between text-[10px]">
+                                                <span className="font-semibold text-slate-400 uppercase tracking-wider">Designated Emergency Contact</span>
+                                                <span className="text-[#16845B] font-medium">Privacy Masked</span>
                                             </div>
-                                            <p className="text-[11px] text-slate-300"><strong>Allergies:</strong> {demoProfile.allergies}</p>
-                                            <p className="text-[11px] text-slate-300"><strong>Chronic:</strong> {demoProfile.chronicConditions}</p>
-                                            <p className="text-[11px] text-slate-300"><strong>Protocol:</strong> {demoProfile.emergencyNotes}</p>
+                                            <p className="text-xs font-semibold text-white">
+                                                {demoProfile.primaryContact.name} ({demoProfile.primaryContact.relation})
+                                            </p>
+                                            <p className="text-xs font-mono text-[#D71920]">
+                                                {demoProfile.primaryContact.maskedPhone}
+                                            </p>
                                         </div>
-                                    )}
 
-                                    {/* One Clear Primary Action */}
-                                    <div className="pt-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSimulatedFeedback(`Simulation: Initiates call to ${demoProfile.primaryContact.name}. Real device dials via phone dialer.`)}
-                                            className="w-full h-11 rounded-xl bg-[#D71920] hover:bg-[#A80F19] text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md shadow-[#D71920]/20 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                                        >
-                                            <PhoneCall size={14} /> Call Emergency Contact
-                                        </button>
-                                    </div>
+                                        {/* Scenario Information (Allergy Alert vs Clinical ER) */}
+                                        {scanScenario === 'emergency' ? (
+                                            <div className="p-3 rounded-xl bg-[#D71920]/10 border border-[#D71920]/20 text-xs flex items-start gap-2.5">
+                                                <AlertTriangle size={15} className="text-[#D71920] shrink-0 mt-0.5" />
+                                                <div>
+                                                    <span className="font-semibold text-[#D71920] text-[11px] uppercase tracking-wider block">Critical Allergy Alert</span>
+                                                    <span className="text-slate-200 text-xs leading-relaxed block mt-0.5">{demoProfile.allergies}</span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-xs space-y-1.5 animate-in fade-in">
+                                                <div className="flex items-center justify-between text-[10px]">
+                                                    <span className="font-semibold uppercase tracking-wider text-slate-300">Authorized Clinical Access</span>
+                                                    <span className="text-emerald-400 font-mono">ER Protocol Verified</span>
+                                                </div>
+                                                <p className="text-xs text-slate-300"><strong>Allergies:</strong> {demoProfile.allergies}</p>
+                                                <p className="text-xs text-slate-300"><strong>Chronic:</strong> {demoProfile.chronicConditions}</p>
+                                                <p className="text-xs text-slate-300"><strong>Protocol:</strong> {demoProfile.emergencyNotes}</p>
+                                            </div>
+                                        )}
 
-                                    {/* Simulated Demonstration Toast */}
-                                    {simulatedFeedback && (
-                                        <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] flex items-center justify-between">
-                                            <span>{simulatedFeedback}</span>
-                                            <button onClick={() => setSimulatedFeedback(null)} className="text-emerald-400 hover:text-white font-bold text-[10px] ml-2">✕</button>
+                                        {/* One Clear Primary Action */}
+                                        <div className="pt-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSimulatedFeedback(`Demonstration: Direct dialer initiated for ${demoProfile.primaryContact.name}. Real device dials with masked privacy.`)}
+                                                className="w-full h-11 rounded-xl bg-[#D71920] hover:bg-[#A80F19] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                                            >
+                                                <PhoneCall size={14} /> Call Emergency Contact
+                                            </button>
                                         </div>
-                                    )}
-                                </div>
 
-                                {/* Physical Format Tags */}
-                                <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                    <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                                        <p className="text-white">Helmet Sticker</p>
-                                        <span className="text-[9px] text-slate-500">Reflective 3M</span>
+                                        {/* Simulation Feedback Toast */}
+                                        {simulatedFeedback && (
+                                            <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] flex items-center justify-between">
+                                                <span>{simulatedFeedback}</span>
+                                                <button onClick={() => setSimulatedFeedback(null)} className="text-emerald-400 hover:text-white font-bold text-xs ml-2">✕</button>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                                        <p className="text-white">Wallet Card</p>
-                                        <span className="text-[9px] text-slate-500">Smart NFC PVC</span>
-                                    </div>
-                                    <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                                        <p className="text-white">Keychain Tag</p>
-                                        <span className="text-[9px] text-slate-500">Laser-Etched</span>
-                                    </div>
-                                </div>
 
-                                <p className="text-[10px] text-slate-500 text-center">
-                                    Simulated demonstration. Real individual medical records are never published publicly.
-                                </p>
+                                    {/* Plain-Language Clarification Footer */}
+                                    <p className="text-[11px] text-slate-400 text-center leading-normal px-2">
+                                        Simulated demonstration. Strangers only see designated contact actions and permitted critical alerts.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

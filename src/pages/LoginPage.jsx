@@ -91,6 +91,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
+    const [authError, setAuthError] = useState('');
 
     // Citizen Registration Wizard States
     const [citizenStep, setCitizenStep] = useState(1);
@@ -480,10 +481,12 @@ export default function LoginPage() {
 
     const handleGoogleSignIn = async () => {
         setAuthLoading(true);
+        setAuthError('');
         try {
             const provider = new GoogleAuthProvider();
             provider.addScope('email');
             provider.addScope('profile');
+            provider.setCustomParameters({ prompt: 'select_account' });
             const userCredential = await signInWithPopup(auth, provider);
             const user = userCredential.user;
 
@@ -500,7 +503,8 @@ export default function LoginPage() {
 
             if (userData) {
                 if (userData.status === 'pending') {
-                    toast.error("Your account is pending admin approval. Please wait for the audit to complete.");
+                    setAuthError("Your account is pending admin approval. Please wait for the audit to complete.");
+                    toast.error("Account pending admin approval.");
                     await auth.signOut();
                     setAuthLoading(false);
                     return;
@@ -549,7 +553,7 @@ export default function LoginPage() {
                     const nextStep = getFirstIncompleteStep(regState.completedSteps);
                     setAuthState('register_wizard');
                     setCitizenStep(nextStep);
-                    toast.success("Privacy terms confirmed! Resuming your Sequential Registration.");
+                    toast.success("Welcome! Resuming your emergency profile setup.");
                 }
             };
 
@@ -561,7 +565,22 @@ export default function LoginPage() {
             }
         } catch (error) {
             console.error("Google Auth error:", error);
-            toast.error("Google authentication failed: " + error.message);
+            if (error.code === 'auth/popup-closed-by-user') {
+                setAuthError("Sign-in was cancelled before completion. Please try again.");
+                toast.error("Sign-in cancelled.");
+            } else if (error.code === 'auth/popup-blocked') {
+                setAuthError("The Google sign-in popup was blocked by your browser. Please allow popups for this site and try again.");
+                toast.error("Popup blocked by browser.");
+            } else if (error.code === 'auth/network-request-failed') {
+                setAuthError("Network communication error. Please verify your internet connection and try again.");
+                toast.error("Network error during sign-in.");
+            } else if (error.code === 'auth/operation-not-allowed') {
+                setAuthError("Google Sign-In is not currently enabled in Firebase Console. Please enable Google provider in Firebase Authentication > Sign-in method.");
+                toast.error("Google provider not enabled in Firebase.");
+            } else {
+                setAuthError(error.message || "Failed to authenticate with Google. Please try again.");
+                toast.error("Google authentication failed.");
+            }
         } finally {
             setAuthLoading(false);
         }
@@ -1195,14 +1214,9 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#111317] text-white font-manrope selection:bg-primary/30 relative overflow-hidden">
-            {/* Background ambient lighting */}
-            <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[140px] pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-crimson/10 rounded-full blur-[140px] pointer-events-none" />
-            <div className="absolute inset-0 qr-grid-pattern opacity-20 pointer-events-none" />
-
-            {/* Invisible container for Firebase Phone RecaptchaVerifier */}
-            <div id="recaptcha-container" className="hidden" />
+        <div className="min-h-screen bg-[#101114] text-white font-manrope selection:bg-[#D71920]/30 relative overflow-hidden">
+            {/* Background subtle crimson ambient lighting */}
+            <div className="absolute top-1/3 right-1/4 w-[500px] h-[500px] bg-[#D71920]/[0.06] rounded-full blur-[140px] pointer-events-none" />
 
             <AnimatePresence mode="wait">
                 {/* Unified Split-Screen Authentication Experience (Citizen, Hospital, Agent, Admin) */}
@@ -1331,421 +1345,104 @@ export default function LoginPage() {
                                 </Link>
                             </div>
 
-                            {/* Center Authentication Card */}
-                            <div className="w-full max-w-xl mx-auto my-auto space-y-6">
-                                {/* Role Switcher Pills */}
-                                <div className="p-1.5 bg-[#171A20] rounded-2xl border border-white/5 flex gap-1 overflow-x-auto">
-                                    {[
-                                        { id: 'citizen', label: 'Citizen', desc: 'Personal Safety' },
-                                        { id: 'hospital', label: 'Hospital / ER', desc: 'Clinical Access' },
-                                        { id: 'agent', label: 'Channel Agent', desc: 'Partner Console' },
-                                        { id: 'admin', label: 'Administrator', desc: 'Platform Governance' }
-                                    ].map((tab) => (
-                                        <button
-                                            key={tab.id}
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedRole(tab.id);
-                                                handleResetPhoneForm();
-                                            }}
-                                            className={`flex-1 min-w-[100px] py-2.5 px-3 rounded-xl text-center transition-all ${
-                                                selectedRole === tab.id
-                                                    ? 'bg-primary text-white font-bold shadow-lg shadow-primary/20 scale-[1.01]'
-                                                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium'
-                                            }`}
-                                        >
-                                            <div className="text-xs leading-none">{tab.label}</div>
-                                            <div className={`text-[9px] mt-1 leading-none ${selectedRole === tab.id ? 'text-white/80' : 'text-slate-500'}`}>
-                                                {tab.desc}
+                            {/* Center Authentication Card (Google Sign-In ONLY) */}
+                            <div className="w-full max-w-md mx-auto my-auto space-y-6">
+                                {/* Form Panel Card */}
+                                <div className="p-8 sm:p-10 bg-[#171A20] border border-white/10 shadow-2xl rounded-3xl backdrop-blur-xl relative">
+                                    {/* Mobile Brand Logo Display */}
+                                    <div className="flex justify-center mb-6 lg:hidden">
+                                        <ResqrLogo className="h-10 w-auto" />
+                                    </div>
+
+                                    {/* Header & Subtitle */}
+                                    <div className="space-y-2 text-center">
+                                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D71920]/10 border border-[#D71920]/20 text-[#D71920] text-[10px] font-bold uppercase tracking-widest">
+                                            <Shield size={12} className="shrink-0" />
+                                            <span>Secure Authentication</span>
+                                        </div>
+
+                                        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                                            Welcome to RESQR
+                                        </h2>
+
+                                        <p className="text-xs sm:text-sm text-slate-400 font-normal leading-relaxed">
+                                            Sign in securely to manage your emergency profile, contacts and RESQR identifiers.
+                                        </p>
+                                    </div>
+
+                                    {/* Error State Banner */}
+                                    {authError && (
+                                        <div className="mt-5 p-3.5 rounded-xl bg-[#D71920]/10 border border-[#D71920]/30 text-white text-xs flex items-start gap-2.5 text-left animate-in fade-in">
+                                            <AlertTriangle size={16} className="text-[#D71920] shrink-0 mt-0.5" />
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-rose-300">Authentication Error</p>
+                                                <p className="text-[11px] text-slate-300 mt-0.5 leading-snug">{authError}</p>
                                             </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setAuthError('')}
+                                                className="text-slate-400 hover:text-white text-xs font-bold px-1"
+                                                aria-label="Dismiss error"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Prominent Google Sign-In Action */}
+                                    <div className="mt-8 space-y-4">
+                                        <button
+                                            type="button"
+                                            onClick={handleGoogleSignIn}
+                                            disabled={authLoading}
+                                            className="w-full h-13 py-3.5 px-5 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-60 disabled:pointer-events-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D71920]"
+                                        >
+                                            {authLoading ? (
+                                                <div className="flex items-center gap-2.5 text-slate-800 font-bold">
+                                                    <span className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin" />
+                                                    <span>Connecting with Google...</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <GoogleIcon />
+                                                    <span>Continue with Google</span>
+                                                </div>
+                                            )}
                                         </button>
-                                    ))}
+
+                                        {/* Supporting Privacy & Terms Statement */}
+                                        <p className="text-[11px] text-slate-400 text-center leading-relaxed font-normal pt-1">
+                                            By continuing, you agree to our{' '}
+                                            <Link to="/terms" className="text-white hover:text-[#D71920] underline font-medium transition-colors">
+                                                Terms of Service
+                                            </Link>{' '}
+                                            and acknowledge our{' '}
+                                            <Link to="/privacy-policy" className="text-white hover:text-[#D71920] underline font-medium transition-colors">
+                                                Privacy Policy
+                                            </Link>
+                                            .
+                                        </p>
+                                    </div>
+
+                                    {/* Security & Access Protection Details */}
+                                    <div className="mt-8 pt-5 border-t border-white/5 space-y-2">
+                                        <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+                                            <Lock size={12} className="text-emerald-400" />
+                                            <span>Direct Google OAuth 2.0 • Zero Password Storage</span>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                {/* Form Panel Card */}
-                                <Card className="p-6 sm:p-8 bg-[#171A20]/80 border-white/10 shadow-2xl rounded-3xl backdrop-blur-xl relative">
-                                    {/* CITIZEN AUTHENTICATION VIEW */}
-                                    {selectedRole === 'citizen' && (
-                                        <div className="space-y-6 animate-in fade-in duration-200">
-                                            {/* Heading & Subhead */}
-                                            <div className="space-y-1.5 text-left">
-                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full">
-                                                    Citizen Access
-                                                </div>
-                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                                                    Welcome to RESQR
-                                                </h2>
-                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
-                                                    Sign in or create your account to manage your emergency profile.
-                                                </p>
-                                            </div>
-
-                                            {/* PHONE OTP FLOW (PRIMARY METHOD) */}
-                                            <div className="space-y-4 pt-2">
-                                                <div className="flex items-center justify-between">
-                                                    <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                                                        <Phone size={14} className="text-primary" />
-                                                        Continue with Phone
-                                                    </label>
-                                                    <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded">
-                                                        Primary Method
-                                                    </span>
-                                                </div>
-
-                                                {!otpSent ? (
-                                                    /* Phase 1: Enter Phone Number */
-                                                    <form onSubmit={handleSendOtp} className="space-y-3">
-                                                        <div className="flex gap-2">
-                                                            {/* Country Code Selector */}
-                                                            <div className="w-28 shrink-0">
-                                                                <select
-                                                                    value={countryCode}
-                                                                    onChange={(e) => setCountryCode(e.target.value)}
-                                                                    aria-label="Country calling code"
-                                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-3 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer"
-                                                                >
-                                                                    <option value="+91" className="bg-[#17191D] text-white">🇮🇳 +91 (IN)</option>
-                                                                    <option value="+1" className="bg-[#17191D] text-white">🇺🇸 +1 (US)</option>
-                                                                    <option value="+44" className="bg-[#17191D] text-white">🇬🇧 +44 (UK)</option>
-                                                                    <option value="+971" className="bg-[#17191D] text-white">🇦🇪 +971 (AE)</option>
-                                                                    <option value="+65" className="bg-[#17191D] text-white">🇸🇬 +65 (SG)</option>
-                                                                    <option value="+61" className="bg-[#17191D] text-white">🇦🇺 +61 (AU)</option>
-                                                                </select>
-                                                            </div>
-
-                                                            {/* Phone Number Input */}
-                                                            <div className="flex-1 relative">
-                                                                <input
-                                                                    type="tel"
-                                                                    inputMode="numeric"
-                                                                    autoComplete="tel"
-                                                                    placeholder="98765 43210"
-                                                                    value={phoneNumber}
-                                                                    onChange={(e) => {
-                                                                        setPhoneError('');
-                                                                        setPhoneNumber(e.target.value.replace(/\D/g, ''));
-                                                                    }}
-                                                                    maxLength={12}
-                                                                    aria-label="Phone number"
-                                                                    className="w-full h-12 bg-black/40 border border-white/10 rounded-xl px-4 text-sm font-semibold text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                                                />
-                                                            </div>
-                                                        </div>
-
-                                                        {phoneError && (
-                                                            <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
-                                                                <AlertTriangle size={14} className="shrink-0" />
-                                                                <span>{phoneError}</span>
-                                                            </div>
-                                                        )}
-
-                                                        <Button
-                                                            type="submit"
-                                                            disabled={authLoading || !phoneNumber}
-                                                            className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                                        >
-                                                            {authLoading ? (
-                                                                <>
-                                                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                                    Sending Verification Code...
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    Send OTP Verification Code <ArrowRight size={14} />
-                                                                </>
-                                                            )}
-                                                        </Button>
-                                                    </form>
-                                                ) : (
-                                                    /* Phase 2: Enter 6-digit OTP */
-                                                    <form onSubmit={handleVerifyOtp} className="space-y-4 bg-black/30 p-4 rounded-2xl border border-white/5">
-                                                        <div className="flex items-center justify-between text-xs">
-                                                            <span className="text-slate-400">
-                                                                Code sent to <span className="text-white font-mono font-bold">{countryCode} {phoneNumber}</span>
-                                                            </span>
-                                                            <button
-                                                                type="button"
-                                                                onClick={handleResetPhoneForm}
-                                                                className="text-primary hover:underline font-bold text-[11px]"
-                                                            >
-                                                                Change Number
-                                                            </button>
-                                                        </div>
-
-                                                        <div>
-                                                            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1.5">
-                                                                Enter 6-Digit OTP Code
-                                                            </label>
-                                                            <input
-                                                                type="text"
-                                                                inputMode="numeric"
-                                                                pattern="[0-9]*"
-                                                                autoComplete="one-time-code"
-                                                                autoFocus
-                                                                maxLength={6}
-                                                                value={enteredOtp}
-                                                                onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
-                                                                placeholder="••••••"
-                                                                className="w-full h-13 bg-black/60 border border-primary/40 rounded-xl px-4 text-center text-2xl font-mono font-black tracking-[0.5em] text-white focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-                                                            />
-                                                        </div>
-
-                                                        <div className="flex items-center justify-between text-xs">
-                                                            <span className="text-slate-500">
-                                                                {resendTimer > 0 ? (
-                                                                    <>Resend code in <span className="text-primary font-mono font-bold">{resendTimer}s</span></>
-                                                                ) : (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={handleSendOtp}
-                                                                        disabled={authLoading}
-                                                                        className="text-primary hover:underline font-bold"
-                                                                    >
-                                                                        Resend OTP
-                                                                    </button>
-                                                                )}
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-500">Firebase Auth</span>
-                                                        </div>
-
-                                                        <Button
-                                                            type="submit"
-                                                            disabled={authLoading || enteredOtp.length !== 6}
-                                                            className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                                                        >
-                                                            {authLoading ? (
-                                                                <>
-                                                                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                                    Verifying Code...
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Check size={16} /> Verify & Access Profile
-                                                                </>
-                                                            )}
-                                                        </Button>
-                                                    </form>
-                                                )}
-                                            </div>
-
-                                            {/* DIVIDER */}
-                                            <div className="relative flex items-center justify-center">
-                                                <div className="absolute inset-0 flex items-center">
-                                                    <div className="w-full border-t border-white/10" />
-                                                </div>
-                                                <div className="relative px-3 bg-[#171A20] text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                                    Or continue with
-                                                </div>
-                                            </div>
-
-                                            {/* GOOGLE SIGN-IN (SECONDARY METHOD) */}
-                                            <button
-                                                type="button"
-                                                onClick={handleGoogleSignIn}
-                                                disabled={authLoading}
-                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
-                                            >
-                                                {authLoading ? (
-                                                    <>
-                                                        <span className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin mr-2" />
-                                                        Connecting Securely...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <GoogleIcon />
-                                                        Continue with Google
-                                                    </>
-                                                )}
-                                            </button>
-
-                                            {/* ALTERNATIVE ACTIONS */}
-                                            <div className="pt-2 border-t border-white/5 space-y-3">
-                                                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleStartDirectCitizenRegistration}
-                                                        className="text-primary hover:underline font-bold inline-flex items-center gap-1"
-                                                    >
-                                                        Create new profile without sign-in <ArrowRight size={12} />
-                                                    </button>
-                                                    <Link
-                                                        to="/create-pet"
-                                                        className="text-slate-400 hover:text-white transition-colors text-[11px] font-medium"
-                                                    >
-                                                        Protect a Pet 🐾
-                                                    </Link>
-                                                </div>
-
-                                                {/* Demo Citizen Shortcut */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDemoLogin('citizen')}
-                                                    className="w-full py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-[11px] font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Sparkles size={13} className="text-primary" />
-                                                    1-Click Demo Citizen (Government / Evaluator Preview)
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* HOSPITAL & ER CLINICAL VIEW */}
-                                    {selectedRole === 'hospital' && (
-                                        <div className="space-y-6 animate-in fade-in duration-200">
-                                            <div className="space-y-1.5 text-left">
-                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-                                                    Clinical Infrastructure
-                                                </div>
-                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                                                    Hospital & ER Portal
-                                                </h2>
-                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
-                                                    Authorized access for trauma centers, ER admissions, and clinical staff.
-                                                </p>
-                                            </div>
-
-                                            <form onSubmit={handleHospitalEmailSubmit} className="space-y-4">
-                                                <Input
-                                                    label="Hospital Email Address"
-                                                    type="email"
-                                                    placeholder="er.coordinator@hospital.org"
-                                                    value={email}
-                                                    onChange={(e) => setEmail(e.target.value)}
-                                                    required
-                                                />
-                                                <Input
-                                                    label="Vault Access Key / Password"
-                                                    type="password"
-                                                    placeholder="••••••••"
-                                                    value={password}
-                                                    onChange={(e) => setPassword(e.target.value)}
-                                                    required
-                                                />
-                                                <Button
-                                                    type="submit"
-                                                    disabled={authLoading}
-                                                    className="w-full h-12 bg-primary hover:bg-primary-dark text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg shadow-primary/25"
-                                                >
-                                                    {authLoading ? 'Verifying Hospital Credentials...' : 'Access Hospital Command Terminal'}
-                                                </Button>
-                                            </form>
-
-                                            <div className="pt-2 border-t border-white/5 space-y-3 text-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAuthState('email_register')}
-                                                    className="text-xs text-primary font-bold hover:underline"
-                                                >
-                                                    Register New Hospital or Trauma Facility →
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDemoLogin('hospital')}
-                                                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[11px] font-bold text-emerald-300 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Sparkles size={13} className="text-emerald-400" />
-                                                    1-Click Demo Hospital Console (Evaluator Mode)
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* AGENT PORTAL VIEW */}
-                                    {selectedRole === 'agent' && (
-                                        <div className="space-y-6 animate-in fade-in duration-200">
-                                            <div className="space-y-1.5 text-left">
-                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full">
-                                                    Distribution Partner
-                                                </div>
-                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                                                    Authorized Agent Console
-                                                </h2>
-                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
-                                                    Sales telemetry, community onboarding, and sticker distribution.
-                                                </p>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={handleGoogleSignIn}
-                                                disabled={authLoading}
-                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
-                                            >
-                                                {authLoading ? 'Verifying...' : (
-                                                    <>
-                                                        <GoogleIcon />
-                                                        Sign In with Agent Google Account
-                                                    </>
-                                                )}
-                                            </button>
-
-                                            <div className="pt-2 border-t border-white/5 space-y-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDemoLogin('agent')}
-                                                    className="w-full py-2.5 px-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-[11px] font-bold text-blue-300 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Sparkles size={13} className="text-blue-400" />
-                                                    1-Click Demo Agent Console (Field Partner Mode)
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* ADMINISTRATOR VIEW */}
-                                    {selectedRole === 'admin' && (
-                                        <div className="space-y-6 animate-in fade-in duration-200">
-                                            <div className="space-y-1.5 text-left">
-                                                <div className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
-                                                    Platform Governance
-                                                </div>
-                                                <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                                                    System Administrator
-                                                </h2>
-                                                <p className="text-xs sm:text-sm text-slate-400 font-normal">
-                                                    Authorized access restricted to Sion Enterprises platform operators.
-                                                </p>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={handleGoogleSignIn}
-                                                disabled={authLoading}
-                                                className="w-full h-12 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold uppercase tracking-wider text-xs transition-all flex items-center justify-center shadow-md disabled:opacity-50"
-                                            >
-                                                <GoogleIcon />
-                                                Sign In with Authorized Admin Account
-                                            </button>
-
-                                            <div className="pt-2 border-t border-white/5 space-y-3">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDemoLogin('admin')}
-                                                    className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-[11px] font-bold text-amber-300 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Sparkles size={13} className="text-amber-400" />
-                                                    1-Click Demo Admin Console (Audit & Telemetry Mode)
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </Card>
-
-                                {/* Privacy Note & Mandatory Legal Disclosures */}
-                                <div className="text-center space-y-2 pt-2">
-                                    <p className="text-[11px] text-slate-400 font-normal leading-relaxed">
-                                        Your information is handled according to RESQR's{' '}
-                                        <Link to="/privacy-policy" className="text-white hover:text-primary underline font-medium">
-                                            Privacy Policy
-                                        </Link>{' '}
-                                        and access controls.
-                                    </p>
+                                {/* Mandatory Legal Links */}
+                                <div className="text-center space-y-2">
                                     <div className="flex flex-wrap justify-center gap-3 text-[10px] text-slate-500 uppercase tracking-wider">
+                                        <Link to="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
+                                        <span>•</span>
                                         <Link to="/terms" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
                                         <span>•</span>
                                         <Link to="/security-disclosure" className="hover:text-slate-300 transition-colors">Security Disclosure</Link>
                                         <span>•</span>
-                                        <Link to="/account-deletion" className="hover:text-slate-300 transition-colors">Data Rights (DPDP 2023)</Link>
+                                        <Link to="/account-deletion" className="hover:text-slate-300 transition-colors">Data Rights (DPDP)</Link>
                                     </div>
                                 </div>
                             </div>
