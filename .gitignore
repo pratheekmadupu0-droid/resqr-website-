@@ -1,0 +1,42 @@
+# Node modules
+node_modules/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Editor folders
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS and Media files
+.DS_Store
+Thumbs.db
+*.mp4
+*.webm
+
+# Sensitive Data
+*.csv
+
+# Vite config timestamps
+vite.config.js.timestamp-*
+
+# Wrangler & Firebase
+.wrangler/
+.firebase/
+

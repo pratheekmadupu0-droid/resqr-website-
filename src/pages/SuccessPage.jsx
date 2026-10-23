@@ -1,0 +1,355 @@
+import { useState, useEffect, useRef } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { motion } from 'framer-motion';
+import { Download, Printer, Share2, CheckCircle2, ChevronRight, LayoutDashboard, MessageSquare, Eye } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { Link } from 'react-router-dom';
+import { db } from '../lib/firebase';
+import { ref, get } from 'firebase/database';
+import toast from 'react-hot-toast';
+import QRPreviewModal from '../components/common/QRPreviewModal';
+import RESQRQRCodeCard from '../components/common/RESQRQRCodeCard';
+import ResqrLogo from '../components/branding/ResqrLogo';
+import ResqrQrLogo from '../components/branding/ResqrQrLogo';
+
+export default function SuccessPage() {
+    const qrRef = useRef();
+    const [profile, setProfile] = useState(null);
+    const [subscription, setSubscription] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    useEffect(() => {
+        const slug = localStorage.getItem('resqr_active_slug');
+        const fetchProfile = async () => {
+            try {
+                if (!slug) {
+                    setLoading(false);
+                    return;
+                }
+                let snap = null;
+                const uid = slug.startsWith('c_') ? slug.replace('c_', '') : slug.split('_')[0];
+                
+                // 1. Try user-specific profile node
+                if (uid) {
+                    snap = await get(ref(db, `users/${uid}/profiles/${slug}`));
+                }
+
+                // 2. Try global profile node
+                if (!snap || !snap.exists()) {
+                    snap = await get(ref(db, `profiles/${slug}`));
+                }
+
+                // 3. Try direct user node
+                if ((!snap || !snap.exists()) && uid) {
+                    snap = await get(ref(db, `users/${uid}`));
+                }
+
+                if (snap && snap.exists()) {
+                    const data = snap.val();
+                    setProfile(data);
+                    if (data.subscription) {
+                        setSubscription(data.subscription);
+                    }
+                } else {
+                    console.error("Profile node not found, displaying active session fallback");
+                }
+
+                // Fetch dedicated subscription record
+                try {
+                    const subSnap = await get(ref(db, `subscriptions/${slug}`));
+                    if (subSnap.exists()) {
+                        setSubscription(subSnap.val());
+                    } else if (uid) {
+                        const userSubSnap = await get(ref(db, `users/${uid}/subscription`));
+                        if (userSubSnap.exists()) {
+                            setSubscription(userSubSnap.val());
+                        }
+                    }
+                } catch (subErr) {
+                    console.warn("Subscription lookup error:", subErr);
+                }
+            } catch (err) {
+                console.error("Success context load failed:", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchProfile();
+    }, []);
+
+    const handleDownload = () => {
+        const canvas = document.getElementById('success-qr-canvas') || qrRef.current.querySelector('canvas');
+        if (!canvas) {
+            toast.error('QR not ready');
+            return;
+        }
+        const url = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `RESQR_TAG_${getUserName().replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('QR TAG Downloaded!');
+    };
+
+    const handleWhatsAppShare = async () => {
+        const canvas = document.getElementById('success-qr-canvas') || (qrRef.current && qrRef.current.querySelector('canvas'));
+        if (!canvas) {
+            toast.error('QR image preparing...');
+            return;
+        }
+
+        try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File([blob], `RESQR_ID_${getUserName().replace(/\s+/g, '_')}.png`, { type: 'image/png' });
+
+            // Check if native sharing is available (mostly mobile)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'RESQR EMERGENCY IDENTITY',
+                    text: `🚨 *RESQR IDENTITY ACTIVATED*\n\nYour medical profile is now LIVE.\n\n*Access Link:* ${getQRValue()}\n\nIn an emergency, scan this QR to see critical data.`,
+                });
+            } else {
+                // Desktop/Legacy Fallback (URL Link)
+                const phone = profile?.phone || profile?.emergencyContactPhone || '';
+                const message = encodeURIComponent(`🚨 *RESQR IDENTITY ACTIVATED* \n\nYour life-saving medical profile is now LIVE. \n\n*Access Link:* ${getQRValue()}\n\nKeep this link safe. In an emergency, first responders can scan your QR to save your life.`);
+
+                const waUrl = phone
+                    ? `https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`
+                    : `https://wa.me/?text=${message}`;
+
+                window.open(waUrl, '_blank');
+                toast('Sent as text link (Image sharing not supported on this browser)', { icon: 'ℹ️' });
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Share error:', error);
+                toast.error('Activation relay failed');
+            }
+        }
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    const getQRValue = () => {
+        if (profile?.username) {
+            return `${window.location.origin}/${profile.username}`;
+        }
+        const slug = localStorage.getItem('resqr_active_slug');
+        if (!slug) return `${window.location.origin}/qr/demo`;
+        return `${window.location.origin}/qr/${slug}`;
+    };
+
+    const getUserName = () => {
+        if (profile?.data?.name) return profile.data.name;
+        if (profile?.name) return profile.name;
+        const slug = localStorage.getItem('resqr_active_slug');
+        if (!slug) return "Valued User";
+        return slug.split('_').pop() || "User Node";
+    };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-medical-bg flex items-center justify-center">
+                <div className="flex flex-col items-center gap-6">
+                    <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500 animate-pulse italic">Authenticating Identity Node...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-medical-bg py-24 px-4 text-white font-manrope selection:bg-primary/30">
+            <div className="max-w-4xl mx-auto text-center">
+                <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 20 }}
+                    className="mb-8"
+                >
+                    <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-8 border border-primary/30 shadow-[0_0_50px_rgba(230,57,70,0.3)]">
+                        <CheckCircle2 className="text-primary" size={48} />
+                    </div>
+                    <Badge className="bg-primary/20 text-primary border-none mb-6 px-6 py-1 font-black italic tracking-[0.3em]">PROTECTION ACTIVATED</Badge>
+                    <h1 className="text-5xl md:text-7xl font-black text-white italic uppercase tracking-tighter leading-none font-poppins">
+                        You Are Now <span className="text-primary italic-display">Covered.</span>
+                    </h1>
+                </motion.div>
+
+                <p className="text-slate-500 font-bold text-sm italic mb-16 uppercase tracking-widest max-w-xl mx-auto">
+                    Your encrypted medical profile is live. In an emergency, first responders can now access your critical data in seconds.
+                </p>
+
+                <Card className="max-w-sm mx-auto p-12 mb-16 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] border-white/5 overflow-hidden relative group bg-medical-card rounded-[50px]">
+                    <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent" />
+
+                    {profile?.scannerType === 'facial' && profile?.facialImage ? (
+                        <div className="bg-white p-6 rounded-[32px] border-8 border-slate-950 inline-block mb-10 text-center mx-auto">
+                            <div className="flex justify-center mb-4">
+                                <ResqrQrLogo className="h-10 w-auto object-contain" />
+                            </div>
+                            <div className="w-[220px] h-[220px] rounded-[24px] overflow-hidden border-4 border-emerald-500 shadow-xl mx-auto">
+                                <img src={profile.facialImage} alt="Facial Profile" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="mt-4">
+                                <p className="text-[12px] font-black text-slate-900 uppercase tracking-widest italic leading-tight">facial node</p>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[200px] mx-auto">{getUserName()}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="mb-10">
+                            <RESQRQRCodeCard 
+                                canvasId="success-qr-canvas"
+                                qrValue={getQRValue()}
+                                userName={getUserName()}
+                                size={200}
+                                showBorder={true}
+                            />
+                        </div>
+                    )}
+
+                    <div className="text-left space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Vault Status</span>
+                            <span className="text-emerald-400 flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Secured & Live
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Patient Name</span>
+                            <span className="text-white italic tracking-tighter truncate ml-4 text-sm font-bold">{getUserName()}</span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Blood Group</span>
+                            <span className="text-primary font-black italic text-base px-2 py-0.5 bg-primary/10 rounded-lg border border-primary/20">
+                                {profile?.medical?.bloodGroup || profile?.bloodGroup || 'O+'}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Emergency Contact</span>
+                            <span className="text-white font-mono font-bold">{profile?.emergencyContacts?.[0]?.phone || profile?.phone || '+91 9876543210'}</span>
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-white/5 text-[10px] font-black uppercase tracking-widest">
+                            <span className="text-slate-500 italic">Medical ID Tag</span>
+                            <span className="text-slate-300 font-mono text-[11px]">{profile?.medical?.medicalId || profile?.id || 'RESQR-MED-94821'}</span>
+                        </div>
+                        {profile?.insurance?.insuranceCompany && (
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500 italic">Insurance Cover</span>
+                                <span className="text-blue-400 font-bold">{profile.insurance.insuranceCompany}</span>
+                            </div>
+                        )}
+
+                        {/* Subscription Validity Information */}
+                        <div className="mt-6 pt-4 border-t border-white/10 bg-slate-900/60 -mx-6 -mb-6 p-6 rounded-b-[40px] text-left space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Subscription Plan</span>
+                                <span className="text-xs font-black text-white">{subscription?.planName || 'RESQR Registration (3M)'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>
+                                <span className="text-xs font-black text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                                    ● {subscription?.status || 'ACTIVE'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Valid Until</span>
+                                <span className="text-xs font-bold text-slate-200">
+                                    {subscription?.expiresAt 
+                                        ? new Date(subscription.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                                        : '3 Months Validity'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Days Remaining</span>
+                                <span className="text-xs font-black text-primary">
+                                    {subscription?.expiresAt 
+                                        ? Math.max(0, Math.ceil((new Date(subscription.expiresAt) - new Date()) / (1000 * 60 * 60 * 24))) + ' Days'
+                                        : '90 Days'}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Physical Deliverable</span>
+                                <span className="text-[11px] font-bold text-amber-400">2 Reflective Stickers Dispatched</span>
+                            </div>
+                        </div>
+                    </div>
+                </Card>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-md mx-auto mb-16">
+                    <Button className="w-full py-8 text-xl font-black italic rounded-[24px] shadow-2xl shadow-primary/20 bg-primary text-white border-none group hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-tighter" onClick={handleDownload}>
+                        <Download size={22} className="mr-2" /> DISPATCH TAG
+                    </Button>
+                    <Button className="w-full py-8 text-xl font-black italic rounded-[24px] shadow-2xl shadow-green-500/20 bg-green-600 text-white border-none group hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-tighter" onClick={handleWhatsAppShare}>
+                        <MessageSquare size={22} className="mr-2" /> SEND TO WHATSAPP
+                    </Button>
+                    <Button variant="outline" className="w-full h-20 rounded-[24px] border-white/10 text-slate-300 font-black italic uppercase tracking-widest text-[11px] hover:bg-white/5" onClick={handlePrint}>
+                        <Printer size={18} className="mr-2" /> Print Physical Card
+                    </Button>
+                    <Button variant="ghost" className="text-slate-500 font-black italic uppercase tracking-[0.3em] text-[10px] h-12" onClick={() => {
+                        navigator.clipboard.writeText(getQRValue());
+                        toast.success('Broadcast Link Copied!');
+                    }}>
+                        <Share2 size={16} className="mr-2" /> Share Profile Link
+                    </Button>
+                </div>
+
+                <div className="border-t border-white/5 pt-16 flex flex-col sm:flex-row items-center justify-center gap-6">
+                    <Button 
+                        onClick={() => setIsPreviewOpen(true)}
+                        className="w-full sm:w-auto h-16 px-10 rounded-2xl bg-primary text-white font-black italic uppercase tracking-widest text-[11px] shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Eye size={18} /> PREVIEW LIVE MEDICAL QR BADGE
+                    </Button>
+                    <Link to="/dashboard" className="w-full sm:w-auto">
+                        <Button variant="secondary" className="w-full sm:w-auto h-16 px-10 rounded-2xl bg-white/5 text-white border border-white/10 font-black italic uppercase tracking-widest text-[11px] hover:bg-white/10">
+                            GO TO COMMAND HUB <LayoutDashboard size={18} className="ml-3 text-primary" />
+                        </Button>
+                    </Link>
+                    <Link to={getQRValue()} className="w-full sm:w-auto">
+                        <Button variant="ghost" className="w-full sm:w-auto h-16 px-10 rounded-2xl text-slate-500 font-black italic uppercase tracking-widest text-[11px] hover:text-white">
+                            PREVIEW PUBLIC VAULT <ChevronRight size={18} className="ml-2" />
+                        </Button>
+                    </Link>
+                </div>
+
+                <footer className="mt-24 opacity-60">
+                    <div className="flex justify-center mb-6">
+                        <ResqrLogo className="h-10 w-auto object-contain" />
+                    </div>
+                    <p className="text-[8px] font-black uppercase tracking-[0.5em] text-white">
+                        Powered by Guardian Blockchain • End-to-End Safety Infrastructure
+                    </p>
+                </footer>
+
+                {/* QR Preview Modal */}
+                <QRPreviewModal 
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                    patientData={{
+                        name: getUserName(),
+                        bloodGroup: profile?.medical?.bloodGroup || profile?.bloodGroup || 'O+',
+                        phone: profile?.emergencyContacts?.[0]?.phone || profile?.phone || '9876543210',
+                        emergencyContacts: profile?.emergencyContacts || [{ name: 'Emergency Kin', phone: profile?.phone || '9876543210' }],
+                        allergies: profile?.medical?.allergies || profile?.allergies || 'No known allergies',
+                        medicalConditions: profile?.medical?.medicalConditions || profile?.medicalConditions || 'Healthy',
+                        medicalId: profile?.medical?.medicalId || profile?.id || 'RESQR-MED-94821',
+                        insuranceCompany: profile?.insurance?.insuranceCompany || 'Star Health',
+                        username: profile?.username || ''
+                    }}
+                />
+            </div>
+        </div>
+    );
+}
